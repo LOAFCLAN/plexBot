@@ -32,8 +32,9 @@ class PlexContext(commands.Context):
             row = cursor.fetchone()
             try:
                 plex_servers[guild_id] = PlexServer(row[1], row[2])
-            except Exception:
-                raise Exception("Invalid plex server credentials, or server is offline")
+            except Exception as e:
+                raise Exception("Invalid plex server credentials, or server is offline"
+                                "\nTraceback: %s" % traceback.format_exc())
         return plex_servers[guild_id]
 
 
