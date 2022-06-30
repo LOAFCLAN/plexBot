@@ -15,7 +15,7 @@ from utils import get_all_library, session_embed
 class PlexBot(Cog):
 
     async def user_add(self, ctx, plex_id):
-        celery = ctx.plex.myPlexAccount()
+        celery = ctx.plex().myPlexAccount()
         pending = celery.pendingInvites()
         if len(pending) == 0:
             embed = discord.Embed(title="Add User", description="There are currently no pending invites, "
@@ -42,7 +42,7 @@ class PlexBot(Cog):
                 embed.add_field(name="Show Library's", value=show_library_string, inline=True)
                 embed.timestamp = datetime.datetime.utcnow()
                 await ctx.send(embed=embed)
-                return ctx.plex.getUser(plex_id)
+                return ctx.plex().getUser(plex_id)
 
         embed = discord.Embed(title="Add User", description="User was not found in pending invites", color=0xFF0000)
         embed.timestamp = datetime.datetime.utcnow()
@@ -112,7 +112,7 @@ class PlexBot(Cog):
 
     @command(name="pending_invites", aliases=["pendinginvites", "pendinginvite", "pending"])
     async def pending_invites(self, ctx):
-        celery = ctx.plex.myPlexAccount()
+        celery = ctx.plex().myPlexAccount()
         invites = celery.pendingInvites()
         incoming = celery.pendingInvites(includeSent=False)
         outgoing = celery.pendingInvites(includeReceived=False)
@@ -146,7 +146,7 @@ class PlexBot(Cog):
 
     @command(name="invite_friend", aliases=["invite", "invite_user"])
     async def invite_friend(self, ctx, *, plex_id: str):
-        celery = ctx.plex.myPlexAccount()
+        celery = ctx.plex().myPlexAccount()
         celery.inviteFriend(plex_id, ctx.plex, get_all_library(ctx.plex))
         movie_library_string = ""
         for library in get_all_library(ctx.plex):
@@ -170,8 +170,8 @@ class PlexBot(Cog):
     @has_permissions(administrator=True)
     @command(name="remove_user", aliases=["removeuser", "ru"])
     async def remove_user(self, ctx, user_id):
-        celery = ctx.plex.myPlexAccount()
-        users = ctx.plex.systemAccounts()
+        celery = ctx.plex().myPlexAccount()
+        users = ctx.plex().systemAccounts()
         for user in users[2:]:
             if user.name == user_id:
                 embed = discord.Embed(title="Remove User",
@@ -190,20 +190,20 @@ class PlexBot(Cog):
                         try:
                             celery.removeFriend(user.id)
                             embed = discord.Embed(title="Remove User",
-                                                  description=f"User `{user.name}` was removed from {ctx.plex.friendlyName}",
+                                                  description=f"User `{user.name}` was removed from {ctx.plex().friendlyName}",
                                                   color=0x00ff00)
                             embed.timestamp = datetime.datetime.utcnow()
                             await msg.edit(embed=embed)
                         except Exception as e:
                             embed = discord.Embed(title="Remove User",
-                                                  description=f"User `{user.name}` was not removed from {ctx.plex.friendlyName}",
+                                                  description=f"User `{user.name}` was not removed from {ctx.plex().friendlyName}",
                                                   color=0xFF0000)
                             embed.add_field(name="Error", value=f"{e}", inline=False)
                             embed.timestamp = datetime.datetime.utcnow()
                             await msg.edit(embed=embed)
                     elif str(reaction.emoji) == "❎":
                         embed = discord.Embed(title="Remove User",
-                                              description=f"User `{user.name}` was not removed from {ctx.plex.friendlyName}"
+                                              description=f"User `{user.name}` was not removed from {ctx.plex().friendlyName}"
                                               , color=0xFF0000)
                         embed.timestamp = datetime.datetime.utcnow()
                         await msg.edit(embed=embed)
@@ -217,7 +217,7 @@ class PlexBot(Cog):
     @has_permissions(manage_guild=True)
     @command(name='users')
     async def users(self, ctx):
-        celery = ctx.plex.myPlexAccount()
+        celery = ctx.plex().myPlexAccount()
         users = celery.users()
         embed = discord.Embed(title="Users", description="", color=0x00ff00)
         for user in users:
@@ -250,8 +250,8 @@ class PlexBot(Cog):
     @command(name='plex')
     async def plex_status(self, ctx):
         embed = discord.Embed(title="Plex Status", description="", color=0x00ff00)
-        embed.add_field(name="Clients", value=f"{len(ctx.plex.systemAccounts())}", inline=False)
-        for client in ctx.plex.systemAccounts():
+        embed.add_field(name="Clients", value=f"{len(ctx.plex().systemAccounts())}", inline=False)
+        for client in ctx.plex().systemAccounts():
             if len(client.name) < 1:
                 client.name = "Unknown"
             embed.add_field(name=client.name, value=client.key, inline=False)

@@ -21,6 +21,9 @@ plex_servers = {}
 class PlexContext(commands.Context):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
+
+    @property
+    def plex(self):
         guild_id = self.guild.id
         if guild_id not in plex_servers:
             cursor = self.bot.database.execute("SELECT * FROM plex_servers WHERE guild_id = ?", (guild_id,))
@@ -31,7 +34,7 @@ class PlexContext(commands.Context):
                 plex_servers[guild_id] = PlexServer(row[1], row[2])
             except Exception:
                 raise Exception("Invalid plex server credentials, or server is offline")
-        self.plex = plex_servers[guild_id]
+        return plex_servers[guild_id]
 
 
 class PlexBot(commands.Bot):
