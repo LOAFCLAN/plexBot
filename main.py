@@ -1,5 +1,6 @@
 import datetime
 import os
+import re
 import sys
 import traceback
 from decimal import InvalidContext
@@ -9,6 +10,8 @@ import sqlite3
 from discord.ext import commands
 from plexapi.server import PlexServer
 import discord
+
+import utils
 
 activity = PlexServer.activities
 
@@ -107,19 +110,19 @@ class PlexBot(commands.Bot):
             await context.send('{}, This command cannot be used in DMs.'.format(context.author.mention))
         elif isinstance(exception, commands.UserInputError):
             pass  # Silent ignore
-            # await context.send('{}, {}'.format(context.author.mention, self.format_error(context, exception)))
+            await context.send('{}, {}'.format(context.author.mention, self.format_error(context, exception)))
         elif isinstance(exception, commands.NotOwner):
             await context.send('{}, {}'.format(context.author.mention, exception.args[0]))
         elif isinstance(exception, commands.MissingPermissions):
             permission_names = [name.replace('guild', 'server').replace('_', ' ').title() for name in
                                 exception.missing_perms]
-            # await context.send('{}, you need {} permissions to run this command!'.format(
-            #     context.author.mention, utils.pretty_concat(permission_names)))
+            await context.send('{}, you need {} permissions to run this command!'.format(
+                context.author.mention, utils.pretty_concat(permission_names)))
         elif isinstance(exception, commands.BotMissingPermissions):
             permission_names = [name.replace('guild', 'server').replace('_', ' ').title() for name in
                                 exception.missing_perms]
-            # await context.send('{}, I need {} permissions to run this command!'.format(
-            #     context.author.mention, utils.pretty_concat(permission_names)))
+            await context.send('{}, I need {} permissions to run this command!'.format(
+                context.author.mention, utils.pretty_concat(permission_names)))
         elif isinstance(exception, commands.CommandOnCooldown):
             await context.send(
                 '{}, That command is on cooldown! Try again in {:.2f}s!'.format(context.author.mention,
@@ -139,15 +142,20 @@ class PlexBot(commands.Bot):
             await context.send(
                 '```\n%s\n```' % ''.join(traceback.format_exception_only(type(exception), exception)).strip())
             if isinstance(context.channel, discord.TextChannel):
-                pass
-                # DOZER_LOGGER.error('Error in command <%d> (%d.name!r(%d.id) %d(%d.id) %d(%d.id) %d)',
-                #                    context.command, context.guild, context.guild, context.channel, context.channel,
-                #                    context.author, context.author, context.message.content)
+                pass  # Silent ignore
             else:
                 pass
-            #     DOZER_LOGGER.error('Error in command <%d> (DM %d(%d.id) %d)', context.command, context.channel.recipient,
-            #                        context.channel.recipient, context.message.content)
-            # DOZER_LOGGER.error(''.join(traceback.format_exception(type(exception), exception, exception.__traceback__))
+
+    @staticmethod
+    def format_error(ctx, err, *, word_re=re.compile('[A-Z][a-z]+')):
+        """Turns an exception into a user-friendly (or -friendlier, at least) error message."""
+        type_words = word_re.findall(type(err).__name__)
+        type_msg = ' '.join(map(str.lower, type_words))
+
+        if err.args:
+            return '%s: %s' % (type_msg, utils.clean(ctx, err.args[0]))
+        else:
+            return type_msg
 
 
 intents = discord.Intents.default()
