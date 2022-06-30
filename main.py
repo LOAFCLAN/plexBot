@@ -23,6 +23,15 @@ if config is None:
     database.commit()
     config = database.cursor()
     print("No config found, created one")
+    print("Please set the bot's prefix and token in the database")
+    print("Token: ")
+    token = input()
+    print("Prefix: ")
+    prefix = input()
+    database.execute('''UPDATE bot_config SET token = ?, prefix = ?''', (token, prefix))
+    database.commit()
+    print("Config set, restarting...")
+    os.execl(__file__, 'python3', 'main.py')
 bot = discord.ext.commands.Bot(command_prefix=config[1])
 other_token = config[0]
 
