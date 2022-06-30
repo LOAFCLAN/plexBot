@@ -118,7 +118,7 @@ async def update(ctx):
             await ctx.send("```\n" + new_res[2000:] + "```")
         else:
             await ctx.send('```\n' + new_res + '```')
-        await msg.edit(content="Restarting...")
+        await msg.edit(content="Restarting...") # Edit the message to show that the bot is restarting
         # await ctx.bot.get_command('restart').callback(self, ctx)
 
     await msg.delete()
