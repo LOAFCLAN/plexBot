@@ -34,7 +34,7 @@ class PlexContext(commands.Context):
                 plex_servers[guild_id] = PlexServer(row[1], row[2])
             except Exception as e:
                 raise Exception("Invalid plex server credentials, or server is offline"
-                                "\nTraceback: %s" % traceback.format_exc())
+                                "\nTraceback: %s" % traceback.format_exc()[1800:])
         return plex_servers[guild_id]
 
 
@@ -151,6 +151,8 @@ class PlexBot(commands.Bot):
         else:
             await context.send(
                 '```\n%s\n```' % ''.join(traceback.format_exception_only(type(exception), exception)).strip())
+            # Print traceback to console
+            print(''.join(traceback.format_exception(type(exception), exception, exception.__traceback__)).strip())
             if isinstance(context.channel, discord.TextChannel):
                 pass  # Silent ignore
             else:

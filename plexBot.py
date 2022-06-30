@@ -112,7 +112,7 @@ class PlexBot(Cog):
 
     @command(name="pending_invites", aliases=["pendinginvites", "pendinginvite", "pending"])
     async def pending_invites(self, ctx):
-        celery = ctx.plex().myPlexAccount()
+        celery = ctx.plex.myPlexAccount()
         invites = celery.pendingInvites()
         incoming = celery.pendingInvites(includeSent=False)
         outgoing = celery.pendingInvites(includeReceived=False)
@@ -146,7 +146,7 @@ class PlexBot(Cog):
 
     @command(name="invite_friend", aliases=["invite", "invite_user"])
     async def invite_friend(self, ctx, *, plex_id: str):
-        celery = ctx.plex().myPlexAccount()
+        celery = ctx.plex.myPlexAccount()
         celery.inviteFriend(plex_id, ctx.plex, get_all_library(ctx.plex))
         movie_library_string = ""
         for library in get_all_library(ctx.plex):
@@ -170,8 +170,8 @@ class PlexBot(Cog):
     @has_permissions(administrator=True)
     @command(name="remove_user", aliases=["removeuser", "ru"])
     async def remove_user(self, ctx, user_id):
-        celery = ctx.plex().myPlexAccount()
-        users = ctx.plex().systemAccounts()
+        celery = ctx.plex.myPlexAccount()
+        users = ctx.plex.systemAccounts()
         for user in users[2:]:
             if user.name == user_id:
                 embed = discord.Embed(title="Remove User",
@@ -190,20 +190,20 @@ class PlexBot(Cog):
                         try:
                             celery.removeFriend(user.id)
                             embed = discord.Embed(title="Remove User",
-                                                  description=f"User `{user.name}` was removed from {ctx.plex().friendlyName}",
+                                                  description=f"User `{user.name}` was removed from {ctx.plex.friendlyName}",
                                                   color=0x00ff00)
                             embed.timestamp = datetime.datetime.utcnow()
                             await msg.edit(embed=embed)
                         except Exception as e:
                             embed = discord.Embed(title="Remove User",
-                                                  description=f"User `{user.name}` was not removed from {ctx.plex().friendlyName}",
+                                                  description=f"User `{user.name}` was not removed from {ctx.plex.friendlyName}",
                                                   color=0xFF0000)
                             embed.add_field(name="Error", value=f"{e}", inline=False)
                             embed.timestamp = datetime.datetime.utcnow()
                             await msg.edit(embed=embed)
                     elif str(reaction.emoji) == "❎":
                         embed = discord.Embed(title="Remove User",
-                                              description=f"User `{user.name}` was not removed from {ctx.plex().friendlyName}"
+                                              description=f"User `{user.name}` was not removed from {ctx.plex.friendlyName}"
                                               , color=0xFF0000)
                         embed.timestamp = datetime.datetime.utcnow()
                         await msg.edit(embed=embed)
