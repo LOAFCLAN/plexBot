@@ -57,6 +57,7 @@ class PlexBot(commands.Bot):
     def __init__(self, *args, **kwargs):
         self.database = sqlite3.connect('plex_bot.db')
         self.database_init()
+
         self.database.execute('''CREATE TABLE IF NOT EXISTS bot_config (token TEXT, prefix TEXT)''')
         self.database.commit()
         # Get the bot's prefix from the database
@@ -78,6 +79,9 @@ class PlexBot(commands.Bot):
             self.unload_extension(extension)
         self.load_extension('plexBot')
         self.load_extension('maint')
+
+    def owner(self):
+        return super().owner_id
 
     async def get_context(self, message, *, cls=PlexContext):
         ctx = await super().get_context(message, cls=cls)
@@ -138,6 +142,8 @@ class PlexBot(commands.Bot):
                     context.author.mention, types[exception.per], exception.number))
         elif isinstance(exception, (commands.CommandNotFound, InvalidContext)):
             pass  # Silent ignore
+        elif isinstance(exception, commands.CheckFailure):
+            await context.send('{}, {}'.format(context.author.mention, exception.args[0]))
         else:
             await context.send(
                 '```\n%s\n```' % ''.join(traceback.format_exception_only(type(exception), exception)).strip())
