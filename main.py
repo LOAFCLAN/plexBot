@@ -109,7 +109,7 @@ async def update(ctx):
         res = os.popen("pip install -r requirements.txt").read()
         print(res)
         await ctx.send('```\n' + res + '```')
-        await msg.edit(content="Restarting...")
+        await msg.edit(content="Restarting...") # Adding this so i can update it again
         # await ctx.bot.get_command('restart').callback(self, ctx)
 
     await msg.delete()
