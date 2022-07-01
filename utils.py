@@ -43,7 +43,7 @@ async def session_embed(plex):
 
         timeline = f"{current_position} / {total_duration} - {str(session.players[0].state).capitalize()}"
         if len(session.session) == 0:
-            bandwidth = "No bandwidth info"
+            bandwidth = "Invalid encoding, they probably need help"
         else:
             bandwidth = f"{round(session.session[0].bandwidth)} kbps of bandwidth reserved"
             total_bandwidth += session.session[0].bandwidth
