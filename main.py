@@ -40,10 +40,15 @@ class PlexContext(commands.Context):
 
 class PlexBot(commands.Bot):
 
+    async def restart(self):
+        await self.close()
+        self.loop.stop()
+
     async def shutdown(self):
         """Shuts down the bot"""
         await self.close()
         self.loop.stop()
+        os.execv(sys.executable, ['systemctl', '--user', 'stop', 'plex_bot.service'])
 
     def database_init(self):
         self.database.execute(
