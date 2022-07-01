@@ -69,7 +69,7 @@ class maintCog(Cog):
     @command(name="update", is_owner=True, hidden=True)
     async def update(self, ctx):
         """Update the bot from the master branch"""
-        await ctx.send("Updating...")
+        msg = await ctx.send("Updating...")
         res = os.popen("git pull").read()
         if res.startswith('Already up to date.'):
             await ctx.send('```\n' + res + '```')
@@ -88,7 +88,8 @@ class maintCog(Cog):
                 await ctx.send("```\n" + new_res[2000:] + "```")
             else:
                 await ctx.send('```\n' + new_res + '```')
-            await ctx.bot.get_command('restart').callback(self, ctx)
+            await msg.edit(content="Restarting...")
+            await self.bot.shutdown(restart=True)
 
 
 def load_function(code, globals_, locals_):
