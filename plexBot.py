@@ -144,6 +144,7 @@ class PlexBot(Cog):
         embed.timestamp = datetime.datetime.utcnow()
         await ctx.send(embed=embed)
 
+    @has_permissions(manage_guild=True)
     @command(name="invite_friend", aliases=["invite", "invite_user"])
     async def invite_friend(self, ctx, *, plex_id: str):
         celery = ctx.plex.myPlexAccount()
@@ -159,6 +160,16 @@ class PlexBot(Cog):
             if library.type == "show":
                 show_library_string += f"`{library.title}` (Size: `{library.totalSize}`)\n"
         embed.add_field(name="Show Library's", value=show_library_string, inline=True)
+        embed.set_footer(text="Check you email to accept the invite")
+        embed.timestamp = datetime.datetime.utcnow()
+        await ctx.send(embed=embed)
+
+    @has_permissions(manage_guild=True)
+    @command(name="cancel_invite", aliases=["cancel"])
+    async def cancel_invite(self, ctx, *, plex_id: str):
+        celery = ctx.plex.myPlexAccount()
+        invite = celery.cancelInvite(plex_id)
+        embed = discord.Embed(title="Cancel Invite", description="Invite was canceled", color=0x00ff00)
         embed.timestamp = datetime.datetime.utcnow()
         await ctx.send(embed=embed)
 
