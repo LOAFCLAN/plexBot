@@ -63,7 +63,7 @@ class maintCog(Cog):
     @command(name="restart", help="Restarts the bot", is_owner=True)
     async def restart(self, ctx):
         await ctx.send("Restarting...")
-        await self.bot.shutdown()
+        await self.bot.restart()
 
     @is_owner()
     @command(name="update", is_owner=True, hidden=True)
@@ -89,7 +89,7 @@ class maintCog(Cog):
             else:
                 await ctx.send('```\n' + new_res + '```')
             await msg.edit(content="Restarting...")
-            await self.bot.shutdown()
+            await self.bot.restart()
 
 
 def load_function(code, globals_, locals_):
