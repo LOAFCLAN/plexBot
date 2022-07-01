@@ -192,8 +192,8 @@ class PlexBot(Cog):
                 await msg.add_reaction("✅")
                 await msg.add_reaction("❎")
 
-                def check(msg_reaction, msg_user):
-                    return msg_user == ctx.author and str(msg_reaction.emoji) in ["✅", "❎"]
+                def check(msg_reaction, react_user):
+                    return react_user == ctx.author and str(msg_reaction.emoji) in ["✅", "❎"]
 
                 try:
                     reaction, msg_user = await self.bot.wait_for('reaction_add', timeout=30.0, check=check)
@@ -252,6 +252,10 @@ class PlexBot(Cog):
     async def signup(self, ctx):
         await ctx.send("https://plex.tv/sign-up")
 
+    @command(name='player', aliases=['download'])
+    async def signup(self, ctx):
+        await ctx.send("https://www.plex.tv/media-server-downloads/#plex-app")
+
     @command(name='sessions')
     async def sessions(self, ctx):
         embed = await session_embed(ctx.plex)
@@ -299,6 +303,19 @@ class PlexBot(Cog):
         await ctx.send(embed=embed)
         # Delete the command message as it contains the servers token
         await ctx.message.delete()
+
+    @command(name='transcoding', aliases=['layer8', 'thespiel', 'therant', 'pebkac'], description="Just ask nick")
+    async def transcoding(self, ctx):
+        spiel_txt = """```
+        Some video files are encoded in a way that the Plex player will lag or drop frames while watching. For the best experience, follow these steps:
+        1. Install the plex windows app, DO NOT use the website version. (!download)
+        2. Click the settings icon in the top right of the Plex player
+        3. Under the "Plex for Windows" section, go to "Player"
+        4. Click the "Show Advanced" button in the top right
+        5. Under "Video", uncheck the box that reads "Use Hardware Decoding"
+        This should fix the vast majority of playback issues.
+        ```"""
+        await ctx.send(spiel_txt)
 
 
 def setup(bot):

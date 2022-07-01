@@ -47,7 +47,7 @@ class PlexBot(commands.Bot):
     async def shutdown(self):
         """Shuts down the bot"""
         await self.close()
-        os.popen("systemctl --user stop plexbot.service").read()
+        os.popen("systemctl stop plexbot.service").read()
         self.loop.stop()
 
     def database_init(self):
@@ -112,6 +112,7 @@ class PlexBot(commands.Bot):
     async def on_ready(self):
         print(f'Logged in as {self.user.name}')
         print(f'Bot ID: {self.user.id}')
+        await self.change_presence(activity=discord.Game(name="PlexBot"))
         # To get the activity message IDs and channel IDs
 
     def run(self):
