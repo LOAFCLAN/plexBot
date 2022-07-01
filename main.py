@@ -42,13 +42,14 @@ class PlexBot(commands.Bot):
 
     async def restart(self):
         await self.close()
-        self.loop.stop()
+        # self.loop.stop()
 
     async def shutdown(self):
         """Shuts down the bot"""
         await self.close()
-        os.popen("systemctl --user stop plex_bot.service")
-        self.loop.stop()
+        result = os.popen("systemctl --user stop plex_bot.service").read()
+        print(result)
+        # self.loop.stop()
 
     def database_init(self):
         self.database.execute(
