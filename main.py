@@ -47,7 +47,7 @@ class PlexBot(commands.Bot):
     async def shutdown(self):
         """Shuts down the bot"""
         # await self.close()
-        result = os.popen("systemctl --user stop plex_bot.service").read()
+        result = os.popen("systemctl --user stop plexbot.service").read()
         print(result)
         # self.loop.stop()
 
