@@ -228,7 +228,7 @@ class PlexBot(Cog):
     @has_permissions(manage_guild=True)
     @command(name='users')
     async def users(self, ctx):
-        celery = ctx.plex().myPlexAccount()
+        celery = ctx.plex.myPlexAccount()
         users = celery.users()
         embed = discord.Embed(title="Users", description="", color=0x00ff00)
         for user in users:
