@@ -40,9 +40,8 @@ class PlexContext(commands.Context):
 
 class PlexBot(commands.Bot):
 
-    async def shutdown(self, restart=False):
+    async def shutdown(self):
         """Shuts down the bot"""
-        self._restarting = restart
         await self.close()
         self.loop.stop()
 
