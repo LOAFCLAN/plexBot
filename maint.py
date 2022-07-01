@@ -87,14 +87,15 @@ class maintCog(Cog):
             reaction, user = await self.bot.wait_for('reaction_add', check=check, timeout=30)
             if reaction.emoji == "✅":
                 await msg.edit(embed=discord.Embed(title="Shut down", description="Shutting down...", color=0x00FF00))
+                await msg.clear_reactions()
                 await self.bot.shutdown()
             elif reaction.emoji == "❌":
                 await msg.edit(embed=discord.Embed(title="Shut down", description="Shutdown cancelled", color=0xFF0000))
         except asyncio.TimeoutError:
             await msg.edit(
                 embed=discord.Embed(title="Shut down cancelled", description="Shut down cancelled", color=0xFF0000))
-
         await msg.clear_reactions()
+
 
     @is_owner()
     @command(name="update", is_owner=True)
