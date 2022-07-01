@@ -1,3 +1,4 @@
+import asyncio
 import copy
 import os
 import re
@@ -66,7 +67,37 @@ class maintCog(Cog):
         await self.bot.restart()
 
     @is_owner()
-    @command(name="update", is_owner=True, hidden=True)
+    @command(name="shutdown", help="Shuts down the bot", is_owner=True)
+    async def shutdown(self, ctx):
+        embed = discord.Embed(title="Shut down?", description="Are you sure you want to shut down?\n"
+                                                              "This action is not easily reversed", color=0x00FF00)
+        embed.set_footer(text="React with ✅ to confirm or ❌ to cancel")
+        msg = await ctx.send(embed=embed)
+        await msg.add_reaction("✅")
+        await msg.add_reaction("❌")
+
+        def check(reaction, user):
+            if user == ctx.author and reaction.message.id == msg.id and reaction.emoji == "✅":
+                return True
+            elif user == ctx.author and reaction.message.id == msg.id and reaction.emoji == "❌":
+                return True
+            return False
+
+        try:
+            reaction, user = await self.bot.wait_for('reaction_add', check=check, timeout=30)
+            if reaction.emoji == "✅":
+                await msg.edit(embed=discord.Embed(title="Shut down", description="Shutting down...", color=0x00FF00))
+                await self.bot.shutdown()
+            elif reaction.emoji == "❌":
+                await msg.edit(embed=discord.Embed(title="Shut down", description="Shutdown cancelled", color=0xFF0000))
+        except asyncio.TimeoutError:
+            await msg.edit(
+                embed=discord.Embed(title="Shut down cancelled", description="Shut down cancelled", color=0xFF0000))
+
+        await msg.clear_reactions()
+
+    @is_owner()
+    @command(name="update", is_owner=True)
     async def update(self, ctx):
         """Update the bot from the master branch"""
         msg = await ctx.send("Updating...")
