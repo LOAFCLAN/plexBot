@@ -4,7 +4,7 @@ import random
 import traceback
 import typing
 
-from discord.ext.commands import command, has_permissions, Cog, Context
+from discord.ext.commands import command, has_permissions, Cog, Context, BadArgument
 from plexapi.server import PlexServer
 import discord.errors as discord_errors
 import discord
@@ -287,6 +287,8 @@ class PlexBot(Cog):
     @command(name='set_plex_server', aliases=['setplexserver', 'sp'])
     async def set_plex_server(self, ctx, plex_url: str, plex_token: str):
         """Sets the plex server to use for the bot"""
+        if not plex_url.startswith("http"):
+            raise BadArgument("Invalid plex url, must be http://<ip>:<port>")
         # Update the plex server in the database with the new values if it exists or create a new entry if it doesn't
         self.bot.database.execute('''INSERT OR REPLACE INTO plex_servers (guild_id, server_url, server_token) VALUES (?, 
         ?, ?)''', (ctx.guild.id, plex_url, plex_token))

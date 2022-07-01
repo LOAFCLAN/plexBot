@@ -50,7 +50,7 @@ class maintCog(Cog):
     @is_owner()
     @command(name='su', pass_context=True)
     async def pseudo(self, ctx, user: discord.Member, *, command):
-        """Execute a command as another user."""
+        """Aka Switch User"""
         msg = copy.copy(ctx.message)
         msg.author = user
         msg.content = command
@@ -69,7 +69,7 @@ class maintCog(Cog):
     @command(name="update", is_owner=True, hidden=True)
     async def update(self, ctx):
         """Update the bot from the master branch"""
-        msg = await ctx.send("Updating...")
+        await ctx.send("Updating...")
         res = os.popen("git pull").read()
         if res.startswith('Already up to date.'):
             await ctx.send('```\n' + res + '```')
@@ -88,9 +88,7 @@ class maintCog(Cog):
                 await ctx.send("```\n" + new_res[2000:] + "```")
             else:
                 await ctx.send('```\n' + new_res + '```')
-            await ctx.bot.get_command('restart').callback(ctx)
-
-        await msg.delete()
+            await ctx.bot.get_command('restart').callback(self, ctx)
 
 
 def load_function(code, globals_, locals_):
