@@ -9,6 +9,7 @@ def get_all_library(plex):
         all_library.append(library)
     return all_library
 
+
 def pretty_concat(strings, single_suffix='', multi_suffix=''):
     """Concatenates things in a pretty way"""
     if len(strings) == 1:
@@ -17,6 +18,7 @@ def pretty_concat(strings, single_suffix='', multi_suffix=''):
         return '{} and {}{}'.format(*strings, multi_suffix)
     else:
         return '{}, and {}{}'.format(', '.join(strings[:-1]), strings[-1], multi_suffix)
+
 
 async def session_embed(plex):
     plex_sessions = plex.sessions()
@@ -40,8 +42,11 @@ async def session_embed(plex):
         total_duration = datetime.timedelta(seconds=round(session.duration / 1000))
 
         timeline = f"{current_position} / {total_duration} - {str(session.players[0].state).capitalize()}"
-        bandwidth = f"{round(session.session[0].bandwidth)} kbps of bandwidth reserved"
-        total_bandwidth += session.session[0].bandwidth
+        if len(session.session) == 0:
+            bandwidth = "No bandwidth info"
+            total_bandwidth += session.session[0].bandwidth
+        else:
+            bandwidth = f"{round(session.session[0].bandwidth)} kbps of bandwidth reserved"
 
         if session.players[0].title:
             device = session.players[0].title
