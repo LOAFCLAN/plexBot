@@ -8,34 +8,14 @@ from decimal import InvalidContext
 import sqlite3
 
 from discord.ext import commands
+from discord.utils import oauth_url
 from plexapi.server import PlexServer
 import discord
 
 import utils
+from plex_wrappers import plex_servers, PlexContext
 
 activity = PlexServer.activities
-
-plex_servers = {}
-
-
-class PlexContext(commands.Context):
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-
-    @property
-    def plex(self):
-        guild_id = self.guild.id
-        if guild_id not in plex_servers:
-            cursor = self.bot.database.execute("SELECT * FROM plex_servers WHERE guild_id = ?", (guild_id,))
-            if cursor.rowcount == 0:
-                raise Exception("No plex server found for this guild")
-            row = cursor.fetchone()
-            try:
-                plex_servers[guild_id] = PlexServer(row[1], row[2])
-            except Exception as e:
-                raise Exception("Invalid plex server credentials, or server is offline"
-                                "\nTraceback: %s" % traceback.format_exc()[1800:])
-        return plex_servers[guild_id]
 
 
 class PlexBot(commands.Bot):
@@ -55,8 +35,9 @@ class PlexBot(commands.Bot):
             '''CREATE TABLE IF NOT EXISTS plex_servers (guild_id INTEGER PRIMARY KEY, server_url TEXT, 
             server_token TEXT);''')
         self.database.execute(
-            '''CREATE TABLE IF NOT EXISTS discord_associations (discord_id INTEGER PRIMARY KEY, plex_id INTEGER, plex_email 
-            TEXT, plex_username TEXT);''')
+            '''CREATE TABLE IF NOT EXISTS discord_associations (guild_id INTEGER,
+             discord_user_id INTEGER, plex_id INTEGER, plex_email 
+            TEXT, plex_username TEXT, PRIMARY KEY (guild_id, discord_user_id));''')
         self.database.execute(
             '''CREATE TABLE IF NOT EXISTS activity_messages (guild_id INTEGER PRIMARY KEY, channel_id INTEGER, message_id 
             INTEGER);''')
@@ -87,6 +68,7 @@ class PlexBot(commands.Bot):
             self.unload_extension(extension)
         self.load_extension('plexBot')
         self.load_extension('maint')
+        self.client = super()
 
     def owner(self):
         return super().owner_id
@@ -114,6 +96,12 @@ class PlexBot(commands.Bot):
         print(f'Bot ID: {self.user.id}')
         await self.change_presence(activity=discord.Game(name="PlexBot"))
         # To get the activity message IDs and channel IDs
+        # Print bot invite link to console
+        perms = 469830672
+        print('<{}>'.format(oauth_url(super().user.id, discord.Permissions(perms))))
+        print("Loading all members")
+        for guild in self.guilds:
+            await guild.chunk()
 
     def run(self):
         super().run(self.token)
@@ -178,6 +166,15 @@ class PlexBot(commands.Bot):
 intents = discord.Intents.default()
 intents.members = True
 intents.presences = True
-
-plex_bot = PlexBot(intents=intents)
-plex_bot.run()
+try:
+    plex_bot = PlexBot(intents=intents)
+    plex_bot.run()
+except discord.errors.PrivilegedIntentsRequired:
+    print("Bot requires privileged intents, starting in safe mode.")
+    plex_bot = PlexBot(intents=discord.Intents.default())
+    plex_bot.run()
+except Exception as e:
+    print(e)
+    print(''.join(traceback.format_exception(type(e), e, e.__traceback__)).strip())
+    print("Bot failed to start, exiting.")
+    exit(1)

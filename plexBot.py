@@ -9,6 +9,8 @@ from plexapi.server import PlexServer
 import discord.errors as discord_errors
 import discord
 
+import plex_wrappers
+from plex_wrappers import DiscordAssociations
 from utils import get_all_library, session_embed
 
 
@@ -50,7 +52,6 @@ class PlexBot(Cog):
 
     def __init__(self, bot):
         self.bot = bot
-        self.plex_servers = {}
         cursor = self.bot.database.execute("SELECT * FROM activity_messages")
         self.activity_messages = [row for row in cursor.fetchall()]
 
@@ -242,6 +243,28 @@ class PlexBot(Cog):
         embed.timestamp = datetime.datetime.utcnow()
         await ctx.send(embed=embed, delete_after=30)
 
+    @has_permissions(manage_guild=True)
+    @command(name='link', aliases=['link_user'])
+    async def link(self, ctx, discord_user: typing.Union[discord.User, discord.Member, discord.Role], plex_id: str):
+        """Link a discord user to a plex user in the bots database"""
+        if isinstance(discord_user, discord.Role):
+            raise BadArgument("You can't link a role to a plex user")
+        print(f"{discord_user.name} is linking to {plex_id}")
+        plex_users = ctx.plex_host.users()
+        plex_user = None
+        for user in plex_users:
+            if user.id == plex_id or user.username == plex_id or user.email == plex_id:
+                plex_user = user
+                break
+        if plex_user is None:
+            await ctx.send("User not found")
+            return
+        if discord_user in ctx.plex.associations:
+            await ctx.send("User already linked")
+            return
+        ctx.plex.associations.add_association(discord_user, plex_user.id, plex_user.username, plex_user.email)
+        await ctx.send(f"User {discord_user.mention} linked to {plex_user.username}")
+
     @command(name='ping')
     async def ping(self, ctx):
         ping_responses = ["Pong!", "What's up", "I'm here!", "I'm here, I'm here!",
@@ -253,7 +276,7 @@ class PlexBot(Cog):
         await ctx.send("https://plex.tv/sign-up")
 
     @command(name='player', aliases=['download'])
-    async def signup(self, ctx):
+    async def download(self, ctx):
         await ctx.send("https://www.plex.tv/media-server-downloads/#plex-app")
 
     @command(name='sessions')
@@ -306,15 +329,12 @@ class PlexBot(Cog):
 
     @command(name='transcoding', aliases=['layer8', 'thespiel', 'therant', 'pebkac'], description="Just ask nick")
     async def transcoding(self, ctx):
-        spiel_txt = """```
-        Some video files are encoded in a way that the Plex player will lag or drop frames while watching. For the best experience, follow these steps:
-        1. Install the plex windows app, DO NOT use the website version. (!download)
-        2. Click the settings icon in the top right of the Plex player
-        3. Under the "Plex for Windows" section, go to "Player"
-        4. Click the "Show Advanced" button in the top right
-        5. Under "Video", uncheck the box that reads "Use Hardware Decoding"
-        This should fix the vast majority of playback issues.
-        ```"""
+        spiel_txt = """```Some video files are encoded in a way that the Plex player will lag or drop frames while 
+        watching. For the best experience, follow these steps: 1. Install the plex windows app, DO NOT use the 
+        website version. (!download) 2. Click the settings icon in the top right of the Plex player 3. Under the 
+        "Plex for Windows" section, go to "Player" 4. Click the "Show Advanced" button in the top right 5. Under 
+        "Video", uncheck the box that reads "Use Hardware Decoding" This should fix the vast majority of playback 
+        issues. ``` """
         await ctx.send(spiel_txt)
 
 
