@@ -104,6 +104,8 @@ async def session_embed(plex):
 
     for session in plex_sessions:
 
+        print(session.session[0].__dict__)
+
         current_position = datetime.timedelta(seconds=round(session.viewOffset / 1000))
         total_duration = datetime.timedelta(seconds=round(session.duration / 1000))
 
@@ -111,8 +113,11 @@ async def session_embed(plex):
         if len(session.session) == 0:
             bandwidth = "Invalid encoding, they probably need help"
         else:
-            bandwidth = f"{round(session.session[0].bandwidth)} kbps of bandwidth reserved"
-            total_bandwidth += session.session[0].bandwidth
+            if session.session[0].location.startswith("lan"):
+                bandwidth = "Local session, no bandwidth reserved"
+            else:
+                bandwidth = f"{round(session.session[0].bandwidth)} kbps of bandwidth reserved"
+                total_bandwidth += session.session[0].bandwidth
 
         if session.players[0].title:
             device = session.players[0].title
