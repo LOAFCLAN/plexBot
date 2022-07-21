@@ -49,6 +49,55 @@ class maintCog(Cog):
         await ctx.send('', embed=e)
 
     @is_owner()
+    @command(name='drop_table')
+    async def dump_db(self, ctx, *, table):
+        """
+        Drops a table from the database.
+        """
+        # Ask for confirmation
+        embed = discord.Embed(title='Drop table',
+                              description='Are you sure you want to drop the table %s?' % table, color=0xFF0000)
+        # Add some details about the table
+        cursor = self.bot.database.execute(f"SELECT * FROM {table}")
+        if cursor.rowcount == -1:
+            embed.add_field(name='Rows', value='Empty')
+        else:
+            embed.add_field(name='Rows', value='%s' % cursor.rowcount)
+        cols = cursor.execute('PRAGMA table_info(%s)' % table).fetchall()
+        columns = [col[1] for col in cols]
+        embed.add_field(name='Columns', value='%s' % ', '.join(columns))
+
+        msg = await ctx.send('', embed=embed)
+        # Add a reaction to the message
+        await msg.add_reaction('✅')
+        await msg.add_reaction('❌')
+
+        # Wait for a reaction
+        def check(reaction, user):
+            return user == ctx.author and str(reaction.emoji) in ['✅', '❌']
+
+        try:
+            reaction, user = await self.bot.wait_for('reaction_add', check=check, timeout=30)
+        except asyncio.TimeoutError:
+            return
+        # Check if the reaction was a success
+        if str(reaction.emoji) == '✅':
+            # Drop the table
+            del_cursor = self.bot.database.execute(f"DROP TABLE {table}")
+            self.bot.database.commit()
+            # Send a message
+            await ctx.send('Table %s dropped' % table)
+        else:
+            # Delete the message
+            await msg.delete()
+            # Send a message
+            await ctx.send('Table %s not dropped' % table)
+
+        # Restart the bot
+        await self.bot.logout()
+        exit(69)
+
+    @is_owner()
     @command(name='su', pass_context=True)
     async def pseudo(self, ctx, user: discord.Member, *, command):
         """Aka Switch User"""
@@ -95,7 +144,6 @@ class maintCog(Cog):
             await msg.edit(
                 embed=discord.Embed(title="Shut down cancelled", description="Shut down cancelled", color=0xFF0000))
         await msg.clear_reactions()
-
 
     @is_owner()
     @command(name="update", is_owner=True)
