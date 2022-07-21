@@ -13,7 +13,7 @@ from plexapi.server import PlexServer
 import discord
 
 import utils
-from plex_wrappers import plex_servers, PlexContext
+from plex_wrappers import plex_servers, PlexContext, discord_associations, DiscordAssociations
 
 activity = PlexServer.activities
 
@@ -89,6 +89,9 @@ class PlexBot(commands.Bot):
                 plex_servers[guild_id] = PlexServer(row[1], row[2])
             except Exception:
                 raise Exception("Invalid plex server credentials, or server is offline")
+        if not hasattr(plex_servers[guild_id], "associations"):
+            discord_associations.update({guild_id: DiscordAssociations(self, guild)})
+            plex_servers[guild_id].associations = discord_associations[guild_id]
         return plex_servers[guild_id]
 
     async def on_ready(self):
