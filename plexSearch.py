@@ -92,6 +92,7 @@ class PlexSearch(commands.Cog):
     async def on_select(self, inter: Interaction):
         if inter.custom_id.startswith("cancel"):
             await inter.disable_components()
+            await inter.message.edit(components=[])
             return
         if inter.custom_id.startswith("content_search"):
             # Get the selected result
