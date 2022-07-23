@@ -14,6 +14,7 @@ import discord
 
 import utils
 from plex_wrappers import plex_servers, PlexContext, discord_associations, DiscordAssociations
+from discord_components import DiscordComponents, Button, ButtonStyle
 
 activity = PlexServer.activities
 
@@ -44,6 +45,7 @@ class PlexBot(commands.Bot):
         self.database.commit()
 
     def __init__(self, *args, **kwargs):
+        self.component_manager = None
         self.database = sqlite3.connect('plex_bot.db')
         self.database_init()
 
@@ -68,6 +70,7 @@ class PlexBot(commands.Bot):
             self.unload_extension(extension)
         self.load_extension('plexBot')
         self.load_extension('maint')
+        self.load_extension('plexSearch')
         self.client = super()
 
     def owner(self):
@@ -103,6 +106,7 @@ class PlexBot(commands.Bot):
         perms = 469830672
         print('<{}>'.format(oauth_url(super().user.id, discord.Permissions(perms))))
         print("Loading all members")
+        self.component_manager = DiscordComponents(self)
         for guild in self.guilds:
             await guild.chunk()
 

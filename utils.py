@@ -104,7 +104,21 @@ async def session_embed(plex):
 
     for session in plex_sessions:
 
-        print(session.session[0].__dict__)
+        if len(session.media) > 1:
+            # Find which media file has a bitrate closest to the reserved bitrate
+            reserved_bitrate = session.session[0].bandwidth
+            closest_bitrate = 0
+            closest_media = None
+            for media in session.media:
+                if closest_bitrate < media.bitrate < reserved_bitrate:
+                    closest_bitrate = media.bitrate
+                    closest_media = media
+            media = closest_media
+
+        elif len(session.media) == 1:
+            media = session.media[0]
+        else:
+            media = None
 
         current_position = datetime.timedelta(seconds=round(session.viewOffset / 1000))
         total_duration = datetime.timedelta(seconds=round(session.duration / 1000))
@@ -116,8 +130,19 @@ async def session_embed(plex):
             if session.session[0].location.startswith("lan"):
                 bandwidth = "Local session, no bandwidth reserved"
             else:
-                bandwidth = f"{round(session.session[0].bandwidth)} kbps of bandwidth reserved"
-                total_bandwidth += session.session[0].bandwidth
+                bandwidth = f"{round(media.bitrate)} kbps of bandwidth reserved"
+                total_bandwidth += media.bitrate
+
+        media_info = "Not available"
+        if len(session.transcodeSessions) == 0:
+            media_info = f"`{media.container}` - `{media.videoCodec}:" \
+                               f" {media.width}x{media.height}@{media.videoFrameRate} " \
+                               f"| {media.audioCodec}: {media.audioChannels}ch`"
+        elif len(session.transcodeSessions) == 1:
+            transcode = session.transcodeSessions[0]
+            if transcode.videoDecision == "transcode" or transcode.audioDecision == "transcode":
+                media_info = f"`{transcode.sourceVideoCodec}:{transcode.sourceAudioCodec}" \
+                                   f"`->`{transcode.videoCodec}:{transcode.audioCodec}`"
 
         if session.players[0].title:
             device = session.players[0].title
@@ -132,17 +157,22 @@ async def session_embed(plex):
         if session.type == 'movie':
             value = f"{session.title} ({session.year})\n" \
                     f"{timeline}\n" \
-                    f"{bandwidth}"
+                    f"{bandwidth}\n" \
+                    f"{media_info}"
         elif session.type == 'episode':
             value = f"{session.grandparentTitle} - `{session.parentTitle}`\n" \
                     f"{session.title} - `Episode {session.index}`\n" \
                     f"{timeline}\n" \
-                    f"{bandwidth}"
+                    f"{bandwidth}\n" \
+                    f"{media_info}"
         else:
             value = f"{session.title} - {session.type}\n" \
-                    f"{timeline}"
+                    f"{timeline}\n" \
+                    f"{bandwidth}\n" \
+                    f"{media_info}"
         # print(session.players[0].__dict__)
-        embed.add_field(name=f"{plex.associations.mention(session.usernames[0])} on {device}", value=value, inline=False)
+        embed.add_field(name=f"{plex.associations.display_name(session.usernames[0])} on {device}", value=value,
+                        inline=False)
 
     embed.timestamp = datetime.datetime.utcnow()
     embed.set_footer(text=f"{round(total_bandwidth)} kps of bandwidth reserved")

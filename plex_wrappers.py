@@ -43,6 +43,8 @@ class PlexContext(commands.Context):
 class DiscordAssociation:
 
     def __init__(self, discord_member: discord.Member, plex_id: str, plex_email: str, plex_username: str):
+        if not isinstance(discord_member, discord.Member):
+            raise Exception("Discord member must be discord.Member, not %s" % type(discord_member))
         self.discord_member = discord_member
         self.plex_id = plex_id
         self.plex_email = plex_email
@@ -88,6 +90,8 @@ class DiscordAssociations:
 
     def __init__(self, bot, guild: discord.Guild):
         self.bot = bot
+        if not isinstance(guild, discord.Guild):
+            raise Exception("Guild must be discord.Guild, not %s" % type(guild))
         self.guild = guild
         self.associations = []
         self.load_associations()
@@ -96,6 +100,8 @@ class DiscordAssociations:
         cursor = self.bot.database.execute("SELECT * FROM discord_associations WHERE guild_id = ?", (self.guild.id,))
         for row in cursor:
             member = self.guild.get_member(row[1])
+            if member is None:
+                continue
             self.associations.append(DiscordAssociation(member, row[2], row[3], row[4]))
 
     def get_discord_association(self, discord_member: discord.Member) -> DiscordAssociation:
@@ -137,6 +143,12 @@ class DiscordAssociations:
         association = self.get_plex_association(plex_user)
         if association is not None:
             return association.discord_member.mention
+        return plex_user
+
+    def display_name(self, plex_user: str) -> str:
+        association = self.get_plex_association(plex_user)
+        if association is not None:
+            return association.discord_member.display_name
         return plex_user
 
     def __str__(self):

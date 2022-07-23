@@ -101,7 +101,7 @@ class PlexBot(Cog):
                     embed = discord.Embed(title="Plex Monitor",
                                           description=f"{self.bot.user.name} has encountered an error", color=0xFF0000)
                     embed.add_field(name="Error", value=f"{e}", inline=False)
-                    embed.add_field(name="Traceback", value=traceback.format_exc(), inline=False)
+                    embed.add_field(name="Traceback", value=traceback.format_exc()[:1024], inline=False)
                     embed.timestamp = datetime.datetime.utcnow()
                     await message.edit(embed=embed)
                     await asyncio.sleep(5)
