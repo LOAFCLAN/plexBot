@@ -151,9 +151,12 @@ async def session_embed(plex):
             if transcode.videoDecision == "transcode" or transcode.audioDecision == "transcode":
                 media_info = f"`{transcode.sourceVideoCodec}:{transcode.sourceAudioCodec}" \
                              f"`->`{transcode.videoCodec}:{transcode.audioCodec}`"
+            else:
+                media_info = f"`{media.container}` - `{media.videoCodec}:" \
+                             f" {media.width}x{media.height}@{media.videoFrameRate} " \
+                             f"| {media.audioCodec}: {media.audioChannels}ch`"
         else:
             media_info = "`Multiple transcode sessions detected!`"
-
 
         if session.players[0].title:
             device = session.players[0].title
