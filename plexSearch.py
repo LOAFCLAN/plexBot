@@ -65,6 +65,7 @@ class PlexSearch(commands.Cog):
         else:
             select_thing = Select(
                 custom_id=f"content_search_{ctx.message.id}",
+                placeholder="Select a result",
                 options=[
                     SelectOption(
                         label=f"{result.title} ({result.year})",
@@ -76,7 +77,7 @@ class PlexSearch(commands.Cog):
             self.bot.component_manager.add_callback(select_thing, self.on_select)
             embed = discord.Embed(title="Search results for '%s'" % query, color=0x00ff00)
             for result in results:
-                embed.add_field(name=f"{result.title} ({result.year})", value=result.summary, inline=False)
+                embed.add_field(name=f"{result.title} ({result.year})", value=result.summary[:1024], inline=False)
             cancel_button = Button(
                 label="Cancel",
                 style=ButtonStyle.red,
@@ -166,6 +167,7 @@ class PlexSearch(commands.Cog):
             # embed.add_field(name="Media", value="\n".join(media_info), inline=False)
             select_thing = Select(
                 custom_id=f"content_search_{edit_msg.id}",
+                placeholder="Select a season",
                 options=[
                     SelectOption(
                         label=f"Season {result.index}",
@@ -184,6 +186,7 @@ class PlexSearch(commands.Cog):
                             value=self.stringify(content.episodes(), separator="\n"), inline=False)
             select_thing = Select(
                 custom_id=f"content_search_{edit_msg.id}",
+                placeholder="Select an episode",
                 options=[
                     SelectOption(
                         label=f"Episode: {result.title}",
