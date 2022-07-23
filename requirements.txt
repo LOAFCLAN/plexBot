@@ -1,2 +1,3 @@
 discord~=1.7.3
 PlexAPI~=4.11.2
+discord_components~=2.1.2
