@@ -141,7 +141,7 @@ async def session_embed(plex):
                     bandwidth = f"{round(media.bitrate)} kbps of bandwidth reserved"
                     total_bandwidth += media.bitrate
 
-        media_info = "Not available"
+        media_info = "`Media info unavailable`"
         if len(session.transcodeSessions) == 0:
             media_info = f"`{media.container}` - `{media.videoCodec}:" \
                          f" {media.width}x{media.height}@{media.videoFrameRate} " \
@@ -151,6 +151,9 @@ async def session_embed(plex):
             if transcode.videoDecision == "transcode" or transcode.audioDecision == "transcode":
                 media_info = f"`{transcode.sourceVideoCodec}:{transcode.sourceAudioCodec}" \
                              f"`->`{transcode.videoCodec}:{transcode.audioCodec}`"
+        else:
+            media_info = "`Multiple transcode sessions detected!`"
+
 
         if session.players[0].title:
             device = session.players[0].title
