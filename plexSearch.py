@@ -44,8 +44,21 @@ class PlexSearch(commands.Cog):
                             return season
         return None
 
+    @command(name="episode_search", aliases=["episode", "es"])
+    async def episode_search(self, ctx, *, query: str):
+        """Search for an episode"""
+        plex = ctx.plex
+        results = plex.search(query)
+
+        # Remove anything that doesn't have a plexapi.video.Video base class
+        results = [r for r in results if isinstance(r, plexapi.video.Video)]
+
+        # Remove anything that isn't an episode
+        results = [r for r in results if r.type == "episode"]
+        await self.search(ctx, results, query)
+
     @command(name="content_search", aliases=["cs"])
-    async def search(self, ctx, *, query):
+    async def content_search(self, ctx, *, query: str):
         """
         Searches Plex for a specific content.
         """
@@ -54,6 +67,12 @@ class PlexSearch(commands.Cog):
 
         # Remove anything that doesn't have a plexapi.video.Video base class
         results = [r for r in results if isinstance(r, plexapi.video.Video)]
+
+        # Filter out episodes and seasons
+        results = [r for r in results if r.type not in ["season", "episode"]]
+        await self.search(ctx, results, query)
+
+    async def search(self, ctx, results, query=None):
 
         if not results:
             await ctx.send("No results found.")
@@ -69,7 +88,7 @@ class PlexSearch(commands.Cog):
                 options=[
                     SelectOption(
                         label=f"{result.title} ({result.year})",
-                        value=f"{result.title}_{hash(result)}",
+                        value=f"{result.title}_{result.year}_{hash(result)}",
                         default=False,
                     ) for result in results
                 ],
@@ -116,8 +135,15 @@ class PlexSearch(commands.Cog):
                 await self.content_details(inter.message, episode, inter.author, inter)
             else:
                 # Run plex search
-                result = plex.search(inter.values[0].split('_')[0])[0]
-                await self.content_details(inter.message, result, inter.author, inter)
+                name = inter.values[0].split("_")[0]
+                year = int(inter.values[0].split("_")[1])
+                results = plex.search(name)
+                for result in results:
+                    if result.year == year:
+                        await inter.disable_components()
+                        await self.content_details(inter.message, result, inter.author, inter)
+                        return
+                await inter.message.edit(content="Error, unable to locate requested content.")
 
     async def content_details(self, edit_msg, content, requester, inter: Interaction = None):
         """"""
@@ -151,6 +177,7 @@ class PlexSearch(commands.Cog):
             embed.add_field(name="Directors", value=self.stringify(content.directors), inline=True)
             embed.add_field(name="Writers", value=self.stringify(content.writers), inline=True)
             embed.add_field(name="Lead Actors", value=self.stringify(content.actors), inline=False)
+            embed.add_field(name="Runtime", value=f"{datetime.timedelta(milliseconds=content.duration)}", inline=False)
             embed.add_field(name="Media", value="\n".join(media_info), inline=False)
 
         elif isinstance(content, plexapi.video.Show):
@@ -207,6 +234,7 @@ class PlexSearch(commands.Cog):
             embed.add_field(name="Directors", value=self.stringify(content.directors), inline=True)
             embed.add_field(name="Writers", value=self.stringify(content.writers), inline=True)
             embed.add_field(name="Lead Actors", value=self.stringify(content.actors), inline=False)
+            embed.add_field(name="Runtime", value=f"{datetime.timedelta(milliseconds=content.duration)}", inline=False)
             embed.add_field(name="Media", value="\n".join(media_info), inline=False)
 
         else:
@@ -218,6 +246,9 @@ class PlexSearch(commands.Cog):
         if hasattr(content, "thumb"):
             thumb_url = cleanup_url(content.thumb)
             embed.set_thumbnail(url=thumb_url)
+
+        # Display what libary section the content is in
+        embed.add_field(name="Located in", value=f"`{content.librarySectionTitle}`", inline=False)
 
         # embed.set_footer(text=f"{content.guid}", icon_url=requester.avatar_url)
         embed.set_footer(text=f"Requested by {requester.name}", icon_url=requester.avatar_url)
