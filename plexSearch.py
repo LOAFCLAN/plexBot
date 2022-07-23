@@ -184,7 +184,7 @@ class PlexSearch(commands.Cog):
             embed = discord.Embed(title=f"{content.parentTitle}",
                                   description=f"Season {content.index}", color=0x00ff00)
             embed.add_field(name=f"Episodes: {len(content.episodes())}",
-                            value=self.stringify(content.episodes(), separator="\n"), inline=False)
+                            value=self.stringify(content.episodes(), separator="\n")[:1024], inline=False)
             select_thing = Select(
                 custom_id=f"content_search_{edit_msg.id}",
                 placeholder="Select an episode",

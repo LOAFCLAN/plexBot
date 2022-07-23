@@ -118,7 +118,8 @@ async def session_embed(plex):
                     closest_bitrate = media.bitrate
                     closest_media = media
             media = closest_media
-
+            if closest_media is None:
+                media = session.media[0]
         elif len(session.media) == 1:
             media = session.media[0]
         else:
@@ -134,8 +135,11 @@ async def session_embed(plex):
             if session.session[0].location.startswith("lan"):
                 bandwidth = "Local session, no bandwidth reserved"
             else:
-                bandwidth = f"{round(media.bitrate)} kbps of bandwidth reserved"
-                total_bandwidth += media.bitrate
+                if media is None:
+                    bandwidth = "Unknown media"
+                else:
+                    bandwidth = f"{round(media.bitrate)} kbps of bandwidth reserved"
+                    total_bandwidth += media.bitrate
 
         media_info = "Not available"
         if len(session.transcodeSessions) == 0:
