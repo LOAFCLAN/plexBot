@@ -131,7 +131,7 @@ def make_episode_selector(season) -> typing.Union[typing.List[Select], Button] o
             options=[
                 SelectOption(
                     label=f"Episode: {result.title}",
-                    value=f"episode_{result.grandparentTitle}_{result.parentIndex}_{result.index}_{hash(result)}",
+                    value=f"e_{result.grandparentTitle}_{result.parentIndex}_{result.index}_{hash(result)}",
                     default=False,
                 ) for result in season.episodes()
             ],
@@ -146,7 +146,7 @@ def make_episode_selector(season) -> typing.Union[typing.List[Select], Button] o
                 options=[
                     SelectOption(
                         label=f"Episode: {result.title}",
-                        value=f"episode_{result.grandparentTitle}_{result.parentIndex}_{result.index}_{hash(result)}",
+                        value=f"e_{result.grandparentTitle}_{result.parentIndex}_{result.index}_{hash(result)}",
                         default=False,
                     ) for result in episodes
                 ],
@@ -172,7 +172,7 @@ def make_season_selector(show) -> typing.Union[typing.List[Select], Button] or N
             options=[
                 SelectOption(
                     label=f"Season {result.index}",
-                    value=f"season_{result.parentTitle}_{result.index}_{hash(result)}",
+                    value=f"s_{result.parentTitle}_{result.index}_{hash(result)}",
                     default=False,
                 ) for result in show.seasons()
             ],
@@ -187,7 +187,7 @@ def make_season_selector(show) -> typing.Union[typing.List[Select], Button] or N
                 options=[
                     SelectOption(
                         label=f"Season {result.index}",
-                        value=f"season_{result.parentTitle}_{result.index}_{hash(result)}",
+                        value=f"s_{result.parentTitle}_{result.index}_{hash(result)}",
                         default=False,
                     ) for result in seasons
                 ],
@@ -330,7 +330,7 @@ class PlexSearch(commands.Cog):
             # Get the selected result
             plex = await self.bot.fetch_plex(inter.guild)
             librarys = plex.library.sections()
-            if inter.values[0].startswith("season"):
+            if inter.values[0].startswith("s"):
                 # Season
                 show_name = inter.values[0].split("_")[1]
                 season_num = int(inter.values[0].split("_")[2])
@@ -338,7 +338,7 @@ class PlexSearch(commands.Cog):
                 await inter.disable_components()
                 await self.content_details(inter.message, season, inter.author, inter)
 
-            elif inter.values[0].startswith("episode"):
+            elif inter.values[0].startswith("e"):
                 # Episode
                 show_name = inter.values[0].split("_")[1]
                 season_num = int(inter.values[0].split("_")[2])

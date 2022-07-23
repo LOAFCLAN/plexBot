@@ -42,6 +42,9 @@ class PlexBot(commands.Bot):
         self.database.execute(
             '''CREATE TABLE IF NOT EXISTS activity_messages (guild_id INTEGER PRIMARY KEY, channel_id INTEGER, message_id 
             INTEGER);''')
+        self.database.execute(
+            '''CREATE TABLE IF NOT EXISTS plex_alert_channel (guild_id INTEGER PRIMARY KEY, channel_id INTEGER);''')
+
         self.database.commit()
 
     def __init__(self, *args, **kwargs):

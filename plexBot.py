@@ -54,12 +54,27 @@ class PlexBot(Cog):
         self.bot = bot
         cursor = self.bot.database.execute("SELECT * FROM activity_messages")
         self.activity_messages = [row for row in cursor.fetchall()]
+        cursor = self.bot.database.execute("SELECT * FROM plex_alert_channel")
+        self.plex_alert_channels = [row for row in cursor.fetchall()]
 
     @Cog.listener('on_ready')
     async def on_ready(self):
         print(f"plexBot cog is ready")
         for message_config in self.activity_messages:
             self.bot.loop.create_task(self.monitor_plex(message_config[0], message_config[1], message_config[2]))
+        for alert_config in self.plex_alert_channels:
+            self.bot.loop.create_task(self.plex_alerts(alert_config[0], alert_config[1]))
+
+    async def plex_alerts(self, guild_id: int, channel_id: int):
+        """Handles plex alerts"""
+        channel = await self.bot.fetch_channel(channel_id)
+        guild = await self.bot.fetch_guild(guild_id)
+        plex = await self.bot.fetch_plex(guild)
+
+        def alert_received(alert):
+            print(f"Alert received: {alert}")
+
+        plex.startAlertListener(alert_received)
 
     async def monitor_plex(self, guild_id: int, channel_id: int, message_id: int):
         try:
@@ -297,7 +312,7 @@ class PlexBot(Cog):
         await ctx.send(embed=embed)
 
     @has_permissions(administrator=True)
-    @command(name='set_activity_channel', aliases=['setactivitychannel', 'sac'])
+    @command(name='set_activity_channel', aliases=['setactivitychannel', 'setactivity'])
     async def set_activity_channel(self, ctx, channel: discord.TextChannel):
         """Adds a plex activity channel to the database"""
         self.bot.database.execute(
@@ -309,6 +324,20 @@ class PlexBot(Cog):
         embed.timestamp = datetime.datetime.utcnow()
         await ctx.send(embed=embed)
         self.bot.loop.create_task(self.monitor_plex(ctx.guild.id, channel.id, 0))
+
+    @has_permissions(administrator=True)
+    @command(name="set_alert_channel", aliases=["setalertchannel", "setalert"])
+    async def set_alert_channel(self, ctx, channel: discord.TextChannel):
+        """Adds a plex alert channel to the database"""
+        self.bot.database.execute(
+            "INSERT INTO plex_alert_channel (guild_id, channel_id) VALUES (?, ?)",
+            (ctx.guild.id, channel.id))
+        self.bot.database.commit()
+        embed = discord.Embed(title="Set Alert Channel", description=f"Set alert channel to {channel.mention}",
+                              color=0x00ff00)
+        embed.timestamp = datetime.datetime.utcnow()
+        await ctx.send(embed=embed)
+        self.bot.loop.create_task(self.plex_alerts(ctx.guild.id, channel.id))
 
     @has_permissions(administrator=True)
     @command(name='set_plex_server', aliases=['setplexserver', 'sp'])
@@ -336,6 +365,22 @@ class PlexBot(Cog):
         "Video", uncheck the box that reads "Use Hardware Decoding" This should fix the vast majority of playback 
         issues. ``` """
         await ctx.send(spiel_txt)
+
+    @has_permissions(manage_guild=True)
+    @command(name="run_butler_task", aliases=["rbt"])
+    async def run_butler_task(self, ctx, *, task_name: str):
+        """Runs a butler task"""
+        available_tasks = [task.name for task in ctx.plex.butlerTasks()]
+        if task_name not in available_tasks:
+            raise BadArgument("Task not found")
+        ctx.plex.runButlerTask(task_name)
+
+    @has_permissions(manage_guild=True)
+    @command(name="deep_media_analysis", aliases=["dma"])
+    async def deep_media_analysis(self, ctx):
+        """Force the plex server to run a deep media analysis"""
+        ctx.plex.runButlerTask("DeepMediaAnalysis")
+        await ctx.send("Deep media analysis started")
 
 
 def setup(bot):
