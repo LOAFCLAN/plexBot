@@ -2,6 +2,7 @@ import datetime
 import typing
 
 import discord
+import plexapi.base
 import plexapi.video
 from discord.ext import commands
 from discord.ext.commands import command
@@ -17,8 +18,9 @@ def subtitle_details(content, max_subs=-1) -> list:
     for media in content.media:
         sub_index = 1
         for part in media.parts:
-            for subtitle in part.subtitleStreams():
-                return_list.append(f"File#`{file_index}`->Sub#`{sub_index}`"
+            for subtitle in filter(lambda x: isinstance(x, plexapi.media.SubtitleStream), part.streams):
+                title = subtitle.title if subtitle.title else "N/A"
+                return_list.append(f"File#`{file_index}`->Sub#`{sub_index}`-`{title}`"
                                    f": `{str(subtitle.codec).upper()}` - `{subtitle.language}`"
                                    f" - Forced: `{subtitle.forced}`")
                 sub_index += 1
@@ -38,28 +40,34 @@ def get_media_info(media_list: [plexapi.media.Media]) -> list:
     if len(media_list) == 0:
         return ["`No media found`"]
     else:
-        # f"File#`{index}`: `{media.container}` - `{media.videoCodec}:"
-        # f" {media.width}x{media.height}@{media.videoFrameRate} "
-        # f"| {media.audioCodec}: {media.audioChannels}ch`")
         media_index = 1
         for media in media_list:
-            this_media = f"File#`{media_index}`: `{media.container}` - `{media.videoCodec}:"
-            audio_streams = []
             for part in media.parts:
-                for audio_stream in part.audioStreams():
-                    audio_streams.append(f"┕──>`{audio_stream.displayTitle}`@"
-                                         f"`{audio_stream.samplingRate / 1000}Khz`"
-                                         f", Language: `{audio_stream.language}`")
+                if part.deepAnalysisVersion != 6:
+                    # Send a command to the plex sever to run a deep analysis on this part
+                    this_media = f"File#`{media_index}`: `{media.videoCodec}:{media.width}x" \
+                                 f"{media.height}@{media.videoFrameRate} " \
+                                 f"| {media.audioCodec}: {media.audioChannels}ch`\n" \
+                                 f"┕──> `Insufficient deep analysis data, current version: {part.deepAnalysisVersion}`"
 
-            media_index += 1
-            if len(audio_streams) == 0:
-                this_media += f" {media.width}x{media.height}@{media.videoFrameRate} " \
-                              f"| {media.audioCodec}: {media.audioChannels}ch`"
-            else:
-                audio_str = "\n".join(audio_streams)
-                this_media += f" {media.width}x{media.height}@{media.videoFrameRate}`\n{audio_str}"
+                else:
+                    video_stream = part.videoStreams()[0]
+                    duration = datetime.timedelta(seconds=round(media.duration / 1000))
+                    this_media = f"File#`{media_index}`: `{media.videoCodec}:{video_stream.width}x" \
+                                 f"{video_stream.height}@{video_stream.frameRate} {duration}`\n"
+                    audio_streams = []
+                    stream_num = 1
+                    streams = part.audioStreams()
+                    for audio_stream in streams:
+                        opener = "┠──>" if stream_num < len(streams) else "└──>"
+                        audio_streams.append(f"{opener}`{audio_stream.displayTitle}`@"
+                                             f"`{audio_stream.samplingRate / 1000}Khz`"
+                                             f", Language: `{audio_stream.language}`")
+                        stream_num += 1
+                    media_index += 1
+                    this_media += "\n".join(audio_streams)
 
-            media_info.append(this_media)
+                media_info.append(this_media)
     return media_info
 
 
@@ -353,6 +361,9 @@ class PlexSearch(commands.Cog):
     async def content_details(self, edit_msg, content, requester, inter: Interaction = None):
         """Show details about a content"""
         select_things = None
+
+        if content.isPartialObject():  # For some reason plex likes to not give everything we asked for
+            content.reload()  # So if plex is being a jerk, we'll reload the content
 
         if isinstance(content, plexapi.video.Movie):
             """Format the embed being sent for a movie"""
