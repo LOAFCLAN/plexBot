@@ -226,6 +226,7 @@ class PlexSearch(commands.Cog):
                 style=ButtonStyle.red,
                 custom_id=f"cancel_{edit_msg.id}",
             )
+            self.bot.component_manager.add_callback(cancel_button, self.on_select)
             await edit_msg.edit(embed=embed, components=[select_thing, cancel_button])
         else:
             await edit_msg.edit(embed=embed, components=[])
