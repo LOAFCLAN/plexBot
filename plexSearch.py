@@ -6,18 +6,28 @@ from discord.ext import commands
 from discord.ext.commands import command
 from discord_components import DiscordComponents, Button, ButtonStyle, SelectOption, Select, Interaction
 
+from utils import cleanup_url
+
 
 class PlexSearch(commands.Cog):
 
     def __init__(self, bot):
         self.bot = bot
+        self.content_cache = {}
 
-    def stringify(self, genres: []):
+    def stringify(self, objects: [], separator: str = ", "):
         """Convert a list of genres to a string"""
-        str_genres = []
-        for genre in genres:
-            str_genres.append(genre.tag)
-        return ", ".join(str_genres)
+        str_objects = []
+        for obj in objects:
+            if hasattr(obj, "title"):
+                str_objects.append(obj.title)
+            elif hasattr(obj, "tag"):
+                str_objects.append(obj.tag)
+            else:
+                str_objects.append(str(obj))
+        if len(str_objects) == 0:
+            return "None"
+        return separator.join(str_objects)
 
     def rating_formatter(self, rating):
         if rating is None:
@@ -25,6 +35,14 @@ class PlexSearch(commands.Cog):
         else:
             return f"{round(rating * 10)}%"
 
+    def get_season(self, plex, show_name, season_num):
+        for section in plex.library.sections():
+            for content in section.search(show_name):
+                if content.type == "show":
+                    for season in content.seasons():
+                        if season.index == season_num:
+                            return season
+        return None
 
     @command(name="content_search", aliases=["cs"])
     async def search(self, ctx, *, query):
@@ -77,16 +95,22 @@ class PlexSearch(commands.Cog):
         if inter.custom_id.startswith("content_search"):
             # Get the selected result
             plex = await self.bot.fetch_plex(inter.guild)
-            library = plex.library
+            librarys = plex.library.sections()
             if inter.values[0].startswith("season"):
                 # Season
-                season_id = inter.values[0].split("_")[1]
-                season = library.getGuid(season_id)
+                show_name = inter.values[0].split("_")[1]
+                season_num = int(inter.values[0].split("_")[2])
+                season = self.get_season(plex, show_name, season_num)
+                await inter.disable_components()
                 await self.content_details(inter.message, season, inter.author, inter)
+
             elif inter.values[0].startswith("episode"):
                 # Episode
-                episode_id = inter.values[0].split("_")[1]
-                episode = library.getGuid(episode_id)
+                show_name = inter.values[0].split("_")[1]
+                season_num = int(inter.values[0].split("_")[2])
+                episode_num = int(inter.values[0].split("_")[3])
+                episode = self.get_season(plex, show_name, season_num).episodes()[episode_num - 1]
+                await inter.disable_components()
                 await self.content_details(inter.message, episode, inter.author, inter)
             else:
                 # Run plex search
@@ -98,7 +122,7 @@ class PlexSearch(commands.Cog):
 
         if hasattr(content, 'audienceRating') and hasattr(content, 'rating'):
             rating_string = f"`{content.contentRating}` | " \
-                            f"Audience `{self.rating_formatter(content.audienceRating )}`" \
+                            f"Audience `{self.rating_formatter(content.audienceRating)}`" \
                             f" | Critics `{self.rating_formatter(content.rating)}`"
         else:
             rating_string = "No ratings available"
@@ -106,6 +130,11 @@ class PlexSearch(commands.Cog):
         media_info = []
         embed = discord.Embed(title="Media type not implemented", color=0x00ff00)
         select_thing = None
+        if hasattr(content, "thumb"):
+            thumb_url = cleanup_url(content.thumb)
+            embed.set_thumbnail(url=thumb_url)
+            print(content.thumb)
+            print(thumb_url)
 
         if hasattr(content, 'media'):
             index = 1
@@ -145,7 +174,7 @@ class PlexSearch(commands.Cog):
                 options=[
                     SelectOption(
                         label=f"Season {result.index}",
-                        value=f"season_{result.guid}_{hash(result)}",
+                        value=f"season_{result.parentTitle}_{result.index}_{hash(result)}",
                         default=False,
                     ) for result in content.seasons()
                 ],
@@ -153,13 +182,27 @@ class PlexSearch(commands.Cog):
             self.bot.component_manager.add_callback(select_thing, self.on_select)
 
         elif isinstance(content, plexapi.video.Season):
-            embed = discord.Embed(title=f"{content.grandparentTitle}",
+            """Format the embed being sent for a season"""
+            embed = discord.Embed(title=f"{content.parentTitle}",
                                   description=f"Season {content.index}", color=0x00ff00)
-            embed.add_field(name="Episodes", value=f"{len(content.episodes())}", inline=True)
+            embed.add_field(name=f"Episodes: {len(content.episodes())}",
+                            value=self.stringify(content.episodes(), separator="\n"), inline=False)
+            select_thing = Select(
+                custom_id=f"content_search_{edit_msg.id}",
+                options=[
+                    SelectOption(
+                        label=f"Episode: {result.title}",
+                        value=f"episode_{result.grandparentTitle}_{result.parentIndex}_{result.index}_{hash(result)}",
+                        default=False,
+                    ) for result in content.episodes()[:25]
+                ],
+            )
+            self.bot.component_manager.add_callback(select_thing, self.on_select)
 
         elif isinstance(content, plexapi.video.Episode):
-
-            embed = discord.Embed(title=f"{content.grandparentTitle}\n{content.title}",
+            """Format the embed being sent for an episode"""
+            embed = discord.Embed(title=f"{content.grandparentTitle}\n{content.title} "
+                                        f"(S{content.parentIndex}E{content.index})",
                                   description=f"{content.summary}", color=0x00ff00)
             embed.add_field(name="Ratings", value=rating_string, inline=False)
             embed.add_field(name="Directors", value=self.stringify(content.directors), inline=True)
@@ -173,8 +216,8 @@ class PlexSearch(commands.Cog):
         if inter is not None:
             await inter.disable_components()
 
-        embed.set_footer(text=f"{content.guid}", icon_url=requester.avatar_url)
-        # embed.set_footer(text=f"Requested by {requester.name}", icon_url=requester.avatar_url)
+        # embed.set_footer(text=f"{content.guid}", icon_url=requester.avatar_url)
+        embed.set_footer(text=f"Requested by {requester.name}", icon_url=requester.avatar_url)
         if select_thing:
             cancel_button = Button(
                 label="Cancel",
@@ -183,8 +226,7 @@ class PlexSearch(commands.Cog):
             )
             await edit_msg.edit(embed=embed, components=[select_thing, cancel_button])
         else:
-            await edit_msg.edit(embed=embed)
-
+            await edit_msg.edit(embed=embed, components=[])
 
 def setup(bot):
     bot.add_cog(PlexSearch(bot))

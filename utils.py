@@ -27,6 +27,11 @@ def clean(ctx, text=None, *, mass=True, member=True, role=True, channel=True):
     return cleaned_text
 
 
+def cleanup_url(url):
+    return "https://celery.loafclan.org/plex-image-links-and-stuff---yeah" + url[url.find('/library'):url.find('?')]\
+           + ".jpg"
+
+
 def is_clean(ctx, text=None):
     """Checks if the message is clean already and doesn't need to be cleaned."""
     if text is None:
@@ -136,13 +141,13 @@ async def session_embed(plex):
         media_info = "Not available"
         if len(session.transcodeSessions) == 0:
             media_info = f"`{media.container}` - `{media.videoCodec}:" \
-                               f" {media.width}x{media.height}@{media.videoFrameRate} " \
-                               f"| {media.audioCodec}: {media.audioChannels}ch`"
+                         f" {media.width}x{media.height}@{media.videoFrameRate} " \
+                         f"| {media.audioCodec}: {media.audioChannels}ch`"
         elif len(session.transcodeSessions) == 1:
             transcode = session.transcodeSessions[0]
             if transcode.videoDecision == "transcode" or transcode.audioDecision == "transcode":
                 media_info = f"`{transcode.sourceVideoCodec}:{transcode.sourceAudioCodec}" \
-                                   f"`->`{transcode.videoCodec}:{transcode.audioCodec}`"
+                             f"`->`{transcode.videoCodec}:{transcode.audioCodec}`"
 
         if session.players[0].title:
             device = session.players[0].title
