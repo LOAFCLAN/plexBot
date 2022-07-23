@@ -247,11 +247,9 @@ class PlexSearch(commands.Cog):
             thumb_url = cleanup_url(content.thumb)
             embed.set_thumbnail(url=thumb_url)
 
-        # Display what libary section the content is in
-        embed.add_field(name="Located in", value=f"`{content.librarySectionTitle}`", inline=False)
-
         # embed.set_footer(text=f"{content.guid}", icon_url=requester.avatar_url)
-        embed.set_footer(text=f"Requested by {requester.name}", icon_url=requester.avatar_url)
+        embed.set_footer(text=f"Requested by {requester.name} | Located in {content.librarySectionTitle}",
+                         icon_url=requester.avatar_url)
         if select_thing:
             cancel_button = Button(
                 label="Cancel",
