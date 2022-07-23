@@ -28,8 +28,7 @@ def clean(ctx, text=None, *, mass=True, member=True, role=True, channel=True):
 
 
 def cleanup_url(url):
-    return "https://celery.loafclan.org/plex-image-links-and-stuff---yeah" + url[url.find('/library'):url.find('?')]\
-           + ".jpg"
+    return f"https://celery.loafclan.org/plex-image-links-and-stuff---yeah{url}.jpg"
 
 
 def is_clean(ctx, text=None):

@@ -130,11 +130,6 @@ class PlexSearch(commands.Cog):
         media_info = []
         embed = discord.Embed(title="Media type not implemented", color=0x00ff00)
         select_thing = None
-        if hasattr(content, "thumb"):
-            thumb_url = cleanup_url(content.thumb)
-            embed.set_thumbnail(url=thumb_url)
-            print(content.thumb)
-            print(thumb_url)
 
         if hasattr(content, 'media'):
             index = 1
@@ -215,6 +210,10 @@ class PlexSearch(commands.Cog):
 
         if inter is not None:
             await inter.disable_components()
+
+        if hasattr(content, "thumb"):
+            thumb_url = cleanup_url(content.thumb)
+            embed.set_thumbnail(url=thumb_url)
 
         # embed.set_footer(text=f"{content.guid}", icon_url=requester.avatar_url)
         embed.set_footer(text=f"Requested by {requester.name}", icon_url=requester.avatar_url)
