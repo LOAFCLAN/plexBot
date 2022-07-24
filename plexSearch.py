@@ -48,7 +48,7 @@ def get_media_info(media_list: [plexapi.media.Media]) -> list:
                     this_media = f"File#`{media_index}`: `{media.videoCodec}:{media.width}x" \
                                  f"{media.height}@{media.videoFrameRate} " \
                                  f"| {media.audioCodec}: {media.audioChannels}ch`\n" \
-                                 f"┕──> `Insufficient deep analysis data, current version: {part.deepAnalysisVersion}`"
+                                 f"┕──> `Insufficient deep analysis data, L:{part.deepAnalysisVersion}`"
 
                 else:
                     video_stream = part.videoStreams()[0]
