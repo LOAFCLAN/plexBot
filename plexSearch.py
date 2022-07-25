@@ -240,6 +240,8 @@ class PlexSearch(commands.Cog):
 
         embed.add_field(name="Runtime", value=f"{datetime.timedelta(seconds=rounded_duration)}", inline=True)
         actors = content.roles
+        if len(actors) == 0:
+            actors = "No information available"
         if len(actors) <= 3:
             embed.add_field(name="Lead Actors", value=stringify(actors, max_length=3), inline=False)
         else:
