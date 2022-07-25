@@ -2,6 +2,7 @@ import datetime
 import typing
 
 import discord
+import humanize as humanize
 import plexapi.base
 import plexapi.video
 from discord.ext import commands
@@ -18,15 +19,17 @@ def subtitle_details(content, max_subs=-1) -> list:
     for media in content.media:
         sub_index = 1
         for part in media.parts:
-            for subtitle in filter(lambda x: isinstance(x, plexapi.media.SubtitleStream), part.streams):
-                title = subtitle.title if subtitle.title else "N/A"
-                return_list.append(f"File#`{file_index}`->Sub#`{sub_index}`-`{title}`"
-                                   f": `{str(subtitle.codec).upper()}` - `{subtitle.language}`"
-                                   f" - Forced: `{subtitle.forced}`")
+            file_str = f"`File#{file_index}`: {len(part.subtitleStreams())} subtitles\n"
+            for subtitle in part.subtitleStreams():
+                opener = "`┠──>" if sub_index < len(part.subtitleStreams()) else "`└──>"
+                file_str += f"{opener} {sub_index}[{str(subtitle.codec).upper()}]"\
+                            f": {subtitle.language} - {subtitle.title if subtitle.title else 'Unnamed'}"\
+                            f"{' - Forced' if subtitle.forced else ''}`\n"
                 sub_index += 1
                 if max_subs != -1 and sub_index > max_subs:
-                    return_list.append(f"┕──>{len(part.subtitleStreams()) - max_subs} more subs hidden")
+                    file_str += f"`└──> {len(part.subtitleStreams()) - max_subs} more subs hidden`"
                     break
+            return_list.append(file_str)
         file_index += 1
 
     if len(return_list) == 0:
@@ -45,7 +48,7 @@ def get_media_info(media_list: [plexapi.media.Media]) -> list:
             for part in media.parts:
                 if part.deepAnalysisVersion != 6:
                     # Send a command to the plex sever to run a deep analysis on this part
-                    this_media = f"File#`{media_index}`: `{media.videoCodec}:{media.width}x" \
+                    this_media = f"`File#{media_index}`: `{media.videoCodec}:{media.width}x" \
                                  f"{media.height}@{media.videoFrameRate} " \
                                  f"| {media.audioCodec}: {media.audioChannels}ch`\n" \
                                  f"┕──> `Insufficient deep analysis data, L:{part.deepAnalysisVersion}`"
@@ -53,16 +56,18 @@ def get_media_info(media_list: [plexapi.media.Media]) -> list:
                 else:
                     video_stream = part.videoStreams()[0]
                     duration = datetime.timedelta(seconds=round(media.duration / 1000))
-                    this_media = f"File#`{media_index}`: `{media.videoCodec}:{video_stream.width}x" \
-                                 f"{video_stream.height}@{video_stream.frameRate} {duration}`\n"
+                    bitrate = humanize.naturalsize(video_stream.bitrate * 1000)
+                    this_media = f"`File#{media_index}`: `{media.videoCodec}:{video_stream.width}x" \
+                                 f"{video_stream.height}@{video_stream.frameRate} Bitrate: {bitrate}/s`\n"
                     audio_streams = []
                     stream_num = 1
                     streams = part.audioStreams()
                     for audio_stream in streams:
-                        opener = "┠──>" if stream_num < len(streams) else "└──>"
-                        audio_streams.append(f"{opener}`{audio_stream.displayTitle}`@"
-                                             f"`{audio_stream.samplingRate / 1000}Khz`"
-                                             f", Language: `{audio_stream.language}`")
+                        opener = "`┠──>" if stream_num < len(streams) else "`└──>"
+                        audio_bitrate = f"{humanize.naturalsize(audio_stream.bitrate * 1000)}/s".rjust(10)
+                        audio_streams.append(f"{opener}{audio_bitrate}-{audio_stream.displayTitle}@"
+                                             f"{audio_stream.samplingRate / 1000}Khz"
+                                             f", Lang: {audio_stream.language}`")
                         stream_num += 1
                     media_index += 1
                     this_media += "\n".join(audio_streams)
@@ -243,9 +248,9 @@ class PlexSearch(commands.Cog):
         embed.add_field(name="Producers", value=stringify(content.producers), inline=True)
         embed.add_field(name="Directors", value=stringify(content.directors), inline=True)
         embed.add_field(name="Writers", value=stringify(content.writers), inline=True)
-        embed.add_field(name="Media", value=safe_field("\n".join(media_info)), inline=False)
+        embed.add_field(name="Media", value=safe_field("\n\n".join(media_info)), inline=False)
         embed.add_field(name="Subtitles",
-                        value=safe_field("\n".join(subtitle_details(content, max_subs=6))), inline=False)
+                        value=safe_field("\n\n".join(subtitle_details(content, max_subs=6))), inline=False)
 
     @command(name="actor_search", aliases=["actor_info", "as"], brief="Search for an actor")
     async def actor_search(self, ctx, *, query: str):
@@ -349,7 +354,10 @@ class PlexSearch(commands.Cog):
             else:
                 # Run plex search
                 name = inter.values[0].split("_")[0]
-                year = int(inter.values[0].split("_")[1])
+                try:
+                    year = int(inter.values[0].split("_")[1])
+                except ValueError:
+                    year = None
                 results = plex.search(name)
                 for result in results:
                     if result.year == year:
