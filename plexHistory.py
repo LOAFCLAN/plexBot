@@ -1,18 +1,23 @@
+import asyncio
 import datetime
 
 import discord
 import plexapi.video
 from discord.ext import commands
 from discord.ext.commands import Cog, command, has_permissions
-from discord_components import DiscordComponents, Button, ButtonStyle, SelectOption, Select, Interaction
-from utils import base_info_layer, get_season
+import custom_dpy_overrides
+from discord_components import DiscordComponents, Button, ButtonStyle, SelectOption, Select, Interaction, ActionRow
+from utils import base_info_layer, get_season, get_episode, cleanup_url
 
 
 def hash_media_event(media) -> int:
     """Hash a media watch event, so we can easily reference it later
     The hash is based on the medias title, guid, userID of the watcher and the viewedAt
     """
-    values = (int(media.accountID), int(media.viewedAt.timestamp()))
+    if media.type == "episode":
+        values = (int(media.accountID), int(media.viewedAt.timestamp()), int(media.parentIndex), int(media.index))
+    else:
+        values = (int(media.accountID), int(media.viewedAt.timestamp()))
     val_hash = hash(values)
     return val_hash
 
@@ -23,6 +28,7 @@ class PlexHistory(commands.Cog):
         self.bot = bot
         self.msg_cache = {}
         self.cached_history = {}
+        self.sent_hashes = []
 
     @Cog.listener('on_ready')
     async def on_ready(self):
@@ -36,15 +42,10 @@ class PlexHistory(commands.Cog):
             self.cached_history[guild_id][row[0]] = {"message_id": row[2],
                                                      "history_time": row[4]}
 
-
         cursor = self.bot.database.execute(
             '''SELECT * FROM plex_history_channel''')
         for row in cursor:
             self.msg_cache[row[0]] = {}
-            channel = await self.bot.fetch_channel(row[1])
-            async for msg in channel.history(limit=None):
-                if msg.author.id == self.bot.user.id:
-                    self.msg_cache[row[0]][msg.id] = msg
             self.bot.loop.create_task(self.history_watcher(row[0], row[1]))
         print(f"Started {self.__class__.__name__}")
 
@@ -53,21 +54,37 @@ class PlexHistory(commands.Cog):
         guild = await self.bot.fetch_guild(guild_id)
         plex = await self.bot.fetch_plex(guild)
 
+        async for msg in channel.history(limit=None):
+            if hasattr(msg, "components"):
+                if msg.author.id == self.bot.user.id:
+                    self.msg_cache[guild.id][msg.id] = msg
+            else:
+                print(f"Message {msg.id} has no components")
+                msg = await msg.channel.fetch_message(msg.id)
+
+        # Re attach component watchers to messages on startup
+        events = self.bot.database.execute(
+            '''SELECT * FROM plex_history_messages WHERE guild_id = ?''', (guild.id,))
+        for event in events.fetchall():
+            if event[2] not in self.msg_cache[guild.id]:
+                self.msg_cache[guild.id][event[2]] = await channel.fetch_message(event[2])
+                await self.acquire_history_message(guild, channel, self.msg_cache[guild.id][event[2]])
+            else:
+                await self.acquire_history_message(guild, channel, self.msg_cache[guild.id][event[2]])
+            self.sent_hashes.append(event[0])
+
         while True:
             history = plex.history(maxresults=100)
-
             # Filter any media that is missing viewedAt and/or accountID
             history = [m for m in history if m.viewedAt is not None and m.accountID is not None]
-
             # Sort the history by viewedAt
             history = sorted(history, key=lambda x: x.viewedAt)
             # Filter an
             for event in history:
 
                 m_hash = hash_media_event(event)
-                if m_hash not in self.cached_history[guild_id]:
-                    self.cached_history[guild.id][m_hash] = {"message_id": None,
-                                                             "history_time": event.viewedAt}
+
+                if m_hash not in self.sent_hashes:
                     if isinstance(event, plexapi.video.Episode):
                         title = event.grandparentTitle
                     else:
@@ -85,40 +102,60 @@ class PlexHistory(commands.Cog):
                                                   (event.parentIndex, event.index, m_hash))
 
                     self.bot.database.commit()
-                else:
-                    cursor = self.bot.database.execute(
-                        '''SELECT * FROM plex_history_messages WHERE event_hash = ?''', (m_hash,))
-                    value = cursor.fetchone()
-                    if value is not None:
-                        if value[2] in self.msg_cache[guild.id]:
-                            msg = self.msg_cache[guild.id][value[2]]
-                            await self.acquire_history_message(guild, channel, msg)
+                    self.sent_hashes.append(m_hash)
+
+            await asyncio.sleep(30)
 
     async def acquire_history_message(self, guild, channel, msg):
-        print(f"Acquiring history message {msg.id}")
         if hasattr(msg, "components"):
             for component in msg.components:
-                if isinstance(component, Button):
-                    self.bot.component_manager.add_callback(component, self.component_callback)
+                if isinstance(component, ActionRow):
+                    for thing in component.components:
+                        if isinstance(thing, Button):
+                            self.bot.component_manager.add_callback(thing, self.component_callback)
+                            print(f"Reattached component callback to {msg.id}")
         else:
-            # msg = await msg.channel.fetch_message(msg.id)
-            # if hasattr(msg, "components"):
-            #     for component in msg.components:
-            #         if isinstance(component, Button):
-            #             self.bot.component_manager.add_callback(component, self.component_callback)
-            # else:
-            #     print(f"Message {msg.id} has no components")
+            print(f"Failed to acquire components for {msg.id}, manually fetching")
+            msg = await msg.channel.fetch_message(msg.id)
+            if hasattr(msg, "components"):
+                for component in msg.components:
+                    if isinstance(component, Button):
+                        self.bot.component_manager.add_callback(component, self.component_callback)
+            else:
+                print(f"Message {msg.id} has no components")
             pass
 
     async def send_history_message(self, guild, channel, media, plex):
-        embed = discord.Embed(title=media.title, color=0x00ff00)
 
         user = plex.associations.get_discord_association(media.accountID)
-        if user is not None:
-            embed.set_author(name=user.display_name, icon_url=user.avatar_url)
+        if user is None:
+            user = plex.systemAccount(media.accountID)
+        device = plex.systemDevice(media.deviceID)
+
+        time = datetime.datetime.fromtimestamp(media.viewedAt.timestamp(), tz=datetime.timezone.utc)
+
+        if isinstance(user, discord.User):
+            embed = discord.Embed(title=media.title,
+                                  description=
+                                  f"{user.mention} watched this with `{device.name}` on `{device.platform}`",
+                                  color=0x00ff00, timestamp=time)
+            if media.type == "episode":
+                embed.set_author(name=f"{media.grandparentTitle} - S{media.parentIndex}E{media.index}",
+                                 icon_url=user.avatar_url)
         else:
-            embed.set_author(name=plex.systemAccount(media.accountID).name)
-        embed.set_footer(text=f"{media.viewedAt}")
+            embed = discord.Embed(title=media.title,
+                                  description=f"`{user.name}` "
+                                              f"watched this with `{device.name}` on `{device.platform}`",
+                                  color=0x00ff00, timestamp=time)
+            if media.type == "episode":
+                embed.set_author(name=f"{media.grandparentTitle} - S{media.parentIndex}E{media.index}",
+                                 icon_url=user.thumb)
+            elif media.type == "movie":
+                embed.set_author(name="", icon_url=user.thumb)
+
+        if hasattr(media, "thumb"):
+            thumb_url = cleanup_url(media.thumbUrl)
+            embed.set_thumbnail(url=thumb_url)
 
         m_hash = hash_media_event(media)
 
@@ -143,8 +180,7 @@ class PlexHistory(commands.Cog):
             return None
         row = cursor.fetchone()
         if row[5] == "episode":
-            name = get_season(plex, row[4], row[6]).episodes()[row[7]]
-            media = plex.search(name)[0]
+            media = get_episode(plex, row[4], season=row[6], episode=row[7])
             return media
         else:
             name = row[4]
@@ -161,6 +197,9 @@ class PlexHistory(commands.Cog):
             if content is None:
                 await interaction.respond(content="Could not find media", ephemeral=True)
                 return
+
+            if content.isPartialObject():  # If the media is only partially loaded
+                content.reload()  # do it correctly this time
 
             if isinstance(content, plexapi.video.Movie):
                 embed = discord.Embed(title=f"{content.title} ({content.year})",

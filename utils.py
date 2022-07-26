@@ -231,31 +231,31 @@ def get_media_info(media_list: [plexapi.media.Media]) -> list:
         media_index = 1
         for media in media_list:
             for part in media.parts:
-                if part.deepAnalysisVersion != 6:
-                    # Send a command to the plex sever to run a deep analysis on this part
-                    this_media = f"`File#{media_index}`: `{media.videoCodec}:{media.width}x" \
-                                 f"{media.height}@{media.videoFrameRate} " \
-                                 f"| {media.audioCodec}: {media.audioChannels}ch`\n" \
-                                 f"┕──> `Insufficient deep analysis data, L:{part.deepAnalysisVersion}`"
-
-                else:
-                    video_stream = part.videoStreams()[0]
-                    duration = datetime.timedelta(seconds=round(media.duration / 1000))
-                    bitrate = humanize.naturalsize(video_stream.bitrate * 1000)
-                    this_media = f"`File#{media_index}`: `{media.videoCodec}:{video_stream.width}x" \
-                                 f"{video_stream.height}@{video_stream.frameRate} Bitrate: {bitrate}/s`\n"
-                    audio_streams = []
-                    stream_num = 1
-                    streams = part.audioStreams()
-                    for audio_stream in streams:
-                        opener = "`┠──>" if stream_num < len(streams) else "`└──>"
-                        audio_bitrate = f"{humanize.naturalsize(audio_stream.bitrate * 1000)}/s".rjust(10)
-                        audio_streams.append(f"{opener}{audio_bitrate}-{audio_stream.displayTitle}@"
-                                             f"{audio_stream.samplingRate / 1000}Khz"
-                                             f", Lang: {audio_stream.language}`")
-                        stream_num += 1
-                    media_index += 1
-                    this_media += "\n".join(audio_streams)
+                # if part.deepAnalysisVersion != 6:
+                #     # Send a command to the plex sever to run a deep analysis on this part
+                #     this_media = f"`File#{media_index}`: `{media.videoCodec}:{media.width}x" \
+                #                  f"{media.height}@{media.videoFrameRate} " \
+                #                  f"| {media.audioCodec}: {media.audioChannels}ch`\n" \
+                #                  f"┕──> `Insufficient deep analysis data, L:{part.deepAnalysisVersion}`"
+                #
+                # else:
+                video_stream = part.videoStreams()[0]
+                duration = datetime.timedelta(seconds=round(media.duration / 1000))
+                bitrate = humanize.naturalsize(video_stream.bitrate * 1000)
+                this_media = f"`File#{media_index}`: `{media.videoCodec}:{video_stream.width}x" \
+                             f"{video_stream.height}@{video_stream.frameRate} Bitrate: {bitrate}/s`\n"
+                audio_streams = []
+                stream_num = 1
+                streams = part.audioStreams()
+                for audio_stream in streams:
+                    opener = "`┠──>" if stream_num < len(streams) else "`└──>"
+                    audio_bitrate = f"{humanize.naturalsize(audio_stream.bitrate * 1000)}/s".rjust(10)
+                    audio_streams.append(f"{opener}{audio_bitrate}-{audio_stream.displayTitle}@"
+                                         f"{audio_stream.samplingRate / 1000}Khz"
+                                         f", Lang: {audio_stream.language}`")
+                    stream_num += 1
+                media_index += 1
+                this_media += "\n".join(audio_streams)
 
                 media_info.append(this_media)
     return media_info
@@ -269,6 +269,18 @@ def get_season(plex, show_name, season_num):
                     if season.index == season_num:
                         return season
     return None
+
+
+def get_episode(plex, show_name, **kwargs):
+    for section in plex.library.sections():
+        for content in section.search(show_name):
+            if content.type == "show":
+                if "name" in kwargs:
+                    return content.episode(title=kwargs["name"])
+                elif "season" in kwargs and "episode" in kwargs:
+                    return content.episode(season=kwargs["season"], episode=kwargs["episode"])
+                else:
+                    return None
 
 
 def rating_formatter(rating):
