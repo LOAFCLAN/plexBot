@@ -1,6 +1,10 @@
 import datetime
 import re
 
+import humanize
+import plexapi
+import typing
+from discord_components import DiscordComponents, Button, ButtonStyle, SelectOption, Select, Interaction
 import discord
 
 __all__ = ['clean', 'is_clean']
@@ -191,3 +195,245 @@ async def session_embed(plex):
     embed.timestamp = datetime.datetime.utcnow()
     embed.set_footer(text=f"{round(total_bandwidth)} kps of bandwidth reserved")
     return embed
+
+
+def subtitle_details(content, max_subs=-1) -> list:
+    """Get the subtitle details for a media"""
+    return_list = []
+    file_index = 1
+    for media in content.media:
+        sub_index = 1
+        for part in media.parts:
+            file_str = f"`File#{file_index}`: {len(part.subtitleStreams())} subtitles\n"
+            for subtitle in part.subtitleStreams():
+                opener = "`┠──>" if sub_index < len(part.subtitleStreams()) else "`└──>"
+                file_str += f"{opener} {sub_index}[{str(subtitle.codec).upper()}]" \
+                            f": {subtitle.language} - {subtitle.title if subtitle.title else 'Unnamed'}" \
+                            f"{' - Forced' if subtitle.forced else ''}`\n"
+                sub_index += 1
+                if max_subs != -1 and sub_index > max_subs:
+                    file_str += f"`└──> {len(part.subtitleStreams()) - max_subs} more subs hidden`"
+                    break
+            return_list.append(file_str)
+        file_index += 1
+
+    if len(return_list) == 0:
+        return_list.append("No subtitles found")
+    return return_list
+
+
+def get_media_info(media_list: [plexapi.media.Media]) -> list:
+    """Get the media info for a list of media"""
+    media_info = []
+    if len(media_list) == 0:
+        return ["`No media found`"]
+    else:
+        media_index = 1
+        for media in media_list:
+            for part in media.parts:
+                if part.deepAnalysisVersion != 6:
+                    # Send a command to the plex sever to run a deep analysis on this part
+                    this_media = f"`File#{media_index}`: `{media.videoCodec}:{media.width}x" \
+                                 f"{media.height}@{media.videoFrameRate} " \
+                                 f"| {media.audioCodec}: {media.audioChannels}ch`\n" \
+                                 f"┕──> `Insufficient deep analysis data, L:{part.deepAnalysisVersion}`"
+
+                else:
+                    video_stream = part.videoStreams()[0]
+                    duration = datetime.timedelta(seconds=round(media.duration / 1000))
+                    bitrate = humanize.naturalsize(video_stream.bitrate * 1000)
+                    this_media = f"`File#{media_index}`: `{media.videoCodec}:{video_stream.width}x" \
+                                 f"{video_stream.height}@{video_stream.frameRate} Bitrate: {bitrate}/s`\n"
+                    audio_streams = []
+                    stream_num = 1
+                    streams = part.audioStreams()
+                    for audio_stream in streams:
+                        opener = "`┠──>" if stream_num < len(streams) else "`└──>"
+                        audio_bitrate = f"{humanize.naturalsize(audio_stream.bitrate * 1000)}/s".rjust(10)
+                        audio_streams.append(f"{opener}{audio_bitrate}-{audio_stream.displayTitle}@"
+                                             f"{audio_stream.samplingRate / 1000}Khz"
+                                             f", Lang: {audio_stream.language}`")
+                        stream_num += 1
+                    media_index += 1
+                    this_media += "\n".join(audio_streams)
+
+                media_info.append(this_media)
+    return media_info
+
+
+def get_season(plex, show_name, season_num):
+    for section in plex.library.sections():
+        for content in section.search(show_name):
+            if content.type == "show":
+                for season in content.seasons():
+                    if season.index == season_num:
+                        return season
+    return None
+
+
+def rating_formatter(rating):
+    if rating is None:
+        return "N/A"
+    else:
+        return f"{round(rating * 10)}%"
+
+
+def rating_str(content) -> str:
+    """Get the rating string for a media"""
+    if hasattr(content, 'audienceRating') and hasattr(content, 'rating'):
+        rating_string = f"`{content.contentRating}` | " \
+                        f"Audience `{rating_formatter(content.audienceRating)}`" \
+                        f" | Critics `{rating_formatter(content.rating)}`"
+    else:
+        rating_string = "No ratings available"
+    return rating_string
+
+
+def stringify(objects: [], separator: str = ", ", max_length: int = -1) -> str:
+    """Convert a list of genres to a string"""
+    str_objects = []
+    if max_length == -1:
+        max_length = len(objects)
+    for obj in objects[:max_length]:
+        if hasattr(obj, "title"):
+            str_objects.append(obj.title)
+        elif hasattr(obj, "tag"):
+            str_objects.append(obj.tag)
+        else:
+            str_objects.append(str(obj))
+
+    # If there are more than max_length objects, add a +n more to the end
+    if len(objects) > max_length:
+        str_objects.append(f"+{len(objects) - max_length} more")
+
+    if len(str_objects) == 0:
+        return "None"
+    for item in str_objects:
+        if not isinstance(item, str):
+            return "Something went wrong, unexpected object type in stringify"
+    return separator.join(str_objects)
+
+
+def safe_field(field_text: str) -> str:
+    """Make sure the field text follows all the rules for a field"""
+    if field_text is None or field_text == "":
+        return "N/A"
+    elif len(field_text) > 1024:
+        return field_text[:1020] + "..."
+    else:
+        return field_text
+
+
+def make_episode_selector(season) -> typing.Union[typing.List[Select], Button] or None:
+    """Make an episode selector for a show"""
+    if len(season.episodes()) == 0:
+        return None
+    elif len(season.episodes()) <= 25:
+        select_things = [Select(
+            custom_id=f"content_search_{hash(season)}",
+            placeholder="Select an episode",
+            options=[
+                SelectOption(
+                    label=f"Episode: {result.title}",
+                    value=f"e_{result.grandparentTitle}_{result.parentIndex}_{result.index}_{hash(result)}",
+                    default=False,
+                ) for result in season.episodes()
+            ],
+        )]
+    else:
+        # If there are more than 25 episodes, make a selector for every 25 episodes
+        split_episodes = [season.episodes()[i: i + 25] for i in range(0, len(season.episodes()), 25)]
+        select_things = [
+            Select(
+                custom_id=f"content_search_{hash(season)}_{i}",
+                placeholder=f"Select an episode ({i}/{len(split_episodes)})",
+                options=[
+                    SelectOption(
+                        label=f"Episode: {result.title}",
+                        value=f"e_{result.grandparentTitle}_{result.parentIndex}_{result.index}_{hash(result)}",
+                        default=False,
+
+                    ) for result in episodes
+                ],
+            )
+            for i, episodes in enumerate(split_episodes)
+        ]
+    cancel_button = Button(
+        label="Cancel",
+        style=ButtonStyle.red,
+        custom_id=f"cancel_{hash(season)}",
+    )
+    return select_things + [cancel_button]
+
+
+def make_season_selector(show) -> typing.Union[typing.List[Select], Button] or None:
+    """Make a season selector for a show"""
+    if len(show.seasons()) == 0:
+        return None
+    elif len(show.seasons()) <= 25:
+        select_things = [Select(
+            custom_id=f"content_search_{hash(show)}",
+            placeholder="Select a season",
+            options=[
+                SelectOption(
+                    label=f"Season {result.index}",
+                    value=f"s_{result.parentTitle}_{result.index}_{hash(result)}",
+                    default=False,
+                ) for result in show.seasons()
+            ],
+        )]
+    else:
+        # If there are more than 25 seasons, make a selector for every 25 seasons
+        split_seasons = [show.seasons()[i: i + 25] for i in range(0, len(show.seasons()), 25)]
+        select_things = [
+            Select(
+                custom_id=f"content_search_{hash(show)}_{i}",
+                placeholder=f"Select a season ({i}/{len(split_seasons)})",
+                options=[
+                    SelectOption(
+                        label=f"Season {result.index}",
+                        value=f"s_{result.parentTitle}_{result.index}_{hash(result)}",
+                        default=False,
+                    ) for result in seasons
+                ],
+            )
+            for i, seasons in enumerate(split_seasons)
+        ]
+    cancel_button = Button(
+        label="Cancel",
+        style=ButtonStyle.red,
+        custom_id=f"cancel_{hash(show)}",
+    )
+    return select_things + [cancel_button]
+
+
+def base_info_layer(embed, content):
+    """Make the base info layer for a media"""
+
+    media_info = get_media_info(content.media)
+
+    rating_string = rating_str(content)
+
+    embed.add_field(name="Ratings", value=rating_string, inline=False)
+    rounded_duration = round(content.duration / 1000)  # Convert time to seconds and round
+
+    if hasattr(content, 'genres'):
+        embed.add_field(name="Genres", value=stringify(content.genres), inline=True)
+    else:
+        embed.add_field(name="Genres", value="Not applicable", inline=True)
+
+    embed.add_field(name="Runtime", value=f"{datetime.timedelta(seconds=rounded_duration)}", inline=True)
+    actors = content.roles
+    if len(actors) == 0:
+        actors = "No information available"
+    if len(actors) <= 3:
+        embed.add_field(name="Lead Actors", value=stringify(actors, max_length=3), inline=False)
+    else:
+        embed.add_field(name="Cast", value=stringify(actors, max_length=10), inline=False)
+
+    embed.add_field(name="Producers", value=stringify(content.producers), inline=True)
+    embed.add_field(name="Directors", value=stringify(content.directors), inline=True)
+    embed.add_field(name="Writers", value=stringify(content.writers), inline=True)
+    embed.add_field(name="Media", value=safe_field("\n\n".join(media_info)), inline=False)
+    embed.add_field(name="Subtitles",
+                    value=safe_field("\n\n".join(subtitle_details(content, max_subs=6))), inline=False)

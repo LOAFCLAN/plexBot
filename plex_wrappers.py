@@ -53,6 +53,9 @@ class DiscordAssociation:
     def compare_plex_user(self, other):
         return self.plex_id == other or self.plex_email == other or self.plex_username == other
 
+    def __object__(self):
+        return self.discord_member
+
     def __str__(self):
         return "Discord: %s, Plex: %s" % (self.discord_member.name, self.plex_id)
 

@@ -40,10 +40,16 @@ class PlexBot(commands.Bot):
              discord_user_id INTEGER, plex_id INTEGER, plex_email 
             TEXT, plex_username TEXT, PRIMARY KEY (guild_id, discord_user_id));''')
         self.database.execute(
-            '''CREATE TABLE IF NOT EXISTS activity_messages (guild_id INTEGER PRIMARY KEY, channel_id INTEGER, message_id 
-            INTEGER);''')
+            '''CREATE TABLE IF NOT EXISTS activity_messages (guild_id INTEGER PRIMARY KEY, channel_id INTEGER, 
+            message_id INTEGER);''')
         self.database.execute(
             '''CREATE TABLE IF NOT EXISTS plex_alert_channel (guild_id INTEGER PRIMARY KEY, channel_id INTEGER);''')
+        self.database.execute(
+            '''CREATE TABLE IF NOT EXISTS plex_history_channel(guild_id INTEGER PRIMARY KEY, channel_id INTEGER);''')
+        self.database.execute(
+            '''CREATE TABLE IF NOT EXISTS plex_history_messages 
+            (event_hash INTEGER, guild_id INTEGER, message_id INTEGER, history_time INTEGER, 
+            title TEXT NOT NULL, media_type TEXT NOT NULL, season_num INTEGER, ep_num INTEGER, account_ID INTEGER);''')
 
         self.database.commit()
 
@@ -74,6 +80,7 @@ class PlexBot(commands.Bot):
         self.load_extension('plexBot')
         self.load_extension('maint')
         self.load_extension('plexSearch')
+        self.load_extension('plexHistory')
         self.client = super()
 
     def owner(self):
@@ -83,7 +90,7 @@ class PlexBot(commands.Bot):
         ctx = await super().get_context(message, cls=cls)
         return ctx
 
-    async def fetch_plex(self, guild: discord.Guild):
+    async def fetch_plex(self, guild: discord.Guild) -> PlexServer:
         """Allows for getting a plex instance for a guild if ctx is not available"""
         guild_id = guild.id
         if guild_id not in plex_servers:
