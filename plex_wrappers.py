@@ -1,7 +1,12 @@
+import asyncio
+import datetime
 import traceback
+import typing
+from copy import copy
 from typing import Iterator
 
 import discord
+import plexapi
 from discord.ext import commands
 from plexapi.server import PlexServer
 
@@ -177,3 +182,87 @@ class DiscordAssociations:
             if association == item:
                 return True
         return False
+
+
+class SessionWatcher:
+
+    def __init__(self, session: plexapi.media.Session, server, callback) -> None:
+
+        self.callback = callback
+        self.server = server
+
+        if session.isPartialObject:
+            session.reload()
+
+        media = session.media[0]
+
+        self.initial_media = copy(media)
+        self.media = media
+        self.initial_session = copy(session)
+        self.session = session
+
+        self.alive_time = datetime.datetime.now()
+        self.media_start_position = datetime.timedelta(seconds=round(session.viewOffset / 1000))
+
+    async def session_check(self):
+        print(f"Starting session check for {self.session.title}")
+        while True:
+            # Make sure the session still exists
+            if self.session not in self.server.sessions():
+                print(f"Session {self.session.title} no longer exists")
+                await self.callback(self)
+                break
+            await asyncio.sleep(1)
+
+    def __str__(self):
+        return f"{self.media.title} - {self.session.player.title}"
+
+    def __eq__(self, other):
+        if isinstance(other, SessionWatcher):
+            return self.session == other.session
+        elif isinstance(other, plexapi.media.Session):
+            return self.session == other
+        elif isinstance(other, plexapi.media.Media):
+            return self.media == other
+        elif isinstance(other, plexapi.video.Video):
+            return self.media == other
+        elif isinstance(other, list):
+            return False
+        elif other is None:
+            return False
+        else:
+            raise TypeError(f"Invalid type for comparison, must be SessionWatcher, "
+                            f"plexapi.media.Session, or plexapi.media.Media. Not {type(other)}")
+
+    def __iter__(self):
+        yield self
+
+
+class SessionChangeWatcher:
+    """Binds to a plexapi.Server and fires events when sessions start or stop"""
+
+    def __init__(self, server_object: plexapi.server, callback: typing.Callable, channel: discord.TextChannel) -> None:
+        self.server = server_object
+        self.watchers = []
+        self.callbacktoback = callback
+        self.channel = channel
+        asyncio.get_event_loop().create_task(self.observer())
+
+    async def observer(self):
+        while True:
+            sessions = self.server.sessions()
+            for session in sessions:
+                already_exists = False
+                for watcher in self.watchers:
+                    if watcher.session == session:
+                        already_exists = True
+                        break
+                if not already_exists:
+                    watcher = SessionWatcher(session, self.server, self.callback)
+                    self.watchers.append(watcher)
+                    asyncio.get_event_loop().create_task(watcher.session_check())
+            await asyncio.sleep(1)
+
+    async def callback(self, watcher: SessionWatcher):
+        await self.callbacktoback(watcher, self.channel)
+        self.watchers.remove(watcher)
