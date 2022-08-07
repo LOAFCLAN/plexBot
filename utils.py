@@ -474,7 +474,7 @@ def text_progress_bar_maker(duration: float, end: float, start: float = 0, lengt
         start = temp
 
     front_porch = int((start / duration) * length)
-    elapsed = max(int(((end - start) / duration) * length), 1)
-    back_porch = length - front_porch - elapsed
-    bar = f"`<{'-' * front_porch}{'▋' * elapsed}{'-' * back_porch}>`"
+    back_porch = int((duration - end) / duration * length)
+    elapsed = max(length - front_porch - back_porch, 1)
+    bar = f"`<{'―' * front_porch}{'⬜' * elapsed}{'―' * back_porch}>`"
     return bar

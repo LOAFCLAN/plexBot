@@ -203,7 +203,7 @@ class PlexHistory(commands.Cog):
         start_position = datetime.timedelta(seconds=round(raw_start_position / 1000))
 
         if isinstance(user, discord.User):
-            embed = discord.Embed(title=f"{session.title} ({session.year})",
+            embed = discord.Embed(title=f"{session.title} {f'({session.year})' if session.year else ''}",
                                   description=
                                   f"{user.mention} watched this with `{device.name}` on `{device.platform}`",
                                   color=0x00ff00, timestamp=time)
@@ -211,7 +211,7 @@ class PlexHistory(commands.Cog):
                 embed.set_author(name=f"{session.grandparentTitle} - S{session.parentIndex}E{session.index}",
                                  icon_url=user.avatar_url)
         else:
-            embed = discord.Embed(title=f"{session.title} ({session.year})",
+            embed = discord.Embed(title=f"{session.title} {f'({session.year})' if session.year else ''}",
                                   description=f"`{user.name}` "
                                               f"watched this with `{device.name}` on `{device.platform}`",
                                   color=0x00ff00, timestamp=time)
