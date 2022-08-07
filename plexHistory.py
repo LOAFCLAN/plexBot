@@ -10,7 +10,7 @@ import custom_dpy_overrides
 from discord_components import DiscordComponents, Button, ButtonStyle, SelectOption, Select, Interaction, ActionRow
 
 from plex_wrappers import SessionChangeWatcher, SessionWatcher
-from utils import base_info_layer, get_season, get_episode, cleanup_url
+from utils import base_info_layer, get_season, get_episode, cleanup_url, text_progress_bar_maker
 
 
 def hash_media_event(media) -> int:
@@ -73,11 +73,18 @@ class PlexHistory(commands.Cog):
         events = self.bot.database.execute(
             '''SELECT * FROM plex_history_messages WHERE guild_id = ?''', (guild.id,))
         for event in events.fetchall():
-            if event[2] not in self.msg_cache[guild.id]:
-                self.msg_cache[guild.id][event[2]] = await channel.fetch_message(event[2])
-                await self.acquire_history_message(guild, channel, self.msg_cache[guild.id][event[2]])
+            if event[2] is not None:
+                if event[2] not in self.msg_cache[guild.id]:
+                    self.msg_cache[guild.id][event[2]] = await channel.fetch_message(event[2])
+                    await self.acquire_history_message(guild, channel, self.msg_cache[guild.id][event[2]])
+                else:
+                    await self.acquire_history_message(guild, channel, self.msg_cache[guild.id][event[2]])
             else:
-                await self.acquire_history_message(guild, channel, self.msg_cache[guild.id][event[2]])
+                print(f"Message {event[0]} has no message ID, removing from database")
+                self.bot.database.execute(
+                    '''DELETE FROM plex_history_messages WHERE event_hash = ?''', (event[0],))
+                self.bot.database.commit()
+
             self.sent_hashes.append(event[0])
         print(f"Acquired {len(self.msg_cache[guild.id])} messages for {guild.name}")
 
@@ -115,7 +122,7 @@ class PlexHistory(commands.Cog):
         #     await asyncio.sleep(30)
 
     async def on_watched(self, watcher, channel):
-        session = watcher.initial_session
+        session = watcher.session
         if session.type == "episode":
             title = session.grandparentTitle
         else:
@@ -156,6 +163,7 @@ class PlexHistory(commands.Cog):
 
     async def send_history_message(self, guild, channel, watcher: SessionWatcher, plex):
 
+        start_session = watcher.initial_session
         session = watcher.session
         media = watcher.media
         accountID = session.accountID
@@ -184,10 +192,18 @@ class PlexHistory(commands.Cog):
 
         time = watcher.alive_time
 
-        progress = pl
+        raw_current_position = watcher.end_offset
+        raw_duration = session.duration
+        raw_start_position = start_session.viewOffset
+
+        progress_bar = text_progress_bar_maker(raw_duration, raw_current_position, raw_start_position)
+
+        current_position = datetime.timedelta(seconds=round(raw_current_position / 1000))
+        duration = datetime.timedelta(seconds=round(raw_duration / 1000))
+        start_position = datetime.timedelta(seconds=round(raw_start_position / 1000))
 
         if isinstance(user, discord.User):
-            embed = discord.Embed(title=session.title,
+            embed = discord.Embed(title=f"{session.title} ({session.year})",
                                   description=
                                   f"{user.mention} watched this with `{device.name}` on `{device.platform}`",
                                   color=0x00ff00, timestamp=time)
@@ -195,7 +211,7 @@ class PlexHistory(commands.Cog):
                 embed.set_author(name=f"{session.grandparentTitle} - S{session.parentIndex}E{session.index}",
                                  icon_url=user.avatar_url)
         else:
-            embed = discord.Embed(title=session.title,
+            embed = discord.Embed(title=f"{session.title} ({session.year})",
                                   description=f"`{user.name}` "
                                               f"watched this with `{device.name}` on `{device.platform}`",
                                   color=0x00ff00, timestamp=time)
@@ -205,7 +221,8 @@ class PlexHistory(commands.Cog):
             elif session.type == "movie":
                 embed.set_author(name="", icon_url=user.thumb)
 
-        # if
+        embed.add_field(name=f"Progress: ({start_position}->{current_position}) {duration}",
+                        value=progress_bar, inline=False)
 
         if hasattr(session, "thumb"):
             thumb_url = cleanup_url(session.thumbUrl)
@@ -228,9 +245,10 @@ class PlexHistory(commands.Cog):
         self.bot.database.execute(
                             '''INSERT INTO plex_history_messages
                             (event_hash, guild_id, message_id, history_time,
-                             title, media_type, account_ID, playback_progress)
-                            VALUES (?, ?, ?, ?, ?, ?, ?, ?)''',
-                            (m_hash, guild.id, msg.id, time.timestamp(), title, session.type, accountID, 0))
+                             title, media_type, account_ID, pb_start_offset, pb_end_offset)
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)''',
+                            (m_hash, guild.id, msg.id, time.timestamp(), title, session.type, accountID,
+                             raw_start_position, raw_current_position))
         if isinstance(session, plexapi.video.Episode):
             self.bot.database.execute('''
             UPDATE plex_history_messages SET season_num = ?, ep_num = ? WHERE event_hash = ?''',

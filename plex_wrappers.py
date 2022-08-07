@@ -2,7 +2,7 @@ import asyncio
 import datetime
 import traceback
 import typing
-from copy import copy
+from copy import copy, deepcopy
 from typing import Iterator
 
 import discord
@@ -184,25 +184,35 @@ class DiscordAssociations:
         return False
 
 
+# class PlexSessionSnapshot:
+#
+#     def __init__(self, session: plexapi.video.Video):
+#         self.view_offset = deepcopy(session.viewOffset)
+#         self.duration = deepcopy(session.duration)
+
+
 class SessionWatcher:
 
-    def __init__(self, session: plexapi.media.Session, server, callback) -> None:
+    def __init__(self, session: plexapi.video.Video, server, callback) -> None:
 
         self.callback = callback
         self.server = server
 
-        if session.isPartialObject:
-            session.reload()
+        if not session.isFullObject:
+            session.reload(checkFiles=False)
+            if not session.isFullObject:
+                raise Exception("Session is still partial")
 
         media = session.media[0]
 
-        self.initial_media = copy(media)
+        # self.initial_media = copy(media)
         self.media = media
-        self.initial_session = copy(session)
+        self.initial_session = session
         self.session = session
 
+        self.end_offset = -1
+
         self.alive_time = datetime.datetime.now()
-        self.media_start_position = datetime.timedelta(seconds=round(session.viewOffset / 1000))
 
     async def session_check(self):
         print(f"Starting session check for {self.session.title}")
@@ -212,7 +222,18 @@ class SessionWatcher:
                 print(f"Session {self.session.title} no longer exists")
                 await self.callback(self)
                 break
+
+            if not self.session.isFullObject:
+                self.session.reload(checkFiles=False)
+                if not self.session.isFullObject:
+                    raise Exception("Session is still partial")
+
+            self.end_offset = self.session.viewOffset
             await asyncio.sleep(1)
+
+    def refresh_session(self, session: plexapi.video.Video) -> None:
+        self.session = session
+        self.media = session.media[0]
 
     def __str__(self):
         return f"{self.media.title} - {self.session.player.title}"
@@ -255,6 +276,7 @@ class SessionChangeWatcher:
                 already_exists = False
                 for watcher in self.watchers:
                     if watcher.session == session:
+                        watcher.refresh_session(session)
                         already_exists = True
                         break
                 if not already_exists:

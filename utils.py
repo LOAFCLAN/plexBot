@@ -112,6 +112,11 @@ async def session_embed(plex):
 
     for session in plex_sessions:
 
+        if not session.isFullObject:
+            session.reload(checkFiles=False)
+            if not session.isFullObject:
+                raise Exception("Session is still partial")
+
         if len(session.media) > 1:
             # Find which media file has a bitrate closest to the reserved bitrate
             reserved_bitrate = session.session[0].bandwidth
@@ -449,3 +454,27 @@ def base_info_layer(embed, content):
     embed.add_field(name="Media", value=safe_field("\n\n".join(media_info)), inline=False)
     embed.add_field(name="Subtitles",
                     value=safe_field("\n\n".join(subtitle_details(content, max_subs=6))), inline=False)
+
+
+def text_progress_bar_maker(duration: float, end: float, start: float = 0, length: int = 50) -> str:
+    """
+    Make a elapsed time bar using -'s and different sized ▋'s to represent the elapsed time
+    :param length: The length of the bar in characters
+    :param duration: The duration of the media in any units as long as they are the same
+    :param end: The end time of the media in the same units as duration
+    :param start: The start time of the media in the same units as duration
+    :return: A string of the elapsed time bar ex: <----████------------------->
+    """
+    length = length - 2
+    if duration == 0:
+        return "N/A"
+    if start > end:
+        temp = end
+        end = start
+        start = temp
+
+    front_porch = int((start / duration) * length)
+    elapsed = max(int(((end - start) / duration) * length), 1)
+    back_porch = length - front_porch - elapsed
+    bar = f"`<{'-' * front_porch}{'▋' * elapsed}{'-' * back_porch}>`"
+    return bar
