@@ -17,13 +17,7 @@ def hash_media_event(media) -> int:
     """Hash a media watch event, so we can easily reference it later
     The hash is based on the medias title, guid, userID of the watcher and the viewedAt
     """
-    if media.type == "episode":
-        values = (
-        int(hash(media.usernames[0])), int(datetime.datetime.utcnow().timestamp()), int(media.parentIndex), int(media.index))
-    else:
-        values = random.randint(0, 1000000)
-    val_hash = hash(values)
-    return val_hash
+    return hash(media)
 
 
 class PlexHistory(commands.Cog):
@@ -129,18 +123,7 @@ class PlexHistory(commands.Cog):
             title = session.title
         m_hash = hash_media_event(watcher.session)
         if m_hash not in self.sent_hashes:
-            self.bot.database.execute(
-                '''INSERT INTO plex_history_messages
-                (event_hash, guild_id, message_id, history_time, title, media_type, account_ID)
-                VALUES (?, ?, ?, ?, ?, ?, ?)''',
-                (m_hash, channel.guild.id, None, session.viewedAt, title, session.type, session.accountID))
             await self.send_history_message(channel.guild, channel, watcher, await self.bot.fetch_plex(channel.guild))
-            if isinstance(session, plexapi.video.Episode):
-                self.bot.database.execute('''
-                UPDATE plex_history_messages SET season_num = ?, ep_num = ? WHERE event_hash = ?''',
-                                          (session.parentIndex, session.index, m_hash))
-            self.bot.database.commit()
-            self.sent_hashes.append(m_hash)
 
     async def acquire_history_message(self, guild, channel, msg):
         if hasattr(msg, "components"):
@@ -203,7 +186,7 @@ class PlexHistory(commands.Cog):
         start_position = datetime.timedelta(seconds=round(raw_start_position / 1000))
 
         if isinstance(user, discord.User):
-            embed = discord.Embed(title=f"{session.title} {f'({session.year})' if session.year else ''}",
+            embed = discord.Embed(title=f"{session.title} {f'({session.year})' if session.type != 'episode' else ''}",
                                   description=
                                   f"{user.mention} watched this with `{device.name}` on `{device.platform}`",
                                   color=0x00ff00, timestamp=time)
@@ -211,7 +194,7 @@ class PlexHistory(commands.Cog):
                 embed.set_author(name=f"{session.grandparentTitle} - S{session.parentIndex}E{session.index}",
                                  icon_url=user.avatar_url)
         else:
-            embed = discord.Embed(title=f"{session.title} {f'({session.year})' if session.year else ''}",
+            embed = discord.Embed(title=f"{session.title} {f'({session.year})' if session.type != 'episode' else ''}",
                                   description=f"`{user.name}` "
                                               f"watched this with `{device.name}` on `{device.platform}`",
                                   color=0x00ff00, timestamp=time)
@@ -224,8 +207,10 @@ class PlexHistory(commands.Cog):
         embed.add_field(name=f"Progress: ({start_position}->{current_position}) {duration}",
                         value=progress_bar, inline=False)
 
+        embed.set_footer(text=f"This session was alive for {(datetime.datetime.utcnow() - watcher.alive_time)}")
+
         if hasattr(session, "thumb"):
-            thumb_url = cleanup_url(session.thumbUrl)
+            thumb_url = cleanup_url(session.thumb)
             embed.set_thumbnail(url=thumb_url)
 
         m_hash = hash_media_event(session)
@@ -298,6 +283,10 @@ class PlexHistory(commands.Cog):
 
             else:
                 embed = discord.Embed(title=f"Unknown media type", color=0x00ff00)
+
+            if hasattr(content, "thumb"):
+                thumb_url = cleanup_url(content.thumb)
+                embed.set_thumbnail(url=thumb_url)
 
             await interaction.respond(embed=embed)
 

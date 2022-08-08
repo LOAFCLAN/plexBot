@@ -212,7 +212,7 @@ class SessionWatcher:
 
         self.end_offset = -1
 
-        self.alive_time = datetime.datetime.now()
+        self.alive_time = datetime.datetime.utcnow()
 
     async def session_check(self):
         print(f"Starting session check for {self.session.title}")
@@ -239,6 +239,7 @@ class SessionWatcher:
         return f"{self.media.title} - {self.session.player.title}"
 
     def __eq__(self, other):
+        print(f"Comparing {self} to {other}, Type: {type(other)}")
         if isinstance(other, SessionWatcher):
             return self.session == other.session
         elif isinstance(other, plexapi.media.Session):
@@ -275,7 +276,7 @@ class SessionChangeWatcher:
             for session in sessions:
                 already_exists = False
                 for watcher in self.watchers:
-                    if watcher.session == session:
+                    if watcher.session == session and session.title == watcher.initial_session.title:
                         watcher.refresh_session(session)
                         already_exists = True
                         break
