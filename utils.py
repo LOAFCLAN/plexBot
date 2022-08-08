@@ -456,7 +456,7 @@ def base_info_layer(embed, content):
                     value=safe_field("\n\n".join(subtitle_details(content, max_subs=6))), inline=False)
 
 
-def text_progress_bar_maker(duration: float, end: float, start: float = 0, length: int = 50) -> str:
+def text_progress_bar_maker(duration: float, end: float, start: float = 0, length: int = 65) -> str:
     """
     Make a elapsed time bar using -'s and different sized ▋'s to represent the elapsed time
     :param length: The length of the bar in characters
@@ -476,5 +476,5 @@ def text_progress_bar_maker(duration: float, end: float, start: float = 0, lengt
     front_porch = int((start / duration) * length)
     back_porch = int((duration - end) / duration * length)
     elapsed = max(length - front_porch - back_porch, 1)
-    bar = f"`<{'―' * front_porch}{'⬜' * elapsed}{'―' * back_porch}>`"
+    bar = f"`<{'-' * front_porch}{'=' * elapsed}{'-' * back_porch}>`"
     return bar
