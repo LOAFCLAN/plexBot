@@ -207,7 +207,9 @@ class PlexHistory(commands.Cog):
         embed.add_field(name=f"Progress: ({start_position}->{current_position}) {duration}",
                         value=progress_bar, inline=False)
 
-        embed.set_footer(text=f"This session was alive for {(datetime.datetime.utcnow() - watcher.alive_time)}")
+        alive_time = datetime.timedelta(seconds=round((datetime.datetime.utcnow()
+                                                       - watcher.alive_time).total_seconds()))
+        embed.set_footer(text=f"This session was alive for {alive_time}")
 
         if hasattr(session, "thumb"):
             thumb_url = cleanup_url(session.thumb)
