@@ -19,7 +19,7 @@ def hash_media_event(media) -> int:
     """
     if media.type == "episode":
         values = (
-        int(hash(media.usernames[0])), int(media.lastViewedAt.timestamp()), int(media.parentIndex), int(media.index))
+        int(hash(media.usernames[0])), int(datetime.datetime.utcnow().timestamp()), int(media.parentIndex), int(media.index))
     else:
         values = random.randint(0, 1000000)
     val_hash = hash(values)
