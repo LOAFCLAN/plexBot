@@ -211,7 +211,7 @@ class PlexHistory(commands.Cog):
 
         alive_time = datetime.timedelta(seconds=round((datetime.datetime.utcnow()
                                                        - watcher.alive_time).total_seconds()))
-        embed.set_footer(text=f"This session was alive for {alive_time}")
+        embed.set_footer(text=f"This session was alive for {alive_time}, Started")
 
         if hasattr(session, "thumb"):
             thumb_url = cleanup_url(session.thumb)
@@ -230,11 +230,18 @@ class PlexHistory(commands.Cog):
             style=ButtonStyle.green,
             id=f"usermore_{accountID}",
         )
+        mobile_view_button = Button(
+            label="Mobile View",
+            emoji="📱",
+            style=ButtonStyle.green,
+            id=f"mobileview_{m_hash}",
+        )
 
-        action_row = ActionRow(media_button, user_button)
+        action_row = ActionRow(media_button, user_button, mobile_view_button)
 
         self.bot.component_manager.add_callback(media_button, self.component_callback)
         self.bot.component_manager.add_callback(user_button, self.component_callback)
+        self.bot.component_manager.add_callback(mobile_view_button, self.component_callback)
 
         msg = await channel.send(embed=embed, components=[action_row])
 
@@ -312,6 +319,9 @@ class PlexHistory(commands.Cog):
         await interaction.respond(embed=embed)
 
     async def user_info_callback(self, interaction):
+        await interaction.respond(content="Not implemented yet")
+
+    async def mobile_view_callback(self, interaction):
         await interaction.respond(content="Not implemented yet")
 
     @has_permissions(administrator=True)

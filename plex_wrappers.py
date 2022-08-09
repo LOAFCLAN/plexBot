@@ -302,5 +302,9 @@ class SessionChangeWatcher:
                 await asyncio.sleep(1.5)
 
     async def callback(self, watcher: SessionWatcher):
-        await self.callbacktoback(watcher, self.channel)
-        self.watchers.remove(watcher)
+        try:
+            await self.callbacktoback(watcher, self.channel)
+        except Exception as e:
+            print(f"Error in callback: {e}\n{traceback.format_exc()}")
+        finally:
+            self.watchers.remove(watcher)
