@@ -69,8 +69,15 @@ class PlexHistory(commands.Cog):
         for event in events.fetchall():
             if event[2] is not None:
                 if event[2] not in self.msg_cache[guild.id]:
-                    self.msg_cache[guild.id][event[2]] = await channel.fetch_message(event[2])
-                    await self.acquire_history_message(guild, channel, self.msg_cache[guild.id][event[2]])
+                    try:
+                        self.msg_cache[guild.id][event[2]] = await channel.fetch_message(event[2])
+                    except discord.NotFound:
+                        print(f"Message {event[2]} not found, removing from database")
+                        self.bot.database.execute('''
+                        DELETE FROM plex_history_messages WHERE message_id = ?''', (event[2],))
+                        self.bot.database.commit()
+                    else:
+                        await self.acquire_history_message(guild, channel, self.msg_cache[guild.id][event[2]])
                 else:
                     await self.acquire_history_message(guild, channel, self.msg_cache[guild.id][event[2]])
             else:
@@ -116,11 +123,6 @@ class PlexHistory(commands.Cog):
         #     await asyncio.sleep(30)
 
     async def on_watched(self, watcher, channel):
-        session = watcher.session
-        if session.type == "episode":
-            title = session.grandparentTitle
-        else:
-            title = session.title
         m_hash = hash_media_event(watcher.session)
         if m_hash not in self.sent_hashes:
             await self.send_history_message(channel.guild, channel, watcher, await self.bot.fetch_plex(channel.guild))
@@ -218,24 +220,35 @@ class PlexHistory(commands.Cog):
         m_hash = hash_media_event(session)
 
         # Generate more info components
-        button = Button(
-            label="More Info",
+        media_button = Button(
+            label="Media Info",
             style=ButtonStyle.blue,
             id=f"historymore_{m_hash}",
         )
-        self.bot.component_manager.add_callback(button, self.component_callback)
-        msg = await channel.send(embed=embed, components=[button])
+        user_button = Button(
+            label="User Info",
+            style=ButtonStyle.green,
+            id=f"usermore_{accountID}",
+        )
+
+        action_row = ActionRow(media_button, user_button)
+
+        self.bot.component_manager.add_callback(media_button, self.component_callback)
+        self.bot.component_manager.add_callback(user_button, self.component_callback)
+
+        msg = await channel.send(embed=embed, components=[action_row])
+
         if session.type == "episode":
             title = session.grandparentTitle
         else:
             title = session.title
         self.bot.database.execute(
-                            '''INSERT INTO plex_history_messages
+            '''INSERT INTO plex_history_messages
                             (event_hash, guild_id, message_id, history_time,
                              title, media_type, account_ID, pb_start_offset, pb_end_offset)
                             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)''',
-                            (m_hash, guild.id, msg.id, time.timestamp(), title, session.type, accountID,
-                             raw_start_position, raw_current_position))
+            (m_hash, guild.id, msg.id, time.timestamp(), title, session.type, accountID,
+             raw_start_position, raw_current_position))
         if isinstance(session, plexapi.video.Episode):
             self.bot.database.execute('''
             UPDATE plex_history_messages SET season_num = ?, ep_num = ? WHERE event_hash = ?''',
@@ -259,38 +272,47 @@ class PlexHistory(commands.Cog):
 
     async def component_callback(self, interaction: Interaction):
         if interaction.custom_id.startswith("historymore"):
-            m_hash = int(interaction.custom_id.split("_")[1])
-            guild = interaction.guild
+            await self.media_info_callback(interaction)
+        elif interaction.custom_id.startswith("usermore"):
+            await self.user_info_callback(interaction)
 
-            content = await self.media_from_hash(guild, m_hash)
+    async def media_info_callback(self, interaction: Interaction):
 
-            if content is None:
-                await interaction.respond(content="Could not find media", ephemeral=True)
-                return
+        m_hash = int(interaction.custom_id.split("_")[1])
+        guild = interaction.guild
 
-            if content.isPartialObject():  # If the media is only partially loaded
-                content.reload()  # do it correctly this time
+        content = await self.media_from_hash(guild, m_hash)
 
-            if isinstance(content, plexapi.video.Movie):
-                embed = discord.Embed(title=f"{content.title} ({content.year})",
-                                      description=f"{content.tagline}", color=0x00ff00)
-                base_info_layer(embed, content)  # Add the base info layer to the embed
+        if content is None:
+            await interaction.respond(content="Could not find media", ephemeral=True)
+            return
 
-            elif isinstance(content, plexapi.video.Episode):  # ------------------------------------------------------
-                """Format the embed being sent for an episode"""
-                embed = discord.Embed(title=f"{content.grandparentTitle}\n{content.title} "
-                                            f"(S{content.parentIndex}E{content.index})",
-                                      description=f"{content.summary}", color=0x00ff00)
-                base_info_layer(embed, content)
+        if content.isPartialObject():  # If the media is only partially loaded
+            content.reload()  # do it correctly this time
 
-            else:
-                embed = discord.Embed(title=f"Unknown media type", color=0x00ff00)
+        if isinstance(content, plexapi.video.Movie):
+            embed = discord.Embed(title=f"{content.title} ({content.year})",
+                                  description=f"{content.tagline}", color=0x00ff00)
+            base_info_layer(embed, content)  # Add the base info layer to the embed
 
-            if hasattr(content, "thumb"):
-                thumb_url = cleanup_url(content.thumb)
-                embed.set_thumbnail(url=thumb_url)
+        elif isinstance(content, plexapi.video.Episode):  # ------------------------------------------------------
+            """Format the embed being sent for an episode"""
+            embed = discord.Embed(title=f"{content.grandparentTitle}\n{content.title} "
+                                        f"(S{content.parentIndex}E{content.index})",
+                                  description=f"{content.summary}", color=0x00ff00)
+            base_info_layer(embed, content)
 
-            await interaction.respond(embed=embed)
+        else:
+            embed = discord.Embed(title=f"Unknown media type", color=0x00ff00)
+
+        if hasattr(content, "thumb"):
+            thumb_url = cleanup_url(content.thumb)
+            embed.set_thumbnail(url=thumb_url)
+
+        await interaction.respond(embed=embed)
+
+    async def user_info_callback(self, interaction):
+        await interaction.respond(content="Not implemented yet")
 
     @has_permissions(administrator=True)
     @command(name="set_history_channel", aliases=["shc"])
@@ -299,6 +321,8 @@ class PlexHistory(commands.Cog):
             '''INSERT OR REPLACE INTO plex_history_channel VALUES (?, ?)''', (ctx.guild.id, channel.id))
         self.bot.database.commit()
         await ctx.send(f"Set history channel to {channel.mention}")
+
+
 
 
 def setup(bot):

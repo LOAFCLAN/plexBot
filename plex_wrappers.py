@@ -195,6 +195,8 @@ class SessionWatcher:
 
     def __init__(self, session: plexapi.video.Video, server, callback) -> None:
 
+        print(f"Creating SessionWatcher for {session.title} ({session.year}) on {server.friendlyName}")
+
         self.callback = callback
         self.server = server
 
@@ -214,26 +216,19 @@ class SessionWatcher:
 
         self.alive_time = datetime.datetime.utcnow()
 
-    async def session_check(self):
-        print(f"Starting session check for {self.session.title}")
-        while True:
-            # Make sure the session still exists
-            if self.session not in self.server.sessions():
-                print(f"Session {self.session.title} no longer exists")
-                await self.callback(self)
-                break
-
-            if not self.session.isFullObject:
-                self.session.reload(checkFiles=False)
-                if not self.session.isFullObject:
-                    raise Exception("Session is still partial")
-
-            self.end_offset = self.session.viewOffset
-            await asyncio.sleep(1)
-
-    def refresh_session(self, session: plexapi.video.Video) -> None:
+    async def refresh_session(self, session: plexapi.video.Video) -> None:
         self.session = session
         self.media = session.media[0]
+
+        if not self.session.isFullObject:
+            self.session.reload(checkFiles=False)
+            if not self.session.isFullObject:
+                raise Exception("Session is still partial")
+
+        self.end_offset = self.session.viewOffset
+
+    async def session_expired(self):
+        await self.callback(self)
 
     def __str__(self):
         return f"{self.media.title} - {self.session.player.title}"
@@ -272,19 +267,39 @@ class SessionChangeWatcher:
 
     async def observer(self):
         while True:
-            sessions = self.server.sessions()
-            for session in sessions:
-                already_exists = False
+            try:
+                sessions = self.server.sessions()
+                for session in sessions:
+                    try:
+                        already_exists = False
+                        for watcher in self.watchers:
+                            if watcher.session == session and session.title == watcher.initial_session.title:
+                                await watcher.refresh_session(session)
+                                already_exists = True
+                                break
+                        if not already_exists:
+                            watcher = SessionWatcher(session, self.server, self.callback)
+                            self.watchers.append(watcher)
+                    except Exception as e:
+                        print(f"Error refreshing session {session.title}: {e}\n{traceback.format_exc()}")
+
                 for watcher in self.watchers:
-                    if watcher.session == session and session.title == watcher.initial_session.title:
-                        watcher.refresh_session(session)
-                        already_exists = True
-                        break
-                if not already_exists:
-                    watcher = SessionWatcher(session, self.server, self.callback)
-                    self.watchers.append(watcher)
-                    asyncio.get_event_loop().create_task(watcher.session_check())
-            await asyncio.sleep(1)
+                    try:
+                        session_still_exists = False
+                        for session in sessions:
+                            if watcher.session == session and session.title == watcher.initial_session.title:
+                                session_still_exists = True
+                                break
+                        if not session_still_exists:
+                            await watcher.session_expired()
+                    except Exception as e:
+                        print(f"Error checking for continued existence of session "
+                              f"{watcher.session.title}: {e}\n{traceback.format_exc()}")
+
+            except Exception as e:
+                print(f"Error checking sessions: {e}\n{traceback.format_exc()}")
+            finally:
+                await asyncio.sleep(1.5)
 
     async def callback(self, watcher: SessionWatcher):
         await self.callbacktoback(watcher, self.channel)
