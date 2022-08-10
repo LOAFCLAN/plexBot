@@ -7,7 +7,8 @@ import typing
 from discord_components import DiscordComponents, Button, ButtonStyle, SelectOption, Select, Interaction
 import discord
 
-__all__ = ['clean', 'is_clean']
+__all__ = ['clean', 'is_clean', 'get_season', 'base_info_layer', 'rating_str', 'stringify', 'make_season_selector',
+           'make_episode_selector', 'cleanup_url', 'get_episode', 'text_progress_bar_maker']
 
 mass_mention = re.compile('@(everyone|here)')
 member_mention = re.compile(r'<@\!?(\d+)>')

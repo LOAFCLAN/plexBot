@@ -17,7 +17,7 @@ def hash_media_event(media) -> int:
     """Hash a media watch event, so we can easily reference it later
     The hash is based on the medias title, guid, userID of the watcher and the viewedAt
     """
-    return hash(media)
+    return hash(hash(media) + hash(datetime.datetime.now()))
 
 
 class PlexHistory(commands.Cog):
@@ -190,15 +190,17 @@ class PlexHistory(commands.Cog):
         if isinstance(user, discord.User):
             embed = discord.Embed(title=f"{session.title} {f'({session.year})' if session.type != 'episode' else ''}",
                                   description=
-                                  f"{user.mention} watched this with `{device.name}` on `{device.platform}`",
+                                  f"{user.mention} "
+                                  f"watched this with `{device.name}` on `{device.platform.capitalize()}`",
                                   color=0x00ff00, timestamp=time)
             if session.type == "episode":
                 embed.set_author(name=f"{session.grandparentTitle} - S{session.parentIndex}E{session.index}",
                                  icon_url=user.avatar_url)
         else:
             embed = discord.Embed(title=f"{session.title} {f'({session.year})' if session.type != 'episode' else ''}",
-                                  description=f"`{user.name}` "
-                                              f"watched this with `{device.name}` on `{device.platform}`",
+                                  description=
+                                  f"`{user.name}` "
+                                  f"watched this with `{device.name}` on `{device.platform.capitalize()}`",
                                   color=0x00ff00, timestamp=time)
             if session.type == "episode":
                 embed.set_author(name=f"{session.grandparentTitle} - S{session.parentIndex}E{session.index}",
@@ -284,6 +286,10 @@ class PlexHistory(commands.Cog):
             await self.media_info_callback(interaction)
         elif interaction.custom_id.startswith("usermore"):
             await self.user_info_callback(interaction)
+        elif interaction.custom_id.startswith("mobileview"):
+            await self.mobile_view_callback(interaction)
+        else:
+            await interaction.respond(content="Unknown interaction")
 
     async def media_info_callback(self, interaction: Interaction):
 
