@@ -118,7 +118,7 @@ class PlexBot(Cog):
                     embed.add_field(name="Error", value=f"{e}", inline=False)
                     embed.add_field(name="Traceback", value=traceback.format_exc()[:1024], inline=False)
                     embed.timestamp = datetime.datetime.utcnow()
-                    await message.edit(embed=embed)
+                    await message.edit(embed=embed, content=None)
                     await asyncio.sleep(5)
         except Exception as e:
             print(e)
