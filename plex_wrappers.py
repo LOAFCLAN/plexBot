@@ -231,7 +231,7 @@ class SessionWatcher:
         await self.callback(self)
 
     def __str__(self):
-        return f"{self.media.title} - {self.session.player.title}"
+        return f"{self.session.title}@{self.server.friendlyName}"
 
     def __eq__(self, other):
         print(f"Comparing {self} to {other}, Type: {type(other)}")

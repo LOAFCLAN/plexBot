@@ -222,11 +222,13 @@ class PlexHistory(commands.Cog):
         # Generate more info components
         media_button = Button(
             label="Media Info",
+            emoji="📹",
             style=ButtonStyle.blue,
             id=f"historymore_{m_hash}",
         )
         user_button = Button(
             label="User Info",
+            emoji="\N{BUSTS IN SILHOUETTE}",
             style=ButtonStyle.green,
             id=f"usermore_{accountID}",
         )
