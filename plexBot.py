@@ -105,7 +105,7 @@ class PlexBot(Cog):
             while True:
                 try:
                     embed = await session_embed(plex)
-                    await message.edit(embed=embed, content=None)
+                    await message.edit(embed=embed, content="")
                     # await log_scan()
                     await asyncio.sleep(5)
                 except discord_errors.NotFound:
