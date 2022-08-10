@@ -1,4 +1,6 @@
 discord~=1.7.3
-PlexAPI~=4.11.2
+langcodes~=3.3.0
+language_data~=1.1.0
+PlexAPI==4.12.1
 discord_components~=2.1.2
-humanize~=4.2.3
+humanize==4.3.0

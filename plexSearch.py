@@ -10,7 +10,7 @@ from discord.ext.commands import command
 from discord_components import DiscordComponents, Button, ButtonStyle, SelectOption, Select, Interaction
 
 from utils import get_season, base_info_layer, rating_str, stringify, make_season_selector, make_episode_selector, \
-    cleanup_url
+    cleanup_url, safe_field
 
 
 class PlexSearch(commands.Cog):
@@ -80,7 +80,8 @@ class PlexSearch(commands.Cog):
             self.bot.component_manager.add_callback(select_thing, self.on_select)
             embed = discord.Embed(title="Search results for '%s'" % query, color=0x00ff00)
             for result in results:
-                embed.add_field(name=f"{result.title} ({result.year})", value=result.summary[:1024], inline=False)
+                embed.add_field(name=f"{result.title} ({result.year})", value=safe_field(result.summary[:1024]),
+                                inline=False)
             cancel_button = Button(
                 label="Cancel",
                 style=ButtonStyle.red,
@@ -153,7 +154,7 @@ class PlexSearch(commands.Cog):
 
             rating_string = rating_str(content)
 
-            embed = discord.Embed(title=f"{content.title}",
+            embed = discord.Embed(title=f"{safe_field(content.title)}",
                                   description=f"{content.tagline}", color=0x00ff00)
             embed.add_field(name="Rating", value=rating_string, inline=False)
             embed.add_field(name="Genres", value=stringify(content.genres), inline=True)

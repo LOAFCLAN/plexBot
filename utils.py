@@ -1,6 +1,8 @@
 import datetime
 import re
+import traceback
 
+import langcodes
 import humanize
 import plexapi
 import typing
@@ -93,6 +95,16 @@ def pretty_concat(strings, single_suffix='', multi_suffix=''):
         return '{} and {}{}'.format(*strings, multi_suffix)
     else:
         return '{}, and {}{}'.format(', '.join(strings[:-1]), strings[-1], multi_suffix)
+
+
+def translate(lang):
+    if lang is None:
+        return "Unknown"
+    try:
+        return langcodes.find(lang).display_name()
+    except Exception as e:
+        print(f"Translation error: {e}\n{traceback.format_exc()}")
+        return f"{lang}*"
 
 
 async def session_embed(plex):
@@ -214,7 +226,7 @@ def subtitle_details(content, max_subs=-1) -> list:
             for subtitle in part.subtitleStreams():
                 opener = "`┠──>" if sub_index < len(part.subtitleStreams()) else "`└──>"
                 file_str += f"{opener} {sub_index}[{str(subtitle.codec).upper()}]" \
-                            f": {subtitle.language} - {subtitle.title if subtitle.title else 'Unnamed'}" \
+                            f": {translate(subtitle.language)} - {subtitle.title if subtitle.title else 'Unnamed'}" \
                             f"{' - Forced' if subtitle.forced else ''}`\n"
                 sub_index += 1
                 if max_subs != -1 and sub_index > max_subs:
@@ -253,12 +265,40 @@ def get_media_info(media_list: [plexapi.media.Media]) -> list:
                 audio_streams = []
                 stream_num = 1
                 streams = part.audioStreams()
+
+                required_rjust = 0
+                stream_infos = []
+
+                for audio_stream in streams:
+                    if audio_stream.codec is None:
+                        audio_codec = "IDFK"
+                    else:
+                        audio_codec = audio_stream.codec.upper()
+                    if audio_stream.audioChannelLayout is None:
+                        audio_channel_layout = f"{audio_stream.channels} ch"
+                    else:
+                        audio_channel_layout = audio_stream.audioChannelLayout.capitalize()
+                    stream_infos.append(f"{audio_codec}[{audio_channel_layout}]")
+
+                for info in stream_infos:
+                    if len(info) > required_rjust:
+                        required_rjust = len(info)
+
                 for audio_stream in streams:
                     opener = "`┠──>" if stream_num < len(streams) else "`└──>"
                     audio_bitrate = f"{humanize.naturalsize(audio_stream.bitrate * 1000)}/s".rjust(10)
-                    audio_streams.append(f"{opener}{audio_bitrate}-{audio_stream.displayTitle}@"
+                    if audio_stream.codec is None:
+                        audio_codec = "IDFK"
+                    else:
+                        audio_codec = audio_stream.codec.upper()
+                    if audio_stream.audioChannelLayout is None:
+                        audio_channel_layout = f"{audio_stream.channels} ch"
+                    else:
+                        audio_channel_layout = audio_stream.audioChannelLayout.capitalize()
+                    stream_info = f"{audio_codec}[{audio_channel_layout}]".rjust(required_rjust)
+                    audio_streams.append(f"{opener}{audio_bitrate}-{stream_info}@"
                                          f"{audio_stream.samplingRate / 1000}Khz"
-                                         f", Lang: {audio_stream.language}`")
+                                         f", Lang: {translate(audio_stream.language)}`")
                     stream_num += 1
                 media_index += 1
                 this_media += "\n".join(audio_streams)
