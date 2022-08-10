@@ -89,39 +89,6 @@ class PlexHistory(commands.Cog):
             self.sent_hashes.append(event[0])
         print(f"Acquired {len(self.msg_cache[guild.id])} messages for {guild.name}")
 
-        # while True:
-        #     history = plex.history(maxresults=100)
-        #     # Filter any media that is missing viewedAt and/or accountID
-        #     history = [m for m in history if m.viewedAt is not None and m.accountID is not None]
-        #     # Sort the history by viewedAt
-        #     history = sorted(history, key=lambda x: x.viewedAt)
-        #     # Filter an
-        #     for event in history:
-        #
-        #         m_hash = hash_media_event(event)
-        #
-        #         if m_hash not in self.sent_hashes:
-        #             if isinstance(event, plexapi.video.Episode):
-        #                 title = event.grandparentTitle
-        #             else:
-        #                 title = event.title
-        #             self.bot.database.execute(
-        #                 '''INSERT INTO plex_history_messages
-        #                 (event_hash, guild_id, message_id, history_time, title, media_type, account_ID)
-        #                 VALUES (?, ?, ?, ?, ?, ?, ?)''',
-        #                 (m_hash, guild.id, None, event.viewedAt, title, event.type, event.accountID))
-        #             await self.send_history_message(guild, channel, event, plex)
-        #
-        #             if isinstance(event, plexapi.video.Episode):
-        #                 self.bot.database.execute('''
-        #                 UPDATE plex_history_messages SET season_num = ?, ep_num = ? WHERE event_hash = ?''',
-        #                                           (event.parentIndex, event.index, m_hash))
-        #
-        #             self.bot.database.commit()
-        #             self.sent_hashes.append(m_hash)
-        #
-        #     await asyncio.sleep(30)
-
     async def on_watched(self, watcher, channel):
         m_hash = hash_media_event(watcher.session)
         if m_hash not in self.sent_hashes:
