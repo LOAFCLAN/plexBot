@@ -163,8 +163,17 @@ async def session_embed(plex):
                     else:
                         bandwidth = f"{round(media.bitrate)} kbps of bandwidth reserved"
                         total_bandwidth += media.bitrate
+        elif isinstance(session.session, plexapi.media.Session):
+            if session.session.location.startswith("lan"):
+                bandwidth = "Local session, no bandwidth reserved"
+            else:
+                if media is None:
+                    bandwidth = "Unknown media"
+                else:
+                    bandwidth = f"{round(media.bitrate)} kbps of bandwidth reserved"
+                    total_bandwidth += media.bitrate
         else:
-            bandwidth = "Invalid bandwidth data returned!"
+            bandwidth = "Fuck the plexAPI"
 
         media_info = "`Media info unavailable`"
         if len(session.transcodeSessions) == 0:
