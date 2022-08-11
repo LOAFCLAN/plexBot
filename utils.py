@@ -151,17 +151,20 @@ async def session_embed(plex):
         total_duration = datetime.timedelta(seconds=round(session.duration / 1000))
 
         timeline = f"{current_position} / {total_duration} - {str(session.players[0].state).capitalize()}"
-        if len(session.session) == 0:
-            bandwidth = "Invalid encoding, they probably need help"
-        else:
-            if session.session[0].location.startswith("lan"):
-                bandwidth = "Local session, no bandwidth reserved"
+        if isinstance(session.session, list):
+            if len(session.session) == 0:
+                bandwidth = "Invalid encoding, they probably need help"
             else:
-                if media is None:
-                    bandwidth = "Unknown media"
+                if session.session[0].location.startswith("lan"):
+                    bandwidth = "Local session, no bandwidth reserved"
                 else:
-                    bandwidth = f"{round(media.bitrate)} kbps of bandwidth reserved"
-                    total_bandwidth += media.bitrate
+                    if media is None:
+                        bandwidth = "Unknown media"
+                    else:
+                        bandwidth = f"{round(media.bitrate)} kbps of bandwidth reserved"
+                        total_bandwidth += media.bitrate
+        else:
+            bandwidth = "Invalid bandwidth data returned!"
 
         media_info = "`Media info unavailable`"
         if len(session.transcodeSessions) == 0:
