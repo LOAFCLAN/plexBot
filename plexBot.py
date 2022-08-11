@@ -4,6 +4,7 @@ import random
 import traceback
 import typing
 
+import plexapi.client
 from discord.ext.commands import command, has_permissions, Cog, Context, BadArgument
 from plexapi.server import PlexServer
 import discord.errors as discord_errors

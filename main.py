@@ -101,6 +101,8 @@ class PlexBot(commands.Bot):
             row = cursor.fetchone()
             try:
                 plex_servers[guild_id] = PlexServer(row[1], row[2])
+                plex_servers[guild_id].baseurl = row[1]
+                plex_servers[guild_id].token = row[2]
             except Exception:
                 raise Exception("Invalid plex server credentials, or server is offline")
         if not hasattr(plex_servers[guild_id], "associations"):

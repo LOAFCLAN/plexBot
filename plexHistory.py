@@ -158,6 +158,8 @@ class PlexHistory(commands.Cog):
         if session.type == "episode":
             embed.set_author(name=f"{session.grandparentTitle} - S{session.parentIndex}E{session.index}",
                              icon_url=user.avatar_url())
+        else:
+            embed.set_author(icon_url=user.avatar_url())
         # else:
         #     embed = discord.Embed(title=f"{session.title} {f'({session.year})' if session.type != 'episode' else ''}",
         #                           description=
@@ -304,8 +306,6 @@ class PlexHistory(commands.Cog):
             '''INSERT OR REPLACE INTO plex_history_channel VALUES (?, ?)''', (ctx.guild.id, channel.id))
         self.bot.database.commit()
         await ctx.send(f"Set history channel to {channel.mention}")
-
-
 
 
 def setup(bot):
