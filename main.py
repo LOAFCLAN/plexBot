@@ -109,6 +109,8 @@ class PlexBot(commands.Bot):
         return plex_servers[guild_id]
 
     async def on_ready(self):
+        for guild in self.guilds:
+            await guild.chunk(cache=True)
         print(f'Logged in as {self.user.name}')
         print(f'Bot ID: {self.user.id}')
         await self.change_presence(activity=discord.Game(name="PlexBot"))
@@ -118,8 +120,6 @@ class PlexBot(commands.Bot):
         print('<{}>'.format(oauth_url(super().user.id, discord.Permissions(perms))))
         print("Loading all members")
         self.component_manager = DiscordComponents(self)
-        for guild in self.guilds:
-            await guild.chunk()
 
     def run(self):
         super().run(self.token)
@@ -184,6 +184,7 @@ class PlexBot(commands.Bot):
 intents = discord.Intents.default()
 intents.members = True
 intents.presences = True
+intents.messages = True
 try:
     plex_bot = PlexBot(intents=intents)
     plex_bot.run()

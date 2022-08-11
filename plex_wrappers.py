@@ -23,7 +23,7 @@ class PlexContext(commands.Context):
         if guild_id not in plex_servers:
             cursor = self.bot.database.execute("SELECT * FROM plex_servers WHERE guild_id = ?", (guild_id,))
             if cursor.rowcount == 0:
-                raise Exception("No plex server found for this guild")
+                return None
             row = cursor.fetchone()
             try:
                 plex_servers[guild_id] = PlexServer(row[1], row[2])
@@ -45,32 +45,74 @@ class PlexContext(commands.Context):
         return self._get_plex().myPlexAccount()
 
 
-class DiscordAssociation:
+class CombinedUser:
 
-    def __init__(self, discord_member: discord.Member, plex_id: str, plex_email: str, plex_username: str):
-        if not isinstance(discord_member, discord.Member):
+    def __init__(self, plex_server, discord_member: discord.Member = None, plex_id: str = None, plex_email: str = None,
+                 plex_username: str = None, plex_unknown: str = None):
+        if plex_server is None:
+            raise Exception("No plex server provided")
+        self.plex_server = plex_server
+        if not isinstance(discord_member, discord.Member) and discord_member is not None:
             raise Exception("Discord member must be discord.Member, not %s" % type(discord_member))
         self.discord_member = discord_member
-        self.plex_id = plex_id
-        self.plex_email = plex_email
-        self.plex_username = plex_username
+        self.plex_user = None
+        self.plex_system_account = None
+        self.__plex_id__ = plex_id
+        self.__plex_email__ = plex_email
+        self.__plex_username__ = plex_username
+        self.__plex_unknown__ = plex_unknown
+        if not self._load_sys_user():
+            raise Exception(f"Could not find plex user account for {self.discord_member}")
+        if not self._load_plex_user():
+            print("Idfk")
+
+    def _load_sys_user(self) -> bool:
+        if self.__plex_unknown__ is not None:
+            for user in self.plex_server.systemAccounts():
+                if user.name == self.__plex_unknown__:
+                    self.plex_system_account = user
+                    return True
+                elif user.id == self.__plex_unknown__:
+                    self.plex_system_account = user
+                    return True
+        if self.__plex_username__ is not None:
+            for user in self.plex_server.systemAccounts():
+                if user.name == self.__plex_username__:
+                    self.plex_system_account = user
+                    return True
+        if self.__plex_id__ is not None:
+            if self.plex_server.systemAccount(self.__plex_id__):
+                self.plex_system_account = self.plex_server.systemAccount(self.__plex_id__)
+                return True
+        if self.__plex_email__ is not None:
+            for user in self.plex_server.systemAccounts():
+                if user.email == self.__plex_email__:
+                    self.plex_system_account = user
+                    return True
+        return False
+
+    def _load_plex_user(self) -> bool:
+        host = self.plex_server.myPlexAccount()
+        if user := host.user(self.plex_system_account.id):
+            self.plex_user = user
+            return True
 
     def compare_plex_user(self, other):
-        return self.plex_id == other or self.plex_email == other or self.plex_username == other
+        return self.plex_user.name == other or self.plex_user.id == other or self.plex_user.email == other
 
     def __object__(self):
         return self.discord_member
 
     def __str__(self):
-        return "Discord: %s, Plex: %s" % (self.discord_member.name, self.plex_id)
+        return "Discord: %s, Plex: %s" % (self.discord_member.name, self.__plex_id__)
 
     def __repr__(self):
         return self.__str__()
 
     def __eq__(self, other) -> bool:
-        if isinstance(other, DiscordAssociation):
+        if isinstance(other, CombinedUser):
             # print(f"Comparing {self} to {other}, DiscordAssociation")
-            return self.discord_member == other.discord_member and self.plex_id == other.plex_id
+            return self.discord_member == other.discord_member and self.__plex_id__ == other.__plex_id__
         elif isinstance(other, discord.Member):
             # print(f"Comparing {self} to {other}, discord.Member")
             return self.discord_member.id == other.id
@@ -88,7 +130,31 @@ class DiscordAssociation:
         return self == item
 
     def __hash__(self):
-        return hash((self.discord_member, self.plex_id))
+        return hash((self.discord_member, self.__plex_id__))
+
+    def display_name(self):
+        if self.discord_member is not None:
+            return self.discord_member.display_name
+        elif self.plex_user is not None:
+            return self.plex_user.username
+        elif self.plex_system_account is not None:
+            return self.plex_system_account.name
+
+    def mention(self):
+        if self.discord_member is not None:
+            return self.discord_member.mention
+        elif self.plex_user is not None:
+            return f"`{self.plex_user.username}`"
+        elif self.plex_system_account is not None:
+            return f"`{self.plex_user.name}`"
+
+    def avatar_url(self):
+        if self.discord_member is not None:
+            return self.discord_member.avatar_url
+        elif self.plex_user is not None:
+            return self.plex_user.thumb
+        else:
+            return ""
 
     def __iter__(self):
         yield self
@@ -101,40 +167,52 @@ class DiscordAssociations:
         if not isinstance(guild, discord.Guild):
             raise Exception("Guild must be discord.Guild, not %s" % type(guild))
         self.guild = guild
+        self.plex_server = None
         self.associations = []
-        self.load_associations()
+        self.bot.loop.create_task(self.load_associations())
 
-    def load_associations(self) -> None:
+    async def load_associations(self) -> None:
+        print(f"Loading associations for {self.guild}")
+        await self.bot.wait_until_ready()
+        self.plex_server = await self.bot.fetch_plex(self.guild)
         cursor = self.bot.database.execute("SELECT * FROM discord_associations WHERE guild_id = ?", (self.guild.id,))
         for row in cursor:
-            member = self.guild.get_member(row[1])
-            if member is None:
-                continue
-            self.associations.append(DiscordAssociation(member, row[2], row[3], row[4]))
+            member = await self.guild.fetch_member(row[1])
+            self.associations.append(CombinedUser(plex_server=self.plex_server,
+                                                  discord_member=member,
+                                                  plex_id=row[2], plex_email=row[3], plex_username=row[4]))
 
-    def get_discord_association(self, discord_member: discord.Member) -> DiscordAssociation:
+    def get_discord_association(self, discord_member: discord.Member) -> CombinedUser:
         """Returns the plex user associated with the discord member"""
         for association in self.associations:
             if association.discord_member == discord_member:
                 return association
-        return None
+        return CombinedUser(plex_server=self.plex_server, discord_member=discord_member)
 
-    def get_plex_association(self, plex_user: str) -> DiscordAssociation:
+    def get_plex_association(self, plex_user: str) -> CombinedUser:
         """Returns the discord member associated with the plex user"""
         for association in self.associations:
             if association.compare_plex_user(plex_user):
                 return association
-        return None
+        return CombinedUser(plex_server=self.plex_server, plex_unknown=plex_user)
 
-    def add_association(self, discord_member: discord.Member,
+    def get(self, search: typing.Union[discord.Member, str]) -> CombinedUser:
+        if isinstance(search, discord.Member):
+            return self.get_discord_association(search)
+        elif isinstance(search, str):
+            return self.get_plex_association(search)
+        else:
+            raise Exception("Invalid type for search, must be discord.Member or str")
+
+    def add_association(self, plex_server, discord_member: discord.Member,
                         plex_id: str, plex_email: str, plex_username: str) -> None:
-        self.associations.append(DiscordAssociation(discord_member, plex_id, plex_email, plex_username))
-        self.bot.database.execute("INSERT INTO discord_associations VALUES (?, ?, ?, ?, ?)",
+        self.associations.append(CombinedUser(plex_server, discord_member, plex_id, plex_email, plex_username))
+        self.bot.database.execute('''INSERT OR REPLACE INTO discord_associations VALUES (?, ?, ?, ?, ?)''',
                                   (self.guild.id,
                                    discord_member.id,
                                    plex_id,
-                                   plex_email,
-                                   plex_username))
+                                   plex_username,
+                                   plex_email))
         self.bot.database.commit()
 
     def remove_association(self, discord_member: discord.Member) -> bool:
@@ -156,7 +234,7 @@ class DiscordAssociations:
     def display_name(self, plex_user: str) -> str:
         association = self.get_plex_association(plex_user)
         if association is not None:
-            return association.discord_member.display_name
+            return association.display_name()
         return plex_user
 
     def __str__(self):
@@ -171,7 +249,7 @@ class DiscordAssociations:
     def __hash__(self):
         return hash(self.associations)
 
-    def __iter__(self) -> Iterator[DiscordAssociation]:
+    def __iter__(self) -> Iterator[CombinedUser]:
         return iter(self.associations)
 
     def __len__(self):
@@ -212,7 +290,7 @@ class SessionWatcher:
         self.initial_session = session
         self.session = session
 
-        self.end_offset = -1
+        self.end_offset = self.session.viewOffset
 
         self.alive_time = datetime.datetime.utcnow()
 

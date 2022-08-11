@@ -187,6 +187,7 @@ class PlexBot(Cog):
         invite = celery.cancelInvite(plex_id)
         embed = discord.Embed(title="Cancel Invite", description="Invite was canceled", color=0x00ff00)
         embed.timestamp = datetime.datetime.utcnow()
+
         await ctx.send(embed=embed)
 
     # @has_permissions(manage_guild=True)
@@ -260,13 +261,14 @@ class PlexBot(Cog):
 
     @has_permissions(manage_guild=True)
     @command(name='link', aliases=['link_user'])
-    async def link(self, ctx, discord_user: typing.Union[discord.User, discord.Member, discord.Role], plex_id: str):
+    async def link(self, ctx, discord_user: typing.Union[discord.Member, discord.Role], plex_id: str):
         """Link a discord user to a plex user in the bots database"""
         if isinstance(discord_user, discord.Role):
             raise BadArgument("You can't link a role to a plex user")
         print(f"{discord_user.name} is linking to {plex_id}")
         plex_users = ctx.plex_host.users()
         plex_user = None
+
         for user in plex_users:
             if user.id == plex_id or user.username == plex_id or user.email == plex_id:
                 plex_user = user
@@ -277,7 +279,7 @@ class PlexBot(Cog):
         if discord_user in ctx.plex.associations:
             await ctx.send("User already linked")
             return
-        ctx.plex.associations.add_association(discord_user, plex_user.id, plex_user.username, plex_user.email)
+        ctx.plex.associations.add_association(ctx.plex, discord_user, plex_user.id, plex_user.username, plex_user.email)
         await ctx.send(f"User {discord_user.mention} linked to {plex_user.username}")
 
     @command(name='ping')

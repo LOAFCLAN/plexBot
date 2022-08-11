@@ -117,15 +117,13 @@ class PlexHistory(commands.Cog):
 
         start_session = watcher.initial_session
         session = watcher.session
-        media = watcher.media
-        accountID = session.accountID
-        device = None
-        if accountID is None:
-            username = session.usernames[0]
-            for user in plex.systemAccounts():
-                if user.name == username:
-                    accountID = user.accountID
-                    break
+        user = plex.associations.get(session.usernames[0])
+        # if accountID is None:
+        #     username = session.usernames[0]
+        #     for user in plex.systemAccounts():
+        #         if user.name == username:
+        #             accountID = user.accountID
+        #             break
 
         if len(session.players) >= 1:
             device_name = session.players[0].machineIdentifier
@@ -136,11 +134,8 @@ class PlexHistory(commands.Cog):
                     break
         else:
             device = None
-            accountID = None
 
-        user = plex.associations.get_discord_association(accountID)
-        if user is None:
-            user = plex.systemAccount(accountID)
+        accountID = user.plex_system_account.accountID if user is not None else None
 
         time = watcher.alive_time
 
@@ -154,26 +149,26 @@ class PlexHistory(commands.Cog):
         duration = datetime.timedelta(seconds=round(raw_duration / 1000))
         start_position = datetime.timedelta(seconds=round(raw_start_position / 1000))
 
-        if isinstance(user, discord.User):
-            embed = discord.Embed(title=f"{session.title} {f'({session.year})' if session.type != 'episode' else ''}",
-                                  description=
-                                  f"{user.mention} "
-                                  f"watched this with `{device.name}` on `{device.platform.capitalize()}`",
-                                  color=0x00ff00, timestamp=time)
-            if session.type == "episode":
-                embed.set_author(name=f"{session.grandparentTitle} - S{session.parentIndex}E{session.index}",
-                                 icon_url=user.avatar_url)
-        else:
-            embed = discord.Embed(title=f"{session.title} {f'({session.year})' if session.type != 'episode' else ''}",
-                                  description=
-                                  f"`{user.name}` "
-                                  f"watched this with `{device.name}` on `{device.platform.capitalize()}`",
-                                  color=0x00ff00, timestamp=time)
-            if session.type == "episode":
-                embed.set_author(name=f"{session.grandparentTitle} - S{session.parentIndex}E{session.index}",
-                                 icon_url=user.thumb)
-            elif session.type == "movie":
-                embed.set_author(name="", icon_url=user.thumb)
+        # if isinstance(user, discord.User):
+        embed = discord.Embed(title=f"{session.title} {f'({session.year})' if session.type != 'episode' else ''}",
+                              description=
+                              f"{user.mention()} "
+                              f"watched this with `{device.name}` on `{device.platform.capitalize()}`",
+                              color=0x00ff00, timestamp=time)
+        if session.type == "episode":
+            embed.set_author(name=f"{session.grandparentTitle} - S{session.parentIndex}E{session.index}",
+                             icon_url=user.avatar_url())
+        # else:
+        #     embed = discord.Embed(title=f"{session.title} {f'({session.year})' if session.type != 'episode' else ''}",
+        #                           description=
+        #                           f"`{user.name}` "
+        #                           f"watched this with `{device.name}` on `{device.platform.capitalize()}`",
+        #                           color=0x00ff00, timestamp=time)
+        #     if session.type == "episode":
+        #         embed.set_author(name=f"{session.grandparentTitle} - S{session.parentIndex}E{session.index}",
+        #                          icon_url=user.thumb)
+        #     elif session.type == "movie":
+        #         embed.set_author(name="", icon_url=user.thumb)
 
         embed.add_field(name=f"Progress: ({start_position}->{current_position}) {duration}",
                         value=progress_bar, inline=False)
@@ -294,7 +289,10 @@ class PlexHistory(commands.Cog):
         await interaction.respond(embed=embed)
 
     async def user_info_callback(self, interaction):
-        await interaction.respond(content="Not implemented yet")
+        accountID = int(interaction.custom_id.split("_")[1])
+        guild = interaction.guild
+        plex = await self.bot.fetch_plex(guild)
+        user = plex.associations.get(accountID)
 
     async def mobile_view_callback(self, interaction):
         await interaction.respond(content="Not implemented yet")
