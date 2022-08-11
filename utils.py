@@ -225,8 +225,12 @@ def subtitle_details(content, max_subs=-1) -> list:
             file_str = f"`File#{file_index}`: {len(part.subtitleStreams())} subtitles\n"
             for subtitle in part.subtitleStreams():
                 opener = "`┠──>" if sub_index < len(part.subtitleStreams()) else "`└──>"
+                if subtitle.title:
+                    title = "" if subtitle.title == translate(subtitle.language) else f" - {subtitle.title}"
+                else:
+                    title = ""
                 file_str += f"{opener} {sub_index}[{str(subtitle.codec).upper()}]" \
-                            f": {translate(subtitle.language)} - {subtitle.title if subtitle.title else 'Unnamed'}" \
+                            f": {translate(subtitle.language)}{title}" \
                             f"{' - Forced' if subtitle.forced else ''}`\n"
                 sub_index += 1
                 if max_subs != -1 and sub_index > max_subs:
@@ -358,7 +362,7 @@ def stringify(objects: [], separator: str = ", ", max_length: int = -1) -> str:
         elif hasattr(obj, "tag"):
             str_objects.append(obj.tag)
         else:
-            str_objects.append(str(obj))
+            str_objects.append(obj)
 
     # If there are more than max_length objects, add a +n more to the end
     if len(objects) > max_length:
@@ -368,7 +372,7 @@ def stringify(objects: [], separator: str = ", ", max_length: int = -1) -> str:
         return "None"
     for item in str_objects:
         if not isinstance(item, str):
-            return "Something went wrong, unexpected object type in stringify"
+            return f"Something went wrong, unexpected object in stringify\n`{type(item)}`"
     return separator.join(str_objects)
 
 
@@ -483,8 +487,8 @@ def base_info_layer(embed, content):
     embed.add_field(name="Runtime", value=f"{datetime.timedelta(seconds=rounded_duration)}", inline=True)
     actors = content.roles
     if len(actors) == 0:
-        actors = "No information available"
-    if len(actors) <= 3:
+        embed.add_field(name="Cast", value="No information available", inline=False)
+    elif len(actors) <= 3:
         embed.add_field(name="Lead Actors", value=stringify(actors, max_length=3), inline=False)
     else:
         embed.add_field(name="Cast", value=stringify(actors, max_length=10), inline=False)
