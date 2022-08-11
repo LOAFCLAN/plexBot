@@ -12,6 +12,8 @@ import discord
 __all__ = ['clean', 'is_clean', 'get_season', 'base_info_layer', 'rating_str', 'stringify', 'make_season_selector',
            'make_episode_selector', 'cleanup_url', 'get_episode', 'text_progress_bar_maker']
 
+from plex_wrappers import CombinedUser
+
 mass_mention = re.compile('@(everyone|here)')
 member_mention = re.compile(r'<@\!?(\d+)>')
 role_mention = re.compile(r'<@&(\d+)>')
@@ -511,6 +513,10 @@ def base_info_layer(embed, content):
     embed.add_field(name="Media", value=safe_field("\n\n".join(media_info)), inline=False)
     embed.add_field(name="Subtitles",
                     value=safe_field("\n\n".join(subtitle_details(content, max_subs=6))), inline=False)
+
+
+def base_user_layer(user: CombinedUser, embed):
+    pass
 
 
 def text_progress_bar_maker(duration: float, end: float, start: float = 0, length: int = 55) -> str:

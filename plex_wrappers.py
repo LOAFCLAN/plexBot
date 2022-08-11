@@ -98,7 +98,8 @@ class CombinedUser:
             return True
 
     def compare_plex_user(self, other):
-        return self.plex_user.name == other or self.plex_user.id == other or self.plex_user.email == other
+        return self.plex_system_account.name == other or self.plex_system_account.id == other \
+               or self.plex_user.email == other
 
     def __object__(self):
         return self.discord_member
