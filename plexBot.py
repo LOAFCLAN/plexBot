@@ -255,7 +255,7 @@ class PlexBot(Cog):
                 username = "N/A"
             if email is None or len(email) <= 0:
                 email = "N/A"
-            embed.add_field(name=f"{username}", value=f"{email}", inline=False)
+            embed.add_field(name=f"{username} - {user.id}", value=f"{email}", inline=False)
         embed.timestamp = datetime.datetime.utcnow()
         await ctx.send(embed=embed, delete_after=30)
 
@@ -267,6 +267,7 @@ class PlexBot(Cog):
             raise BadArgument("You can't link a role to a plex user")
         print(f"{discord_user.name} is linking to {plex_id}")
         plex_users = ctx.plex_host.users()
+        plex_users.append(ctx.plex_host)
         plex_user = None
 
         for user in plex_users:

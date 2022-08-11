@@ -61,6 +61,10 @@ class CombinedUser:
         self.__plex_email__ = plex_email
         self.__plex_username__ = plex_username
         self.__plex_unknown__ = plex_unknown
+
+        if plex_server.myPlexAccount().id == self.__plex_id__:
+            self.__plex_id__ = 1
+
         if not self._load_sys_user():
             raise Exception(f"Could not find plex user account for {self.discord_member}")
         if not self._load_plex_user():
@@ -93,9 +97,13 @@ class CombinedUser:
 
     def _load_plex_user(self) -> bool:
         host = self.plex_server.myPlexAccount()
+        if self.plex_system_account.id == 1:
+            self.plex_user = host  # Nick btw I hate you
+            return True
         if user := host.user(self.plex_system_account.id):
             self.plex_user = user
             return True
+        return False
 
     def compare_plex_user(self, other):
         return self.plex_system_account.name == other or self.plex_system_account.id == other \
