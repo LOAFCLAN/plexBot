@@ -326,12 +326,20 @@ class PlexHistory(commands.Cog):
             (accountID,)).fetchall()
         media_list = []
         for row in last_media:
+            dynamic_time = f"<t:{round(row[3])}:D>"
             if row[5] == "episode":
-                media_list.append(f"`{row[4]} (S{str(row[6]).zfill(2)}E{str(row[7]).zfill(2)})`")
+                media_list.append(f"`{row[4]} (S{str(row[6]).zfill(2)}E{str(row[7]).zfill(2)})` - {dynamic_time}")
             else:
-                media_list.append(f"`{row[4]}`")
+                media_list.append(f"`{row[4]}` - {dynamic_time}")
         embed.add_field(name="Last 6 media items", value="\n".join(media_list), inline=False)
 
+        # Display the last 6 devices the user has watched on
+        last_devices = user.devices[:6]
+        device_list = []
+        for device in last_devices:
+            dynamic_time = f"<t:{round(device.last_seen)}:D>"
+            device_list.append(f"`{device.name}[{device.platform.capitalize()}]` - {dynamic_time}")
+        embed.add_field(name="Last 6 devices", value="\n".join(device_list), inline=False)
         await interaction.respond(embed=embed)
 
     async def mobile_view_callback(self, interaction):

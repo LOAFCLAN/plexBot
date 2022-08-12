@@ -147,12 +147,18 @@ class CombinedUser:
             return []
         else:
             cursor = self.plex_server.database.execute("SELECT * FROM plex_devices "
-                                                       "WHERE account_id = ? AND last_seen < ?",
+                                                       "WHERE account_id = ? AND last_seen < ? ORDER BY last_seen DESC",
                                                        (self.plex_user.id, datetime.datetime.now()
                                                         - datetime.timedelta(days=7)))
             all_devices = self.plex_server.systemDevices()
-            ids = [row[1] for row in cursor.fetchall()]
+            rows = cursor.fetchall()
+            ids = [row[1] for row in rows]
             devices = [device for device in all_devices if device.clientIdentifier in ids]
+            # Add a last seen attribute to the devices
+            for device in devices:
+                for row in rows:
+                    if device.clientIdentifier == row[1]:
+                        device.last_seen = row[2]
             return devices
 
     def _compare_plex_info(self, other: str):
