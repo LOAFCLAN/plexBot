@@ -33,6 +33,8 @@ class PlexContext(commands.Context):
         if not hasattr(plex_servers[guild_id], "associations"):
             discord_associations.update({guild_id: DiscordAssociations(self.bot, self.guild)})
             plex_servers[guild_id].associations = discord_associations[guild_id]
+        if not hasattr(plex_servers[guild_id], "database"):
+            plex_servers[guild_id].database = self.bot.database
 
         return plex_servers[guild_id]
 
@@ -62,6 +64,11 @@ class CombinedUser:
         self.__plex_username__ = plex_username
         self.__plex_unknown__ = plex_unknown
 
+        # If we don't have any information about the plex account then we raise an exception
+        if self.__plex_id__ is None and self.__plex_email__ is None and self.__plex_username__ is None \
+                and self.__plex_unknown__ is None and self.discord_member is None:
+            raise Exception("Insufficient information provided to create a CombinedUser")
+
         if plex_server.myPlexAccount().id == self.__plex_id__:
             self.__plex_id__ = 1
 
@@ -76,7 +83,7 @@ class CombinedUser:
                 if user.name == self.__plex_unknown__:
                     self.plex_system_account = user
                     return True
-                elif user.id == self.__plex_unknown__:
+                elif str(user.id) == self.__plex_unknown__:
                     self.plex_system_account = user
                     return True
         if self.__plex_username__ is not None:
@@ -105,68 +112,121 @@ class CombinedUser:
             return True
         return False
 
-    def compare_plex_user(self, other):
-        return self.plex_system_account.name == other or self.plex_system_account.id == other \
-               or self.plex_user.email == other
+    def display_name(self, plex_only=False, discord_only=False):
+        if self.discord_member is not None and not plex_only:
+            return self.discord_member.display_name
+        elif self.plex_user is not None and not discord_only:
+            return self.plex_user.username
+        elif self.plex_system_account is not None and not discord_only:
+            return self.plex_system_account.name
+        else:
+            return "Unknown"
+
+    def mention(self, plex_only=False, discord_only=False):
+        if self.discord_member is not None and not plex_only:
+            return self.discord_member.mention
+        elif self.plex_user is not None and not discord_only:
+            return f"`{self.plex_user.username}`"
+        elif self.plex_system_account is not None and not discord_only:
+            return f"`{self.plex_user.name}`"
+        else:
+            return "Unknown"
+
+    def avatar_url(self, plex_only=False, discord_only=False):
+        if self.discord_member is not None and not plex_only:
+            return self.discord_member.avatar_url
+        elif self.plex_user is not None and not discord_only:
+            return self.plex_user.thumb
+        else:
+            return ""
+
+    @property
+    def devices(self):
+        """Sort through all plex devices and return those that are associated with this user"""
+        if self.plex_user is None:
+            return []
+        else:
+            cursor = self.plex_server.database.execute("SELECT * FROM plex_devices "
+                                                       "WHERE account_id = ? AND last_seen < ?",
+                                                       (self.plex_user.id, datetime.datetime.now()
+                                                        - datetime.timedelta(days=7)))
+            all_devices = self.plex_server.systemDevices()
+            ids = [row[1] for row in cursor.fetchall()]
+            devices = [device for device in all_devices if device.clientIdentifier in ids]
+            return devices
+
+    def _compare_plex_info(self, other: str):
+        if self.plex_user is not None:
+            if self.plex_user.username == other:
+                return True
+            elif str(self.plex_user.id) == other:
+                return True
+            elif self.plex_user.email == other:
+                return True
+        if self.plex_system_account is not None:
+            if self.plex_system_account.name == other:
+                return True
+            elif str(self.plex_system_account.id) == other:
+                return True
+        return False
+
+    def __eq__(self, other):
+        if isinstance(other, CombinedUser):
+            return self.__plex_id__ == other.__plex_id__
+        elif isinstance(other, plexapi.server.SystemAccount):
+            return self.__plex_id__ == other.id
+        elif isinstance(other, plexapi.myplex.MyPlexUser):
+            return self.__plex_id__ == other.id
+        elif isinstance(other, str):
+            return self._compare_plex_info(other)
+        else:
+            raise TypeError(f"Can only compare PlexUser, SystemAccount, or str, not {type(other)}")
 
     def __object__(self):
         return self.discord_member
 
     def __str__(self):
-        return "Discord: %s, Plex: %s" % (self.discord_member.name, self.__plex_id__)
+        return_str = ""
+        return_str += f"Discord: {self.discord_member.name}; " if self.discord_member else "Discord: None; "
+        return_str += f"Plex: {self.plex_user.username}; " if self.plex_user else "Plex: None; "
+        return_str += f"PlexSys: {self.plex_system_account.id}; " if self.plex_system_account else "PlexSys: None; "
+        return return_str
 
     def __repr__(self):
         return self.__str__()
 
-    def __eq__(self, other) -> bool:
-        if isinstance(other, CombinedUser):
-            # print(f"Comparing {self} to {other}, DiscordAssociation")
-            return self.discord_member == other.discord_member and self.__plex_id__ == other.__plex_id__
-        elif isinstance(other, discord.Member):
-            # print(f"Comparing {self} to {other}, discord.Member")
-            return self.discord_member.id == other.id
-        elif isinstance(other, discord.User):
-            # print(f"Comparing {self} to {other}, discord.User")
-            return self.discord_member.id == other.id
-        elif isinstance(other, str):
-            # print(f"Comparing {self} to {other}, str")
-            return self.compare_plex_user(other)
-        else:
-            raise Exception(f"Invalid type for comparison, must be DiscordAssociation, "
-                            f"discord.Member, discord.User, or str. Not {type(other)}")
-
-    def __contains__(self, item):
-        return self == item
-
     def __hash__(self):
         return hash((self.discord_member, self.__plex_id__))
 
-    def display_name(self):
-        if self.discord_member is not None:
-            return self.discord_member.display_name
-        elif self.plex_user is not None:
-            return self.plex_user.username
-        elif self.plex_system_account is not None:
-            return self.plex_system_account.name
-
-    def mention(self):
-        if self.discord_member is not None:
-            return self.discord_member.mention
-        elif self.plex_user is not None:
-            return f"`{self.plex_user.username}`"
-        elif self.plex_system_account is not None:
-            return f"`{self.plex_user.name}`"
-
-    def avatar_url(self):
-        if self.discord_member is not None:
-            return self.discord_member.avatar_url
-        elif self.plex_user is not None:
-            return self.plex_user.thumb
-        else:
-            return ""
-
     def __iter__(self):
         yield self
+
+    def __next__(self):
+        return self
+
+    def __getitem__(self, item):
+        if item == "plex_id":
+            return self.__plex_id__
+        elif item == "plex_email":
+            return self.__plex_email__
+        elif item == "plex_username":
+            return self.__plex_username__
+        elif item == "plex_unknown":
+            return self.__plex_unknown__
+        else:
+            raise AttributeError(f"No attribute {item}")
+
+    def __contains__(self, item):
+        if item == "plex_id":
+            return self.__plex_id__
+        elif item == "plex_email":
+            return self.__plex_email__
+        elif item == "plex_username":
+            return self.__plex_username__
+        elif item == "plex_unknown":
+            return self.__plex_unknown__
+        else:
+            raise AttributeError(f"No attribute {item}")
 
 
 class DiscordAssociations:
@@ -177,6 +237,7 @@ class DiscordAssociations:
             raise Exception("Guild must be discord.Guild, not %s" % type(guild))
         self.guild = guild
         self.plex_server = None
+        self.ready = False
         self.associations = []
         self.bot.loop.create_task(self.load_associations())
 
@@ -190,6 +251,7 @@ class DiscordAssociations:
             self.associations.append(CombinedUser(plex_server=self.plex_server,
                                                   discord_member=member,
                                                   plex_id=row[2], plex_email=row[3], plex_username=row[4]))
+        self.ready = True
 
     def get_discord_association(self, discord_member: discord.Member) -> CombinedUser:
         """Returns the plex user associated with the discord member"""
@@ -201,17 +263,19 @@ class DiscordAssociations:
     def get_plex_association(self, plex_user: str) -> CombinedUser:
         """Returns the discord member associated with the plex user"""
         for association in self.associations:
-            if association.compare_plex_user(plex_user):
+            if association == plex_user:
                 return association
         return CombinedUser(plex_server=self.plex_server, plex_unknown=plex_user)
 
-    def get(self, search: typing.Union[discord.Member, str]) -> CombinedUser:
+    def get(self, search: typing.Union[discord.Member, str, int]) -> CombinedUser:
         if isinstance(search, discord.Member):
             return self.get_discord_association(search)
         elif isinstance(search, str):
             return self.get_plex_association(search)
+        elif isinstance(search, int):
+            return self.get_plex_association(str(search))
         else:
-            raise Exception("Invalid type for search, must be discord.Member or str")
+            raise Exception(f"Invalid type for search, must be discord.Member or str not {type(search)}")
 
     def add_association(self, plex_server, discord_member: discord.Member,
                         plex_id: str, plex_email: str, plex_username: str) -> None:
@@ -298,6 +362,13 @@ class SessionWatcher:
         self.media = media
         self.initial_session = session
         self.session = session
+
+        # Get the hardware ID of the device that is playing the video
+        device_id = session.player.machineIdentifier
+        user_id = session.player.userID
+        self.server.database.execute("INSERT OR REPLACE INTO plex_devices VALUES (?, ?, ?);",
+                                     (user_id, device_id, datetime.datetime.now().timestamp()))
+        self.server.database.commit()
 
         self.end_offset = self.session.viewOffset
 

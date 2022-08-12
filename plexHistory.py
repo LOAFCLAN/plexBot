@@ -296,6 +296,43 @@ class PlexHistory(commands.Cog):
         guild = interaction.guild
         plex = await self.bot.fetch_plex(guild)
         user = plex.associations.get(accountID)
+        embed = discord.Embed(title=f"User: {user.display_name(plex_only=True)} - {user.plex_user.id}", color=0x00ff00)
+        embed.set_author(name=f"{user.display_name(discord_only=True)}", icon_url=user.avatar_url(discord_only=True))
+        embed.set_thumbnail(url=user.avatar_url(plex_only=True))
+        # The description of a user will contain the following:
+        # - How many media items the user has watched
+        # - The total duration of the media items the user has watched
+        # - How many devices the user has watched on
+
+        # Get the number of media items the user has watched
+        num_media = self.bot.database.execute(
+            '''SELECT COUNT(*) FROM plex_history_messages WHERE account_ID = ?''', (accountID,)).fetchone()[0]
+
+        # Get the total duration of the media items the user has watched
+        duration = self.bot.database.execute(
+            '''SELECT SUM(pb_end_offset - pb_start_offset) FROM plex_history_messages WHERE account_ID = ? 
+            AND pb_end_offset > 0''',
+            (accountID,)).fetchone()[0]
+        duration = datetime.timedelta(seconds=duration)
+
+        print(user.devices)
+
+        embed.description = f"{user.mention()} has spent `{duration}` watching `{num_media}` media items on " \
+                            f"`{len(user.devices)}` devices"
+
+        # Display the last 6 media items the user has watched
+        last_media = self.bot.database.execute(
+            '''SELECT * FROM plex_history_messages WHERE account_ID = ? ORDER BY history_time DESC LIMIT 6''',
+            (accountID,)).fetchall()
+        media_list = []
+        for row in last_media:
+            if row[5] == "episode":
+                media_list.append(f"`{row[4]} (S{str(row[6]).zfill(2)}E{str(row[7]).zfill(2)})`")
+            else:
+                media_list.append(f"`{row[4]}`")
+        embed.add_field(name="Last 6 media items", value="\n".join(media_list), inline=False)
+
+        await interaction.respond(embed=embed)
 
     async def mobile_view_callback(self, interaction):
         await interaction.respond(content="Not implemented yet")

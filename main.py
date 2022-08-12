@@ -52,6 +52,10 @@ class PlexBot(commands.Bot):
             title TEXT NOT NULL, media_type TEXT NOT NULL, season_num INTEGER, ep_num INTEGER, account_ID INTEGER,
             pb_start_offset FLOAT (0.0, 1.0), pb_end_offset FLOAT (0.0, 1.0), PRIMARY KEY (event_hash, guild_id));''')
 
+        self.database.execute(
+            '''CREATE TABLE IF NOT EXISTS plex_devices
+            (account_id INTEGER, device_id STRING, last_seen INT, PRIMARY KEY (account_id, device_id));''')
+
         self.database.commit()
 
     def __init__(self, *args, **kwargs):
@@ -108,6 +112,8 @@ class PlexBot(commands.Bot):
         if not hasattr(plex_servers[guild_id], "associations"):
             discord_associations.update({guild_id: DiscordAssociations(self, guild)})
             plex_servers[guild_id].associations = discord_associations[guild_id]
+        if not hasattr(plex_servers[guild_id], "database"):
+            plex_servers[guild_id].database = self.database
         return plex_servers[guild_id]
 
     async def on_ready(self):

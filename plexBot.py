@@ -284,6 +284,31 @@ class PlexBot(Cog):
         ctx.plex.associations.add_association(ctx.plex, discord_user, plex_user.id, plex_user.username, plex_user.email)
         await ctx.send(f"User {discord_user.mention} linked to {plex_user.username}")
 
+    @command(name='unlink', aliases=['unlink_user'])
+    async def unlink(self, ctx, discord_user: discord.Member):
+        """Unlink a discord user from a plex user in the bots database"""
+        if discord_user not in ctx.plex.associations:
+            await ctx.send("User not linked")
+            return
+        ctx.plex.associations.remove_association(ctx.plex, discord_user)
+        await ctx.send(f"User {discord_user.mention} unlinked")
+
+    @command(name='linked', aliases=['linked_users'])
+    async def linked(self, ctx):
+        """List all linked users"""
+
+        embed = discord.Embed(title="Linked Users",
+                              description=f"{len(ctx.plex.associations)} users linked",
+                              color=0x00ff00)
+        for user in ctx.plex.associations:
+            embed.add_field(name=f"{user.display_name(plex_only=True)} - {user.plex_id()}",
+                            value=f"{user.mention()}", inline=False)
+
+        if not ctx.plex.associations.ready:
+            embed.set_footer(text="Not all linked users have been loaded, this list may be incomplete")
+        embed.timestamp = datetime.datetime.utcnow()
+        await ctx.send(embed=embed)
+
     @command(name='ping')
     async def ping(self, ctx):
         ping_responses = ["Pong!", "What's up", "I'm here!", "I'm here, I'm here!",
