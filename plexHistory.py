@@ -150,16 +150,17 @@ class PlexHistory(commands.Cog):
         start_position = datetime.timedelta(seconds=round(raw_start_position / 1000))
 
         # if isinstance(user, discord.User):
-        embed = discord.Embed(title=f"{session.title} {f'({session.year})' if session.type != 'episode' else ''}",
-                              description=
+        embed = discord.Embed(description=
                               f"{user.mention()} "
                               f"watched this with `{device.name}` on `{device.platform.capitalize()}`",
                               color=0x00ff00, timestamp=time)
         if session.type == "episode":
-            embed.set_author(name=f"{session.grandparentTitle} - S{session.parentIndex}E{session.index}",
+            embed.title = f"{session.title} {f'({session.year})' if session.type != 'episode' else ''}"
+            embed.set_author(name=f"{session.grandparentTitle} - "
+                                  f"S{str(session.parentIndex).zfill(2)}E{str(session.index).zfill(2)}",
                              icon_url=user.avatar_url())
         else:
-            embed.set_author(icon_url=user.avatar_url())
+            embed.set_author(name=f"{session.title} ({session.year})", icon_url=user.avatar_url())
         # else:
         #     embed = discord.Embed(title=f"{session.title} {f'({session.year})' if session.type != 'episode' else ''}",
         #                           description=
