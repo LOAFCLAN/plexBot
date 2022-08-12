@@ -10,7 +10,7 @@ import custom_dpy_overrides
 from discord_components import DiscordComponents, Button, ButtonStyle, SelectOption, Select, Interaction, ActionRow
 
 from plex_wrappers import SessionChangeWatcher, SessionWatcher
-from utils import base_info_layer, get_season, get_episode, cleanup_url, text_progress_bar_maker
+from utils import base_info_layer, get_season, get_episode, cleanup_url, text_progress_bar_maker, stringify
 
 
 def hash_media_event(media) -> int:
@@ -331,7 +331,7 @@ class PlexHistory(commands.Cog):
                 media_list.append(f"`{row[4]} (S{str(row[6]).zfill(2)}E{str(row[7]).zfill(2)})` - {dynamic_time}")
             else:
                 media_list.append(f"`{row[4]}` - {dynamic_time}")
-        embed.add_field(name="Last 6 media items", value="\n".join(media_list), inline=False)
+        embed.add_field(name="Last 6 media items", value=stringify(media_list, separator='\n'), inline=False)
 
         # Display the last 6 devices the user has watched on
         last_devices = user.devices[:6]
@@ -339,7 +339,7 @@ class PlexHistory(commands.Cog):
         for device in last_devices:
             dynamic_time = f"<t:{round(device.last_seen)}:D>"
             device_list.append(f"`{device.name}[{device.platform.capitalize()}]` - {dynamic_time}")
-        embed.add_field(name="Last 6 devices", value="\n".join(device_list), inline=False)
+        embed.add_field(name="Last 6 devices", value=stringify(device_list, separator='\n'), inline=False)
         await interaction.respond(embed=embed)
 
     async def mobile_view_callback(self, interaction):

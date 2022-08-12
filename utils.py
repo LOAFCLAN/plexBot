@@ -373,12 +373,14 @@ def stringify(objects: [], separator: str = ", ", max_length: int = -1) -> str:
     if max_length == -1:
         max_length = len(objects)
     for obj in objects[:max_length]:
-        if hasattr(obj, "title"):
+        if isinstance(obj, str):
+            str_objects.append(obj)
+        elif hasattr(obj, "title"):
             str_objects.append(obj.title)
         elif hasattr(obj, "tag"):
             str_objects.append(obj.tag)
         else:
-            str_objects.append(obj)
+            pass
 
     # If there are more than max_length objects, add a +n more to the end
     if len(objects) > max_length:

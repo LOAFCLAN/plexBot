@@ -120,7 +120,8 @@ class CombinedUser:
         elif self.plex_system_account is not None and not discord_only:
             return self.plex_system_account.name
         else:
-            return "Unknown"
+            return "Unknown" if not discord_only else "No linked discord account" if not plex_only \
+                else "No linked plex account"
 
     def mention(self, plex_only=False, discord_only=False):
         if self.discord_member is not None and not plex_only:
