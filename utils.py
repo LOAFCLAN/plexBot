@@ -278,6 +278,7 @@ def get_media_info(media_list: [plexapi.media.Media]) -> list:
                 video_stream = part.videoStreams()[0]
                 duration = datetime.timedelta(seconds=round(media.duration / 1000))
                 bitrate = humanize.naturalsize(video_stream.bitrate * 1000)
+                bitrate = f"{bitrate.split(' ')[0]} {bitrate.split(' ')[1].capitalize()}"
                 this_media = f"`File#{media_index}`: `{media.videoCodec}:{video_stream.width}x" \
                              f"{video_stream.height}@{video_stream.frameRate} Bitrate: {bitrate}/s`\n"
                 audio_streams = []
@@ -304,7 +305,8 @@ def get_media_info(media_list: [plexapi.media.Media]) -> list:
 
                 for audio_stream in streams:
                     opener = "`┠──>" if stream_num < len(streams) else "`└──>"
-                    audio_bitrate = f"{humanize.naturalsize(audio_stream.bitrate * 1000)}/s".rjust(10)
+                    bitrate = humanize.naturalsize(audio_stream.bitrate * 1000)
+                    audio_bitrate = f"{bitrate.split(' ')[0]} {bitrate.split(' ')[1].capitalize()}/s".rjust(10)
                     if audio_stream.codec is None:
                         audio_codec = "IDFK"
                     else:
