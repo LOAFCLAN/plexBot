@@ -149,7 +149,7 @@ class CombinedUser:
         else:
             cursor = self.plex_server.database.execute("SELECT * FROM plex_devices "
                                                        "WHERE account_id = ? AND last_seen < ? ORDER BY last_seen DESC",
-                                                       (self.plex_user.id, datetime.datetime.now()
+                                                       (self.plex_system_account.id, datetime.datetime.now()
                                                         - datetime.timedelta(days=7)))
             all_devices = self.plex_server.systemDevices()
             rows = cursor.fetchall()
