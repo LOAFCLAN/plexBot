@@ -314,7 +314,7 @@ class PlexHistory(commands.Cog):
             '''SELECT SUM(pb_end_offset - pb_start_offset) FROM plex_history_messages WHERE account_ID = ? 
             AND pb_end_offset > 0''',
             (accountID,)).fetchone()[0]
-        duration = datetime.timedelta(milliseconds=duration)
+        duration = datetime.timedelta(seconds=round(duration / 1000))
 
         embed.description = f"{user.mention()} has spent `{duration}` watching `{num_media}` media items on " \
                             f"`{len(user.devices)}` devices"
