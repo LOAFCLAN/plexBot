@@ -519,8 +519,54 @@ def base_info_layer(embed, content):
                     value=safe_field("\n\n".join(subtitle_details(content, max_subs=6))), inline=False)
 
 
-def base_user_layer(user: CombinedUser, embed):
-    pass
+def base_user_layer(user: CombinedUser, database):
+
+    accountID = user.plex_system_account.id
+    embed = discord.Embed(title=f"User: {user.display_name(plex_only=True)} - {user.plex_user.id}", color=0x00ff00)
+    embed.set_author(name=f"{user.display_name(discord_only=True)}", icon_url=user.avatar_url(discord_only=True))
+    embed.set_thumbnail(url=user.avatar_url(plex_only=True))
+    # The description of a user will contain the following:
+    # - How many media items the user has watched
+    # - The total duration of the media items the user has watched
+    # - How many devices the user has watched on
+
+    # Get the number of media items the user has watched
+    num_media = database.execute(
+        '''SELECT COUNT(*) FROM plex_history_messages WHERE account_ID = ?''', (accountID,)).fetchone()[0]
+
+    # Get the total duration of the media items the user has watched
+    duration = database.execute(
+        '''SELECT SUM(pb_end_offset - pb_start_offset) FROM plex_history_messages WHERE account_ID = ? 
+        AND pb_end_offset > 0''',
+        (accountID,)).fetchone()[0]
+    duration = datetime.timedelta(seconds=round(duration / 1000))
+
+    embed.description = f"{user.mention()} has spent `{duration}` watching `{num_media}` media sessions on " \
+                        f"`{len(user.devices)}` devices"
+
+    # Display the last 6 media items the user has watched
+    last_media = database.execute(
+        '''SELECT * FROM plex_history_messages WHERE account_ID = ? ORDER BY history_time DESC LIMIT 6''',
+        (accountID,)).fetchall()
+    media_list = []
+    for row in last_media:
+        timestamp = datetime.datetime.fromtimestamp(row[3], tz=datetime.timezone.utc)
+        dynamic_time = f"<t:{round(timestamp.timestamp())}:f>"
+        if row[5] == "episode":
+            media_list.append(f"`{row[4]} (S{str(row[6]).zfill(2)}E{str(row[7]).zfill(2)})`\n└──>{dynamic_time}")
+        else:
+            media_list.append(f"`{row[4]} ({row[11]})`\n└──>{dynamic_time}")
+    embed.add_field(name="Last 6 media sessions", value=stringify(media_list, separator='\n'), inline=False)
+
+    # Display the last 6 devices the user has watched on
+    last_devices = user.devices[:6]
+    device_list = []
+
+    for device in last_devices:
+        dynamic_time = f"<t:{round(device.last_seen)}:f>"
+        device_list.append(f"`{device.name}[{device.platform.capitalize()}]`\n└──>{dynamic_time}")
+    embed.add_field(name="Last 6 devices", value=stringify(device_list, separator='\n'), inline=False)
+    return embed
 
 
 def text_progress_bar_maker(duration: float, end: float, start: float = 0, length: int = 55) -> str:

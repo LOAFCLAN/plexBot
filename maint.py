@@ -9,6 +9,33 @@ import discord.errors as discord_errors
 import discord
 
 
+def table_str_generator(ret):
+
+    # Calculate the longest string in each column
+    col_widths = []
+    for col in range(len(ret[0])):
+        col_widths.append(max([len(str(row[col])) for row in ret]))
+
+    # Generate the table string
+    table_str = '```'
+    for row in ret:
+        table_row = []
+        row_len = 0
+        for col in range(len(row)):
+            # If the row exceeds the max row width truncate it
+            if row_len + col_widths[col] + 1 > 85:
+                table_row.append("...")
+                break
+            table_row.append(str(row[col]).center(col_widths[col] + 1))
+            row_len += col_widths[col] + 2
+        # If the table str exceeds 4000 characters truncate it
+        table_str += '|' + '|'.join(table_row) + '|\n'
+        if len(table_str) > 1993:
+            table_str = table_str[:1993] + '...```'
+            return table_str
+    return table_str + '```'
+
+
 class maintCog(Cog):
 
     def __init__(self, bot):
@@ -72,7 +99,7 @@ class maintCog(Cog):
                 e.add_field(name='Output', value='```\nNone\n```')
             elif isinstance(ret[0], tuple):
                 # Make a table of the results
-                table = self.table_str_generator(ret)
+                table = table_str_generator(ret)
             else:
                 e.add_field(name='Output', value='```\n%s\n```' % repr(ret), inline=False)
         except Exception as err:
@@ -92,32 +119,6 @@ class maintCog(Cog):
         """
         self.bot.database.commit()
         await ctx.send('SQL transaction committed.')
-
-    def table_str_generator(self, ret):
-
-        # Calculate the longest string in each column
-        col_widths = []
-        for col in range(len(ret[0])):
-            col_widths.append(max([len(str(row[col])) for row in ret]))
-
-        # Generate the table string
-        table_str = '```'
-        for row in ret:
-            table_row = []
-            row_len = 0
-            for col in range(len(row)):
-                # If the row exceeds the max row width truncate it
-                if row_len + col_widths[col] + 1 > 85:
-                    table_row.append("...")
-                    break
-                table_row.append(str(row[col]).center(col_widths[col] + 1))
-                row_len += col_widths[col] + 2
-            # If the table str exceeds 4000 characters truncate it
-            table_str += '|' + '|'.join(table_row) + '|\n'
-            if len(table_str) > 1993:
-                table_str = table_str[:1993] + '...```'
-                return table_str
-        return table_str + '```'
 
     @is_owner()
     @command(name='drop_table')
