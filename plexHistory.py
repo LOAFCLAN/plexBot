@@ -316,7 +316,7 @@ class PlexHistory(commands.Cog):
             (accountID,)).fetchone()[0]
         duration = datetime.timedelta(seconds=round(duration / 1000))
 
-        embed.description = f"{user.mention()} has spent `{duration}` watching `{num_media}` media items on " \
+        embed.description = f"{user.mention()} has spent `{duration}` watching `{num_media}` media sessions on " \
                             f"`{len(user.devices)}` devices"
 
         # Display the last 6 media items the user has watched
@@ -331,7 +331,7 @@ class PlexHistory(commands.Cog):
                 media_list.append(f"`{row[4]} (S{str(row[6]).zfill(2)}E{str(row[7]).zfill(2)})` - {dynamic_time}")
             else:
                 media_list.append(f"`{row[4]} ({row[11]})` - {dynamic_time}")
-        embed.add_field(name="Last 6 media items", value=stringify(media_list, separator='\n'), inline=False)
+        embed.add_field(name="Last 6 media sessions", value=stringify(media_list, separator='\n'), inline=False)
 
         # Display the last 6 devices the user has watched on
         last_devices = user.devices[:6]
