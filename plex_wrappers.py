@@ -141,6 +141,16 @@ class CombinedUser:
         else:
             return ""
 
+    def id(self, plex_only=False, discord_only=False):
+        if self.discord_member is not None and not plex_only:
+            return self.discord_member.id
+        elif self.plex_user is not None and not discord_only:
+            return self.plex_user.id
+        elif self.plex_system_account is not None and not discord_only:
+            return self.plex_system_account.id
+        else:
+            return ""
+
     @property
     def devices(self):
         """Sort through all plex devices and return those that are associated with this user"""
@@ -183,9 +193,9 @@ class CombinedUser:
         elif isinstance(other, discord.Member):
             return self.discord_member == other
         elif isinstance(other, plexapi.server.SystemAccount):
-            return self.__plex_id__ == other.id
+            return self.plex_system_account.id == other.id
         elif isinstance(other, plexapi.myplex.MyPlexUser):
-            return self.__plex_id__ == other.id
+            return self.plex_user.id == other.id
         elif isinstance(other, str):
             return self._compare_plex_info(other)
         else:

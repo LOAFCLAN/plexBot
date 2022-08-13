@@ -301,7 +301,7 @@ class PlexBot(Cog):
                               description=f"{len(ctx.plex.associations)} users linked",
                               color=0x00ff00)
         for user in ctx.plex.associations:
-            embed.add_field(name=f"{user.display_name(plex_only=True)} - {user.plex_id()}",
+            embed.add_field(name=f"{user.display_name(plex_only=True)} - {user.id(plex_only=True)}",
                             value=f"{user.mention()}", inline=False)
 
         if not ctx.plex.associations.ready:
