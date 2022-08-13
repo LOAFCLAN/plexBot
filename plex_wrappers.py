@@ -180,6 +180,8 @@ class CombinedUser:
     def __eq__(self, other):
         if isinstance(other, CombinedUser):
             return self.__plex_id__ == other.__plex_id__
+        elif isinstance(other, discord.Member):
+            return self.discord_member == other
         elif isinstance(other, plexapi.server.SystemAccount):
             return self.__plex_id__ == other.id
         elif isinstance(other, plexapi.myplex.MyPlexUser):
