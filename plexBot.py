@@ -12,7 +12,7 @@ import discord
 
 import plex_wrappers
 from plex_wrappers import DiscordAssociations
-from utils import get_all_library, session_embed
+from utils import get_all_library, session_embed, base_user_layer
 
 
 class PlexBot(Cog):
@@ -259,6 +259,12 @@ class PlexBot(Cog):
             embed.add_field(name=f"{username} - {user.id}", value=f"{email}", inline=False)
         embed.timestamp = datetime.datetime.utcnow()
         await ctx.send(embed=embed, delete_after=30)
+
+    @command(name='user', aliases=['u'])
+    async def user(self, ctx, user: typing.Union[discord.Member, str]):
+        user = ctx.plex.associations.get(user)
+        embed = base_user_layer(user, self.bot.database)
+        await ctx.send(embed=embed)
 
     @has_permissions(manage_guild=True)
     @command(name='link', aliases=['link_user'])
