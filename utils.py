@@ -132,9 +132,17 @@ async def session_embed(plex):
             if not session.isFullObject:
                 raise Exception("Session is still partial")
 
+        session_instance = None
+        if isinstance(session.session, list):
+            session_instance = session.session[0]
+        elif isinstance(session.session, plexapi.media.Session):
+            session_instance = session.session
+        else:
+            continue
+
         if len(session.media) > 1:
             # Find which media file has a bitrate closest to the reserved bitrate
-            reserved_bitrate = session.session[0].bandwidth
+            reserved_bitrate = session_instance.bandwidth
             closest_bitrate = 0
             closest_media = None
             for media in session.media:
@@ -153,29 +161,15 @@ async def session_embed(plex):
         total_duration = datetime.timedelta(seconds=round(session.duration / 1000))
 
         timeline = f"{current_position} / {total_duration} - {str(session.players[0].state).capitalize()}"
-        if isinstance(session.session, list):
-            if len(session.session) == 0:
-                bandwidth = "Invalid encoding, they probably need help"
-            else:
-                if session.session[0].location.startswith("lan"):
-                    bandwidth = "Local session, no bandwidth reserved"
-                else:
-                    if media is None:
-                        bandwidth = "Unknown media"
-                    else:
-                        bandwidth = f"{round(media.bitrate)} kbps of bandwidth reserved"
-                        total_bandwidth += media.bitrate
-        elif isinstance(session.session, plexapi.media.Session):
-            if session.session.location.startswith("lan"):
-                bandwidth = "Local session, no bandwidth reserved"
-            else:
-                if media is None:
-                    bandwidth = "Unknown media"
-                else:
-                    bandwidth = f"{round(media.bitrate)} kbps of bandwidth reserved"
-                    total_bandwidth += media.bitrate
+
+        if session_instance.location.startswith("lan"):
+            bandwidth = "Local session, no bandwidth reserved"
         else:
-            bandwidth = "Invalid session type (not a list or session)"
+            if media is None:
+                bandwidth = "Unknown media"
+            else:
+                bandwidth = f"{round(media.bitrate)} kbps of bandwidth reserved"
+                total_bandwidth += media.bitrate
 
         media_info = "`Media info unavailable`"
         if len(session.transcodeSessions) == 0:
@@ -520,7 +514,6 @@ def base_info_layer(embed, content):
 
 
 def base_user_layer(user: CombinedUser, database):
-
     accountID = user.plex_system_account.id
     embed = discord.Embed(title=f"User: {user.display_name(plex_only=True)} - {user.plex_user.id}", color=0x00ff00)
     embed.set_author(name=f"{user.display_name(discord_only=True)} "
