@@ -223,7 +223,7 @@ class PlexHistory(commands.Cog):
                             (event_hash, guild_id, message_id, history_time,
                              title, media_type, account_ID, pb_start_offset, pb_end_offset)
                             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)''',
-            (m_hash, guild.id, msg.id, time.timestamp(), title, session.type, accountID,
+            (m_hash, guild.id, msg.id, datetime.datetime.now().timestamp(), title, session.type, accountID,
              raw_start_position, raw_current_position))
         if isinstance(session, plexapi.video.Episode):
             self.bot.database.execute('''
@@ -292,6 +292,7 @@ class PlexHistory(commands.Cog):
         await interaction.respond(embed=embed)
 
     async def user_info_callback(self, interaction):
+        """Format the embed that contains user info"""
         accountID = int(interaction.custom_id.split("_")[1])
         guild = interaction.guild
         plex = await self.bot.fetch_plex(guild)
@@ -324,7 +325,8 @@ class PlexHistory(commands.Cog):
             (accountID,)).fetchall()
         media_list = []
         for row in last_media:
-            dynamic_time = f"<t:{round(row[3])}:D>"
+            timestamp = datetime.datetime.fromtimestamp(row[3], tz=datetime.timezone.utc)
+            dynamic_time = f"<t:{round(timestamp.timestamp())}:D>"
             if row[5] == "episode":
                 media_list.append(f"`{row[4]} (S{str(row[6]).zfill(2)}E{str(row[7]).zfill(2)})` - {dynamic_time}")
             else:
@@ -334,6 +336,9 @@ class PlexHistory(commands.Cog):
         # Display the last 6 devices the user has watched on
         last_devices = user.devices[:6]
         device_list = []
+
+        print(last_devices)
+
         for device in last_devices:
             dynamic_time = f"<t:{round(device.last_seen)}:D>"
             device_list.append(f"`{device.name}[{device.platform.capitalize()}]` - {dynamic_time}")

@@ -49,6 +49,77 @@ class maintCog(Cog):
         await ctx.send('', embed=e)
 
     @is_owner()
+    @command(name='sql_eval')
+    async def sql_evaluate(self, ctx, *, code):
+        """
+        Evaluates SQL.
+        Await is valid and `{ctx}` is the command context.
+        """
+        if code.startswith('```'):
+            code = code.strip('```').partition('\n')[2].strip()
+        else:
+            code = code.strip('`').strip()
+
+        table = ''
+        e = discord.Embed(type='rich')
+        e.add_field(name='Code', value='```sql\n%s\n```' % code, inline=False)
+        try:
+            cursor = self.bot.database.execute(code)
+            ret = cursor.fetchall()
+            e.title = 'SQL Evaluation - Success'
+            e.color = 0x00FF00
+            if len(ret) == 0:
+                e.add_field(name='Output', value='```\nNone\n```')
+            elif isinstance(ret[0], tuple):
+                # Make a table of the results
+                table = self.table_str_generator(ret)
+            else:
+                e.add_field(name='Output', value='```\n%s\n```' % repr(ret), inline=False)
+        except Exception as err:
+            e.title = 'SQL Evaluation - Error'
+            e.color = 0xFF0000
+            e.add_field(name='Error', value='```\n%s\n```' % repr(err))
+
+        msg = await ctx.send('', embed=e)
+        if table != '':
+            await msg.reply(table)
+
+    @is_owner()
+    @command(name='commit_sql')
+    async def commit_sql(self, ctx):
+        """
+        Commits the SQL transaction.
+        """
+        self.bot.database.commit()
+        await ctx.send('SQL transaction committed.')
+
+    def table_str_generator(self, ret):
+
+        # Calculate the longest string in each column
+        col_widths = []
+        for col in range(len(ret[0])):
+            col_widths.append(max([len(str(row[col])) for row in ret]))
+
+        # Generate the table string
+        table_str = '```'
+        for row in ret:
+            table_row = []
+            row_len = 0
+            for col in range(len(row)):
+                # If the row exceeds the max row width truncate it
+                if row_len + col_widths[col] + 1 > 85:
+                    table_row.append("...")
+                    break
+                table_row.append(str(row[col]).center(col_widths[col] + 1))
+                row_len += col_widths[col] + 2
+            # If the table str exceeds 4000 characters truncate it
+            table_str += '|' + '|'.join(table_row) + '|\n'
+            if len(table_str) > 1993:
+                table_str = table_str[:1993] + '...```'
+                return table_str
+        return table_str + '```'
+
+    @is_owner()
     @command(name='drop_table')
     async def dump_db(self, ctx, *, table):
         """
