@@ -221,10 +221,10 @@ class PlexHistory(commands.Cog):
         self.bot.database.execute(
             '''INSERT INTO plex_history_messages
                             (event_hash, guild_id, message_id, history_time,
-                             title, media_type, account_ID, pb_start_offset, pb_end_offset)
-                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)''',
+                             title, media_type, account_ID, pb_start_offset, pb_end_offset, media_year)
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''',
             (m_hash, guild.id, msg.id, datetime.datetime.now().timestamp(), title, session.type, accountID,
-             raw_start_position, raw_current_position))
+             raw_start_position, raw_current_position, session.year))
         if isinstance(session, plexapi.video.Episode):
             self.bot.database.execute('''
             UPDATE plex_history_messages SET season_num = ?, ep_num = ? WHERE event_hash = ?''',
@@ -330,14 +330,12 @@ class PlexHistory(commands.Cog):
             if row[5] == "episode":
                 media_list.append(f"`{row[4]} (S{str(row[6]).zfill(2)}E{str(row[7]).zfill(2)})` - {dynamic_time}")
             else:
-                media_list.append(f"`{row[4]}` - {dynamic_time}")
+                media_list.append(f"`{row[4]} ({row[11]})` - {dynamic_time}")
         embed.add_field(name="Last 6 media items", value=stringify(media_list, separator='\n'), inline=False)
 
         # Display the last 6 devices the user has watched on
         last_devices = user.devices[:6]
         device_list = []
-
-        print(last_devices)
 
         for device in last_devices:
             dynamic_time = f"<t:{round(device.last_seen)}:D>"
