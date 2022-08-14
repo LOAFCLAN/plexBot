@@ -450,7 +450,8 @@ class SessionChangeWatcher:
                     try:
                         already_exists = False
                         for watcher in self.watchers:
-                            if watcher.session == session and session.title == watcher.initial_session.title:
+                            if watcher.session == session and session.title == watcher.initial_session.title \
+                                    and session.usernames == watcher.initial_session.usernames:
                                 await watcher.refresh_session(session)
                                 already_exists = True
                                 break
