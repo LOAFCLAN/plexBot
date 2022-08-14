@@ -132,12 +132,13 @@ async def session_embed(plex):
             if not session.isFullObject:
                 raise Exception("Session is still partial")
 
-        session_instance = None
         if isinstance(session.session, list):
             session_instance = session.session[0]
         elif isinstance(session.session, plexapi.media.Session):
             session_instance = session.session
         else:
+            embed.add_field(name=f"{session.title} ({session.year})",
+                            value=f"Error, session is not a list or a session", inline=False)
             continue
 
         if len(session.media) > 1:
@@ -160,6 +161,9 @@ async def session_embed(plex):
         current_position = datetime.timedelta(seconds=round(session.viewOffset / 1000))
         total_duration = datetime.timedelta(seconds=round(session.duration / 1000))
 
+        progress_bar = text_progress_bar_maker(duration=total_duration.total_seconds(),
+                                               end=current_position.total_seconds(), length=35)
+
         timeline = f"{current_position} / {total_duration} - {str(session.players[0].state).capitalize()}"
 
         if session_instance.location.startswith("lan"):
@@ -168,10 +172,9 @@ async def session_embed(plex):
             if media is None:
                 bandwidth = "Unknown media"
             else:
-                bandwidth = f"{round(media.bitrate)} kbps of bandwidth reserved"
+                bandwidth = f"`{round(media.bitrate)}` kbps of bandwidth reserved"
                 total_bandwidth += media.bitrate
 
-        media_info = "`Media info unavailable`"
         if len(session.transcodeSessions) == 0:
             media_info = f"`{media.container}` - `{media.videoCodec}:" \
                          f" {media.width}x{media.height}@{media.videoFrameRate} " \
@@ -201,17 +204,20 @@ async def session_embed(plex):
         if session.type == 'movie':
             value = f"{session.title} ({session.year})\n" \
                     f"{timeline}\n" \
+                    f"{progress_bar}\n" \
                     f"{bandwidth}\n" \
                     f"{media_info}"
         elif session.type == 'episode':
             value = f"{session.grandparentTitle} - `{session.parentTitle}`\n" \
                     f"{session.title} - `Episode {session.index}`\n" \
                     f"{timeline}\n" \
+                    f"{progress_bar}\n" \
                     f"{bandwidth}\n" \
                     f"{media_info}"
         else:
             value = f"{session.title} - {session.type}\n" \
                     f"{timeline}\n" \
+                    f"{progress_bar}\n" \
                     f"{bandwidth}\n" \
                     f"{media_info}"
         # print(session.players[0].__dict__)

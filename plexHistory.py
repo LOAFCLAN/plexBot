@@ -301,6 +301,8 @@ class PlexHistory(commands.Cog):
         await interaction.respond(embed=base_user_layer(user, self.bot.database))
 
     async def mobile_view_callback(self, interaction):
+        """Make a smaller embed that is mobile friendly"""
+
         await interaction.respond(content="Not implemented yet")
 
     @has_permissions(administrator=True)
