@@ -542,7 +542,10 @@ def base_user_layer(user: CombinedUser, database):
         '''SELECT SUM(pb_end_offset - pb_start_offset) FROM plex_history_messages WHERE account_ID = ? 
         AND pb_end_offset > 0''',
         (accountID,)).fetchone()[0]
-    duration = datetime.timedelta(seconds=round(duration / 1000))
+    if duration is None:
+        duration = datetime.timedelta(seconds=0)
+    else:
+        duration = datetime.timedelta(seconds=round(duration / 1000))
 
     embed.description = f"{user.mention()} has spent `{duration}` watching `{num_media}` media sessions on " \
                         f"`{len(user.devices)}` devices"
