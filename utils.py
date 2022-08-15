@@ -556,7 +556,7 @@ def base_user_layer(user: CombinedUser, database):
         if row[5] == "episode":
             media_list.append(f"`{row[4]} (S{str(row[6]).zfill(2)}E{str(row[7]).zfill(2)})`\n└──>{dynamic_time}")
         else:
-            media_list.append(f"`{row[4]} ({row[11]})`\n└──>{dynamic_time}")
+            media_list.append(f"`{row[4]} ({row[11]})`\n└─>{dynamic_time}")
     embed.add_field(name="Last 6 media sessions", value=stringify(media_list, separator='\n'), inline=False)
 
     # Display the last 6 devices the user has watched on
@@ -565,7 +565,7 @@ def base_user_layer(user: CombinedUser, database):
 
     for device in last_devices:
         dynamic_time = f"<t:{round(device.last_seen)}:f>"
-        device_list.append(f"`{device.name}[{device.platform.capitalize()}]`\n└──>{dynamic_time}")
+        device_list.append(f"`{device.name}[{device.platform.capitalize()}]`\n└─>{dynamic_time}")
     embed.add_field(name="Last 6 devices", value=stringify(device_list, separator='\n'), inline=False)
     return embed
 

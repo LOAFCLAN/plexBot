@@ -365,33 +365,39 @@ class SessionWatcher:
 
     def __init__(self, session: plexapi.video.Video, server, callback) -> None:
 
-        print(f"Creating SessionWatcher for {session.title} ({session.year}) on {server.friendlyName}")
+        try:
+            print(f"Creating SessionWatcher for {session.title} ({session.year}) on {server.friendlyName} "
+                  f" for {session.usernames[0]}")
 
-        self.callback = callback
-        self.server = server
+            self.callback = callback
+            self.server = server
 
-        if not session.isFullObject:
-            session.reload(checkFiles=False)
             if not session.isFullObject:
-                raise Exception("Session is still partial")
+                session.reload(checkFiles=False)
+                if not session.isFullObject:
+                    raise Exception("Session is still partial")
 
-        media = session.media[0]
+            media = session.media[0]
 
-        # self.initial_media = copy(media)
-        self.media = media
-        self.initial_session = session
-        self.session = session
+            # self.initial_media = copy(media)
+            self.media = media
+            self.initial_session = session
+            self.session = session
 
-        # Get the hardware ID of the device that is playing the video
-        device_id = session.player.machineIdentifier
-        user_id = session.player.userID
-        self.server.database.execute("INSERT OR REPLACE INTO plex_devices VALUES (?, ?, ?);",
-                                     (user_id, device_id, datetime.datetime.now().timestamp()))
-        self.server.database.commit()
+            # Get the hardware ID of the device that is playing the video
+            device_id = session.player.machineIdentifier
+            user_id = session.player.userID
+            self.server.database.execute("INSERT OR REPLACE INTO plex_devices VALUES (?, ?, ?);",
+                                         (user_id, device_id, datetime.datetime.now().timestamp()))
+            self.server.database.commit()
 
-        self.end_offset = self.session.viewOffset
+            self.end_offset = self.session.viewOffset
 
-        self.alive_time = datetime.datetime.utcnow()
+            self.alive_time = datetime.datetime.utcnow()
+        except Exception as e:
+            print(f"Error creating SessionWatcher for {session.title} ({session.year}) on {server.friendlyName}\n"
+                  f"{traceback.format_exc()}")
+            raise e
 
     async def refresh_session(self, session: plexapi.video.Video) -> None:
         self.session = session
