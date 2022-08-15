@@ -49,6 +49,10 @@ class PlexContext(commands.Context):
 
 class CombinedUser:
 
+    class UnlinkedUserError(Exception):
+        def __str__(self) -> str:
+            return super().__str__()
+
     def __init__(self, plex_server, discord_member: discord.Member = None, plex_id: str = None, plex_email: str = None,
                  plex_username: str = None, plex_unknown: str = None):
         if plex_server is None:
@@ -66,16 +70,18 @@ class CombinedUser:
 
         # If we don't have any information about the plex account then we raise an exception
         if self.__plex_id__ is None and self.__plex_email__ is None and self.__plex_username__ is None \
-                and self.__plex_unknown__ is None and self.discord_member is None:
-            raise Exception("Insufficient information provided to create a CombinedUser")
+                and self.__plex_unknown__ is None:
+            raise CombinedUser.UnlinkedUserError(
+                f"Cannot create CombinedUser from unlinked discord member {self.discord_member}")
 
         if plex_server.myPlexAccount().id == self.__plex_id__:
             self.__plex_id__ = 1
 
         if not self._load_sys_user():
-            raise Exception(f"Could not find plex user account for {self.discord_member}")
+            raise Exception(f"Could not find plex system account for {self.discord_member}")
         if not self._load_plex_user():
-            print("Idfk")
+            raise Exception(f"Could not find plex user account for {self.discord_member} "
+                            f"({self.plex_system_account.name}")
 
     def _load_sys_user(self) -> bool:
         if self.__plex_unknown__ is not None:
@@ -132,6 +138,12 @@ class CombinedUser:
             return f"`{self.plex_user.name}`"
         else:
             return "Unknown"
+
+    def full_discord_username(self):
+        if self.discord_member is not None:
+            return f"{self.discord_member.name}#{self.discord_member.discriminator}"
+        else:
+            return "unknown#0000"
 
     def avatar_url(self, plex_only=False, discord_only=False):
         if self.discord_member is not None and not plex_only:

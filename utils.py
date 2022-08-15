@@ -137,8 +137,11 @@ async def session_embed(plex):
         elif isinstance(session.session, plexapi.media.Session):
             session_instance = session.session
         else:
-            embed.add_field(name=f"{session.title} ({session.year})",
-                            value=f"Error, session is not a list or a session", inline=False)
+            if len(session.usernames) == 0:
+                embed.add_field(name=f"{session.title}", value="Session has no users", inline=False)
+            else:
+                embed.add_field(name=f"{session.usernames[0]} has encountered an error",
+                                value=f"Invalid session type, {type(session.session)}", inline=False)
             continue
 
         if len(session.media) > 1:
@@ -522,8 +525,7 @@ def base_info_layer(embed, content):
 def base_user_layer(user: CombinedUser, database):
     accountID = user.plex_system_account.id
     embed = discord.Embed(title=f"User: {user.display_name(plex_only=True)} - {user.plex_user.id}", color=0x00ff00)
-    embed.set_author(name=f"{user.display_name(discord_only=True)} "
-                          f"({user.discord_member.name}#{user.discord_member.discriminator})",
+    embed.set_author(name=f"{user.display_name(discord_only=True)} ({user.full_discord_username()})",
                      icon_url=user.avatar_url(discord_only=True))
     embed.set_thumbnail(url=user.avatar_url(plex_only=True))
     # The description of a user will contain the following:
@@ -554,7 +556,7 @@ def base_user_layer(user: CombinedUser, database):
         timestamp = datetime.datetime.fromtimestamp(row[3], tz=datetime.timezone.utc)
         dynamic_time = f"<t:{round(timestamp.timestamp())}:f>"
         if row[5] == "episode":
-            media_list.append(f"`{row[4]} (S{str(row[6]).zfill(2)}E{str(row[7]).zfill(2)})`\n└──>{dynamic_time}")
+            media_list.append(f"`{row[4]} (S{str(row[6]).zfill(2)}E{str(row[7]).zfill(2)})`\n└─>{dynamic_time}")
         else:
             media_list.append(f"`{row[4]} ({row[11]})`\n└─>{dynamic_time}")
     embed.add_field(name="Last 6 media sessions", value=stringify(media_list, separator='\n'), inline=False)
