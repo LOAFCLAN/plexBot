@@ -200,6 +200,7 @@ class PlexSearch(commands.Cog):
 
         # embed.set_footer(text=f"{content.guid}", icon_url=requester.avatar_url)
         embed.set_author(name=f"Requested by: {requester.display_name}", icon_url=requester.avatar_url)
+
         embed.set_footer(text=f"Located in {content.librarySectionTitle}")
         if select_things:
             await edit_msg.edit(embed=embed, components=select_things)
