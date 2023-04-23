@@ -140,7 +140,7 @@ class CombinedUser:
                 return "No linked discord account"
 
     def mention(self, plex_only=False, discord_only=False):
-        if self.discord_member is not None and not plex_only:
+        if self.discord_member is not None and not plex_only and not self.discord_id_only:
             return self.discord_member.mention
         elif self.plex_user is not None and not discord_only:
             return f"`{self.plex_user.username}`"
