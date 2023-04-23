@@ -57,6 +57,15 @@ class PlexBot(commands.Bot):
             '''CREATE TABLE IF NOT EXISTS plex_devices
             (account_id INTEGER, device_id STRING, last_seen INT, PRIMARY KEY (account_id, device_id));''')
 
+        # Check if the plex_history_messages table a session_duration column, if not add it and set its value to the
+        # difference between the end and start offset
+        cursor = self.database.execute('''PRAGMA table_info(plex_history_messages)''')
+        columns = cursor.fetchall()
+        if len(columns) == 12:
+            self.database.execute('''ALTER TABLE plex_history_messages ADD COLUMN session_duration FLOAT (0.0, 1.0)''')
+            self.database.execute('''UPDATE plex_history_messages SET session_duration = pb_end_offset - pb_start_offset''')
+            self.database.commit()
+
         self.database.commit()
 
     def __init__(self, *args, **kwargs):
