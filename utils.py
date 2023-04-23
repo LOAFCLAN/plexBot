@@ -547,16 +547,20 @@ def base_user_layer(user: CombinedUser, database):
         '''SELECT COUNT(*) FROM plex_history_messages WHERE account_ID = ?''', (accountID,)).fetchone()[0]
 
     # Get the total duration of the media items the user has watched
-    duration = database.execute(
+    session_duration = database.execute(
+        '''SELECT SUM(session_duration) FROM plex_history_messages WHERE account_ID = ? and session_duration > 0''', (accountID,)).fetchone()[0]
+    media_duration = database.execute(
         '''SELECT SUM(pb_end_offset - pb_start_offset) FROM plex_history_messages WHERE account_ID = ? 
         AND pb_end_offset > 0''',
         (accountID,)).fetchone()[0]
-    if duration is None:
-        duration = datetime.timedelta(seconds=0)
+    if session_duration is None:
+        session_duration = datetime.timedelta(seconds=0)
+        media_duration = datetime.timedelta(seconds=0)
     else:
-        duration = datetime.timedelta(seconds=round(duration / 1000))
+        session_duration = datetime.timedelta(seconds=round(session_duration / 1000))
+        media_duration = datetime.timedelta(seconds=round(media_duration / 1000))
 
-    embed.description = f"{user.mention()} has spent `{duration}` watching `{num_media}` media sessions on " \
+    embed.description = f"{user.mention()} has spent `{session_duration}` watching `{num_media}` (`{media_duration}`) media sessions on " \
                         f"`{len(user.devices)}` devices"
 
     # Display the last 6 media items the user has watched

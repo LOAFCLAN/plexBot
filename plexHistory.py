@@ -222,10 +222,10 @@ class PlexHistory(commands.Cog):
         self.bot.database.execute(
             '''INSERT INTO plex_history_messages
                             (event_hash, guild_id, message_id, history_time,
-                             title, media_type, account_ID, pb_start_offset, pb_end_offset, media_year)
-                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''',
+                             title, media_type, account_ID, pb_start_offset, pb_end_offset, media_year, session_duration)
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''',
             (m_hash, guild.id, msg.id, datetime.datetime.now().timestamp(), title, session.type, accountID,
-             raw_start_position, raw_current_position, session.year))
+             raw_start_position, raw_current_position, session.year, alive_time))
         if isinstance(session, plexapi.video.Episode):
             self.bot.database.execute('''
             UPDATE plex_history_messages SET season_num = ?, ep_num = ? WHERE event_hash = ?''',
