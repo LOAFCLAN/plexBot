@@ -165,8 +165,8 @@ class PlexSearch(commands.Cog):
                             value=f"{datetime.timedelta(milliseconds=content.duration)}", inline=True)
             embed.add_field(name="Total Seasons", value=content.childCount, inline=True)
             embed.add_field(name="Total Episodes", value=f"{len(content.episodes())}", inline=True)
-            embed.add_field(name="Total Content Duration",
-                            value=f"{datetime.timedelta(milliseconds=get_series_duration(content))}", inline=True)
+            embed.add_field(name="Total Duration",
+                            value=f"{datetime.timedelta(seconds=round(get_series_duration(content) / 1000))}", inline=True)
             # embed.add_field(name="Media", value="\n".join(media_info), inline=False)
             select_things = make_season_selector(content)
             for thing in select_things:
