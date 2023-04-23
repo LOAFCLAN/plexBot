@@ -156,6 +156,7 @@ class PlexSearch(commands.Cog):
 
             embed = discord.Embed(title=f"{safe_field(content.title)}",
                                   description=f"{content.tagline}", color=0x00ff00)
+            embed.add_field(name="Summary", value=safe_field(content.summary), inline=False)
             embed.add_field(name="Rating", value=rating_string, inline=False)
             embed.add_field(name="Genres", value=stringify(content.genres), inline=True)
             embed.add_field(name="Network", value=content.network, inline=True)
