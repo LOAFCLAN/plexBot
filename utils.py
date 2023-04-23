@@ -410,6 +410,13 @@ def safe_field(field_text: str) -> str:
         return field_text
 
 
+def get_series_duration(content: typing.Union[plexapi.video.Show, plexapi.video.Season]) -> int:
+    """Get the total duration of a series"""
+    total_duration = 0
+    for episode in content.episodes():
+        total_duration += episode.duration
+    return total_duration
+
 def make_episode_selector(season) -> typing.Union[typing.List[Select], Button] or None:
     """Make an episode selector for a show"""
     if len(season.episodes()) == 0:

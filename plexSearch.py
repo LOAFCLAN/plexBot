@@ -10,7 +10,7 @@ from discord.ext.commands import command
 from discord_components import DiscordComponents, Button, ButtonStyle, SelectOption, Select, Interaction
 
 from utils import get_season, base_info_layer, rating_str, stringify, make_season_selector, make_episode_selector, \
-    cleanup_url, safe_field
+    cleanup_url, safe_field, get_series_duration
 
 
 class PlexSearch(commands.Cog):
@@ -158,17 +158,19 @@ class PlexSearch(commands.Cog):
                                   description=f"{content.tagline}", color=0x00ff00)
             embed.add_field(name="Summary", value=safe_field(content.summary), inline=False)
             embed.add_field(name="Rating", value=rating_string, inline=False)
-            embed.add_field(name="Genres", value=stringify(content.genres), inline=True)
+            embed.add_field(name="Genres", value=stringify(content.genres), inline=False)
             embed.add_field(name="Network", value=content.network, inline=True)
             embed.add_field(name="Studio", value=content.studio, inline=True)
             embed.add_field(name="Average Episode Runtime",
                             value=f"{datetime.timedelta(milliseconds=content.duration)}", inline=True)
             embed.add_field(name="Total Seasons", value=content.childCount, inline=True)
             embed.add_field(name="Total Episodes", value=f"{len(content.episodes())}", inline=True)
+            embed.add_field(name="Total Content Duration",
+                            value=f"{datetime.timedelta(milliseconds=get_series_duration(content))}", inline=True)
             # embed.add_field(name="Media", value="\n".join(media_info), inline=False)
             select_things = make_season_selector(content)
-            for item in select_things:
-                self.bot.component_manager.add_callback(item, self.on_select)
+            for thing in select_things:
+                self.bot.component_manager.add_callback(thing, self.on_select)
 
         elif isinstance(content, plexapi.video.Season):  # ------------------------------------------------------
             """Format the embed being sent for a season"""
@@ -177,8 +179,8 @@ class PlexSearch(commands.Cog):
             embed.add_field(name=f"Episodes: {len(content.episodes())}",
                             value=stringify(content.episodes(), separator="\n")[:1024], inline=False)
             select_things = make_episode_selector(content)
-            for item in select_things:
-                self.bot.component_manager.add_callback(item, self.on_select)
+            for thing in select_things:
+                self.bot.component_manager.add_callback(thing, self.on_select)
 
         elif isinstance(content, plexapi.video.Episode):  # ------------------------------------------------------
             """Format the embed being sent for an episode"""
