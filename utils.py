@@ -567,10 +567,13 @@ def base_user_layer(user: CombinedUser, database):
     for row in last_media:
         timestamp = datetime.datetime.fromtimestamp(row[3], tz=datetime.timezone.utc)
         dynamic_time = f"<t:{round(timestamp.timestamp())}:f>"
+        session_duration = datetime.timedelta(seconds=row[10] - row[9] / 1000)
         if row[5] == "episode":
-            media_list.append(f"`{row[4]} (S{str(row[6]).zfill(2)}E{str(row[7]).zfill(2)})`\n└─>{dynamic_time}")
+            media_list.append(f"`{row[4]} (S{str(row[6]).zfill(2)}E{str(row[7]).zfill(2)})`\n"
+                              f"└─>{dynamic_time} for {session_duration}")
         else:
-            media_list.append(f"`{row[4]} ({row[11]})`\n└─>{dynamic_time}")
+            media_list.append(f"`{row[4]} ({row[11]})`\n"
+                              f"└─>{dynamic_time} for {session_duration}")
     embed.add_field(name="Last 6 media sessions", value=stringify(media_list, separator='\n'), inline=False)
 
     # Display the last 6 devices the user has watched on
