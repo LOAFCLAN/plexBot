@@ -150,9 +150,7 @@ class CombinedUser:
             return "Unknown"
 
     def full_discord_username(self):
-        if self.discord_id_only:
-            return f"(ID: {self.discord_member})"
-        elif self.discord_member is not None:
+        if self.discord_member is not None and not self.discord_id_only:
             return f"{self.discord_member.name}#{self.discord_member.discriminator}"
         else:
             return "unknown#0000"
