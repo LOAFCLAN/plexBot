@@ -108,7 +108,7 @@ class PlexBot(Cog):
                     embed = await session_embed(plex)
                     await message.edit(embed=embed, content="")
                     # await log_scan()
-                    await asyncio.sleep(5)
+                    await asyncio.sleep(10)
                 except discord_errors.NotFound:
                     message = await create_message()
                 except Exception as e:
@@ -416,6 +416,55 @@ class PlexBot(Cog):
         """Force the plex server to run a deep media analysis"""
         ctx.plex.runButlerTask("DeepMediaAnalysis")
         await ctx.send("Deep media analysis started")
+
+
+    # @command(name="embed_test")
+    # async def embed_test(self, ctx):
+    #     """Test ups status embeds"""
+    #     embed = discord.Embed(title="Load on Battery Power",
+    #                           description="Reason: Utility Outage", color=0xffff00)
+    #     embed.add_field(name="Current State of Charge", value="78%", inline=True)
+    #     embed.add_field(name="Current Load", value="302W", inline=True)
+    #     embed.add_field(name="Est Remaining Time", value="15 Minutes", inline=True)
+    #     embed.add_field(name="Previous Utility Voltage", value="104.2V", inline=True)
+    #     embed.add_field(name="Current Utility Voltage", value="0.0V", inline=True)
+    #     embed.add_field(name="Load shutdown in", value="<t:0:R>", inline=True)
+    #     embed.timestamp = datetime.datetime.utcnow()
+    #     await ctx.send(embed=embed)
+    #
+    #     embed = discord.Embed(title="Load on Battery Power",
+    #                           description="Reason: Utility Brownout", color=0xffff00)
+    #     embed.add_field(name="Current State of Charge", value="78%", inline=True)
+    #     embed.add_field(name="Current Load", value="302W", inline=True)
+    #     embed.add_field(name="Est Remaining Time", value="15 Minutes", inline=True)
+    #     embed.add_field(name="Previous Utility Voltage", value="104.2V", inline=True)
+    #     embed.add_field(name="Current Utility Voltage", value="87.4V", inline=True)
+    #     embed.add_field(name="Load shutdown in", value="<t:0:R>", inline=True)
+    #     embed.timestamp = datetime.datetime.utcnow()
+    #     await ctx.send(embed=embed)
+    #
+    #
+    #     embed = discord.Embed(title="Shutting Down Load",
+    #                           description="Reason: Utility Brownout", color=0xff0000)
+    #     embed.add_field(name="Current State of Charge", value="45%", inline=True)
+    #     embed.add_field(name="Current Load", value="302W", inline=True)
+    #     embed.add_field(name="Est Remaining Time", value="5 Minutes", inline=True)
+    #     embed.add_field(name="Previous Utility Voltage", value="54.4V", inline=True)
+    #     embed.add_field(name="Current Utility Voltage", value="87.4V", inline=True)
+    #     embed.add_field(name="Load shutdown in", value="Now", inline=True)
+    #     embed.timestamp = datetime.datetime.utcnow()
+    #     await ctx.send(embed=embed)
+    #
+    #     embed = discord.Embed(title="Utility Power Restored",
+    #                           description="Reason: Utility Outage", color=0x00ff00)
+    #     embed.add_field(name="Current State of Charge", value="15%", inline=True)
+    #     embed.add_field(name="Current Load", value="5W", inline=True)
+    #     embed.add_field(name="Outage lasted", value="15 Minutes", inline=True)
+    #     embed.add_field(name="Previous Utility Voltage", value="0.0V", inline=True)
+    #     embed.add_field(name="Current Utility Voltage", value="120.4V", inline=True)
+    #     embed.add_field(name="Load startup in", value="<t:0:R>", inline=True)
+    #     embed.timestamp = datetime.datetime.utcnow()
+    #     await ctx.send(embed=embed)
 
 
 def setup(bot):
