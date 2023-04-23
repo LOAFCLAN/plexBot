@@ -554,14 +554,17 @@ def base_user_layer(user: CombinedUser, database):
         AND pb_end_offset > 0''',
         (accountID,)).fetchone()[0]
     if session_duration is None:
-        session_duration = datetime.timedelta(seconds=0)
-        media_duration = datetime.timedelta(seconds=0)
+        session_duration = "Unknown"
     else:
         session_duration = datetime.timedelta(seconds=round(session_duration / 1000))
+
+    if media_duration is None:
+        media_duration = "Unknown"
+    else:
         media_duration = datetime.timedelta(seconds=round(media_duration / 1000))
 
-    embed.description = f"{user.mention()} has spent `{session_duration}` watching `{num_media}` (`{media_duration}`) media sessions on " \
-                        f"`{len(user.devices)}` devices"
+    embed.description = f"{user.mention()} has spent `{session_duration}` watching `{num_media}` media sessions " \
+                        f"totaling `{media_duration}` on `{len(user.devices)}` devices"
 
     # Display the last 6 media items the user has watched
     last_media = database.execute(

@@ -50,7 +50,7 @@ class PlexBot(commands.Bot):
             '''CREATE TABLE IF NOT EXISTS plex_history_messages 
             (event_hash INTEGER, guild_id INTEGER, message_id INTEGER, history_time FLOAT (0.0), 
             title TEXT NOT NULL, media_type TEXT NOT NULL, season_num INTEGER, ep_num INTEGER, account_ID INTEGER,
-            pb_start_offset FLOAT (0.0, 1.0), pb_end_offset FLOAT (0.0, 1.0), media_year TEXT, 
+            pb_start_offset FLOAT (0.0, 1.0), pb_end_offset FLOAT (0.0, 1.0), media_year TEXT, session_duration FLOAT (0.0, 1.0),
             PRIMARY KEY (event_hash, guild_id));''')
 
         self.database.execute(
