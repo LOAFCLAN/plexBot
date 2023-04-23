@@ -144,7 +144,7 @@ class PlexSearch(commands.Cog):
         if isinstance(content, plexapi.video.Movie):
             """Format the embed being sent for a movie"""
             embed = discord.Embed(title=f"{content.title} ({content.year})",
-                                  description=f"{content.tagline}", color=0x00ff00)
+                                  description=f"{content.tagline if content.tagline else 'No Tagline'}", color=0x00ff00)
             embed.add_field(name="Summary", value=content.summary, inline=False)
 
             base_info_layer(embed, content)
@@ -155,7 +155,7 @@ class PlexSearch(commands.Cog):
             rating_string = rating_str(content)
 
             embed = discord.Embed(title=f"{safe_field(content.title)}",
-                                  description=f"{content.tagline}", color=0x00ff00)
+                                  description=f"{content.tagline if content.tagline else 'No Tagline'}", color=0x00ff00)
             embed.add_field(name="Summary", value=safe_field(content.summary), inline=False)
             embed.add_field(name="Rating", value=rating_string, inline=False)
             embed.add_field(name="Genres", value=stringify(content.genres), inline=False)
