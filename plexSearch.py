@@ -178,6 +178,9 @@ class PlexSearch(commands.Cog):
                                   description=f"Season {content.index}", color=0x00ff00)
             embed.add_field(name=f"Episodes: {len(content.episodes())}",
                             value=stringify(content.episodes(), separator="\n")[:1024], inline=False)
+            embed.add_field(name="Total Duration",
+                            value=f"{datetime.timedelta(seconds=round(get_series_duration(content) / 1000))}",
+                            inline=True)
             select_things = make_episode_selector(content)
             for thing in select_things:
                 self.bot.component_manager.add_callback(thing, self.on_select)
