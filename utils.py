@@ -224,8 +224,11 @@ async def session_embed(plex):
                     f"{bandwidth}\n" \
                     f"{media_info}"
         # print(session.players[0].__dict__)
-        embed.add_field(name=f"{plex.associations.display_name(session.usernames[0])} on {device}", value=value,
-                        inline=False)
+        try:
+            embed.add_field(name=f"{plex.associations.display_name(session.usernames[0])} on {device}", value=value,
+                            inline=False)
+        except Exception as e:
+            embed.add_field(name=f"{session.usernames[0]} on {device} ({type(e)})", value=value, inline=False)
 
     embed.timestamp = datetime.datetime.utcnow()
     embed.set_footer(text=f"{round(total_bandwidth)} kps of bandwidth reserved")

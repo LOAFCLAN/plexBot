@@ -78,10 +78,11 @@ class CombinedUser:
             self.__plex_id__ = 1
 
         if not self._load_sys_user():
-            raise Exception(f"Could not find plex system account for {self.discord_member}")
+            # If we can't find the plex system account then handle it
+            raise CombinedUser.UnlinkedUserError(f"Cannot find plex system account for {self.__plex_id__}")
         if not self._load_plex_user():
-            raise Exception(f"Could not find plex user account for {self.discord_member} "
-                            f"({self.plex_system_account.name}")
+            # If we can't find the plex user then handle it
+            raise CombinedUser.UnlinkedUserError(f"Cannot find plex user for {self.__plex_id__}")
 
     def _load_sys_user(self) -> bool:
         if self.__plex_unknown__ is not None:
