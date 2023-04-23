@@ -417,6 +417,7 @@ def get_series_duration(content: typing.Union[plexapi.video.Show, plexapi.video.
         total_duration += episode.duration
     return total_duration
 
+
 def make_episode_selector(season) -> typing.Union[typing.List[Select], Button] or None:
     """Make an episode selector for a show"""
     if len(season.episodes()) == 0:
@@ -505,13 +506,11 @@ def base_info_layer(embed, content):
 
     media_info = get_media_info(content.media)
 
-    rating_string = rating_str(content)
-
-    embed.add_field(name="Ratings", value=rating_string, inline=False)
+    embed.add_field(name="Ratings", value=rating_str(content), inline=False)
     rounded_duration = round(content.duration / 1000)  # Convert time to seconds and round
 
     if hasattr(content, 'genres'):
-        embed.add_field(name="Genres", value=stringify(content.genres), inline=True)
+        embed.add_field(name="Genres", value=stringify(content.genres, max_length=6), inline=True)
     else:
         embed.add_field(name="Genres", value="Not applicable", inline=True)
 
@@ -524,9 +523,9 @@ def base_info_layer(embed, content):
     else:
         embed.add_field(name="Cast", value=stringify(actors, max_length=10), inline=False)
 
-    embed.add_field(name="Producers", value=stringify(content.producers), inline=True)
-    embed.add_field(name="Directors", value=stringify(content.directors), inline=True)
-    embed.add_field(name="Writers", value=stringify(content.writers), inline=True)
+    embed.add_field(name="Producers", value=stringify(content.producers, max_length=4), inline=True)
+    embed.add_field(name="Directors", value=stringify(content.directors, max_length=4), inline=True)
+    embed.add_field(name="Writers", value=stringify(content.writers, max_length=4), inline=True)
     embed.add_field(name="Media", value=safe_field("\n\n".join(media_info)), inline=False)
     embed.add_field(name="Subtitles",
                     value=safe_field("\n\n".join(subtitle_details(content, max_subs=6))), inline=False)

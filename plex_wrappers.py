@@ -48,7 +48,6 @@ class PlexContext(commands.Context):
 
 
 class CombinedUser:
-
     class UnlinkedUserError(Exception):
         def __str__(self) -> str:
             return super().__str__()
@@ -58,7 +57,12 @@ class CombinedUser:
         if plex_server is None:
             raise Exception("No plex server provided")
         self.plex_server = plex_server
-        if not isinstance(discord_member, discord.Member) and discord_member is not None:
+        self.discord_id_only = False
+        if isinstance(discord_member, int):
+            # If we are passed a discord ID this means that there is a linked
+            # but the user could not be found, we will then display the discord ID instead
+            self.discord_id_only = True
+        elif not isinstance(discord_member, discord.Member) and discord_member is not None:
             raise Exception("Discord member must be discord.Member, not %s" % type(discord_member))
         self.discord_member = discord_member
         self.plex_user = None
@@ -119,15 +123,21 @@ class CombinedUser:
         return False
 
     def display_name(self, plex_only=False, discord_only=False):
-        if self.discord_member is not None and not plex_only:
+        if self.discord_id_only and not plex_only:
+            return f"(ID: {self.discord_member})"
+        elif self.discord_member is not None and not plex_only:
             return self.discord_member.display_name
         elif self.plex_user is not None and not discord_only:
             return self.plex_user.username
         elif self.plex_system_account is not None and not discord_only:
             return self.plex_system_account.name
         else:
-            return "Unknown" if not discord_only else "No linked discord account" if not plex_only \
-                else "No linked plex account"
+            if plex_only:
+                return "No linked plex account"
+            elif discord_only and self.discord_id_only:
+                return f"(ID: {self.discord_member})"
+            elif discord_only:
+                return "No linked discord account"
 
     def mention(self, plex_only=False, discord_only=False):
         if self.discord_member is not None and not plex_only:
@@ -140,7 +150,9 @@ class CombinedUser:
             return "Unknown"
 
     def full_discord_username(self):
-        if self.discord_member is not None:
+        if self.discord_id_only:
+            return f"(ID: {self.discord_member})"
+        elif self.discord_member is not None:
             return f"{self.discord_member.name}#{self.discord_member.discriminator}"
         else:
             return "unknown#0000"
@@ -154,7 +166,9 @@ class CombinedUser:
             return ""
 
     def id(self, plex_only=False, discord_only=False):
-        if self.discord_member is not None and not plex_only:
+        if self.discord_id_only and not plex_only:
+            return self.discord_member
+        elif self.discord_member is not None and not plex_only:
             return self.discord_member.id
         elif self.plex_user is not None and not discord_only:
             return self.plex_user.id
@@ -280,13 +294,12 @@ class DiscordAssociations:
         for row in cursor:
             try:
                 member = await self.guild.fetch_member(row[1])
+            except discord.NotFound:
+                member = row[1]
+            try:
                 self.associations.append(CombinedUser(plex_server=self.plex_server,
                                                       discord_member=member,
                                                       plex_id=row[2], plex_email=row[3], plex_username=row[4]))
-            except discord.NotFound:
-                pass
-                # self.bot.database.execute("DELETE FROM discord_associations WHERE discord_id = ?", (row[1],))
-                # self.bot.database.commit()
             except Exception as e:
                 print(e)
         self.ready = True
