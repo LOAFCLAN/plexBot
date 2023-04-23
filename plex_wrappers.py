@@ -195,7 +195,7 @@ class CombinedUser:
                     if device.clientIdentifier == row[1]:
                         device.last_seen = row[2]
             # Sort the devices by last seen
-            devices.sort(key=lambda x: x.last_seen)
+            devices.sort(key=lambda x: x.last_seen, reverse=True)
             return devices
 
     def _compare_plex_info(self, other: str):
