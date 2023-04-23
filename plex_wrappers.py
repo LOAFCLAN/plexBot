@@ -78,10 +78,9 @@ class CombinedUser:
             self.__plex_id__ = 1
 
         if not self._load_sys_user():
-            # If we can't find the plex system account then handle it
             raise CombinedUser.UnlinkedUserError(f"Cannot find plex system account for {self.__plex_id__}")
         if not self._load_plex_user():
-            # If we can't find the plex user then handle it
+            # If for some reason we can't find the plex user then handle it
             raise CombinedUser.UnlinkedUserError(f"Cannot find plex user for {self.__plex_id__}")
 
     def _load_sys_user(self) -> bool:
@@ -279,10 +278,17 @@ class DiscordAssociations:
         self.plex_server = await self.bot.fetch_plex(self.guild)
         cursor = self.bot.database.execute("SELECT * FROM discord_associations WHERE guild_id = ?", (self.guild.id,))
         for row in cursor:
-            member = await self.guild.fetch_member(row[1])
-            self.associations.append(CombinedUser(plex_server=self.plex_server,
-                                                  discord_member=member,
-                                                  plex_id=row[2], plex_email=row[3], plex_username=row[4]))
+            try:
+                member = await self.guild.fetch_member(row[1])
+                self.associations.append(CombinedUser(plex_server=self.plex_server,
+                                                      discord_member=member,
+                                                      plex_id=row[2], plex_email=row[3], plex_username=row[4]))
+            except discord.NotFound:
+                pass
+                # self.bot.database.execute("DELETE FROM discord_associations WHERE discord_id = ?", (row[1],))
+                # self.bot.database.commit()
+            except Exception as e:
+                print(e)
         self.ready = True
 
     def get_discord_association(self, discord_member: discord.Member) -> CombinedUser:
