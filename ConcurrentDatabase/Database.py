@@ -95,7 +95,8 @@ class Database(sqlite3.Connection):
             return
         # Check if the revision increment is only 1 more than the current version
         elif self.table_version_table.get_row(table_name=table_name)["version"] + 1 == version:
-            raise ValueError(f"Table {table_name} version {version} is not 1 more than the current version")
+            raise ValueError(f"Table {table_name} version {version} is not 1 more than the current version "
+                             f"{self.table_version_table.get_row(table_name=table_name)['version']}")
         # Check if the table exists
         if table_name not in self.tables:
             raise KeyError(f"Table {table_name} not found in database {self.database_name}")
