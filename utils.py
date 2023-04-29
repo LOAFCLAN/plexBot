@@ -567,14 +567,17 @@ def base_user_layer(user: CombinedUser, database):
     # - How many devices the user has watched on
 
     # Get the number of media items the user has watched
-    num_media = database.execute(
+    num_media = database.run(
         '''SELECT COUNT(*) FROM plex_history_messages WHERE account_ID = ?''', (accountID,)).fetchone()[0]
 
     # Get the total duration of the media items the user has watched
-    session_duration = database.execute(
+    session_duration = database.run(
         '''SELECT SUM(session_duration) FROM plex_history_messages WHERE account_ID = ? and session_duration > 0''',
         (accountID,)).fetchone()[0]
-    media_duration = database.execute(
+    watch_time = database.run(
+        '''SELECT SUM(watch_time) FROM plex_history_messages WHERE account_ID = ? and watch_time > 0''',
+        (accountID,)).fetchone()[0]
+    media_duration = database.run(
         '''SELECT SUM(pb_end_offset - pb_start_offset) FROM plex_history_messages WHERE account_ID = ? 
         AND pb_end_offset > 0''',
         (accountID,)).fetchone()[0]

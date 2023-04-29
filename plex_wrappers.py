@@ -425,6 +425,7 @@ class SessionWatcher:
 
             self.end_offset = self.session.viewOffset
 
+            self.start_time = datetime.datetime.now()
             self.alive_time = datetime.datetime.utcnow()
             self.watch_time = 0
 

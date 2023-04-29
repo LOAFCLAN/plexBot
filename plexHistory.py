@@ -168,7 +168,7 @@ class PlexHistory(commands.Cog):
 
         accountID = user.plex_system_account.accountID if user is not None else None
 
-        time = watcher.alive_time
+        time = watcher.start_time
 
         raw_current_position = watcher.end_offset
         raw_duration = session.duration
@@ -271,6 +271,7 @@ class PlexHistory(commands.Cog):
                 view = self.HistoryOptions()
                 await message.edit(view=view)
                 await asyncio.sleep(5)
+        await ctx.send("All messages updated to new component format")
 
 
 async def setup(bot):
