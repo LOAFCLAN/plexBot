@@ -259,7 +259,7 @@ class PlexHistory(commands.Cog):
             if message.author == self.bot.user:
                 message_cache[message.id] = message
         logging.info(f"Updating {len(message_cache)} messages")
-        estimated_time = len(message_cache) / 60  # 0.5 seconds per message
+        estimated_time = len(message_cache) * 5 / 60  # 0.5 seconds per message
         await ctx.send(f"Updating {len(message_cache)} messages, "
                        f"this will take about {round(estimated_time, 2)} minutes")
         for entry in table.get_all():
@@ -270,7 +270,7 @@ class PlexHistory(commands.Cog):
                     continue
                 view = self.HistoryOptions()
                 await message.edit(view=view)
-                await asyncio.sleep(1)
+                await asyncio.sleep(5)
 
 
 async def setup(bot):
