@@ -10,7 +10,6 @@ import discord
 
 
 def table_str_generator(ret):
-
     # Calculate the longest string in each column
     col_widths = []
     for col in range(len(ret[0])):
@@ -269,6 +268,5 @@ def load_function(code, globals_, locals_):
                 raise err
 
 
-def setup(bot):
-    bot.add_cog(maintCog(bot))
-    print("maint.py loaded")
+async def setup(bot):
+    await bot.add_cog(maintCog(bot))

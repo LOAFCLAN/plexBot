@@ -5,7 +5,10 @@ import traceback
 import typing
 
 import plexapi.client
+from discord import ButtonStyle
+from discord.interactions import Interaction, InteractionResponse
 from discord.ext.commands import command, has_permissions, Cog, Context, BadArgument
+from discord.ui import Button, View
 from plexapi.server import PlexServer
 import discord.errors as discord_errors
 import discord
@@ -14,6 +17,7 @@ import plex_wrappers
 from plex_wrappers import DiscordAssociations
 from utils import get_all_library, session_embed, base_user_layer
 
+from loguru import logger as logging
 
 class PlexBot(Cog):
 
@@ -417,56 +421,27 @@ class PlexBot(Cog):
         ctx.plex.runButlerTask("DeepMediaAnalysis")
         await ctx.send("Deep media analysis started")
 
+    async def test_button_callback(self, interaction: Interaction):
+        response = interaction.response
+        # Get the custom id of the button that was pressed
+        button_id = interaction.data["custom_id"]
+        await response.send_message("Button pressed with id: " + button_id)
 
-    # @command(name="embed_test")
-    # async def embed_test(self, ctx):
-    #     """Test ups status embeds"""
-    #     embed = discord.Embed(title="Load on Battery Power",
-    #                           description="Reason: Utility Outage", color=0xffff00)
-    #     embed.add_field(name="Current State of Charge", value="78%", inline=True)
-    #     embed.add_field(name="Current Load", value="302W", inline=True)
-    #     embed.add_field(name="Est Remaining Time", value="15 Minutes", inline=True)
-    #     embed.add_field(name="Previous Utility Voltage", value="104.2V", inline=True)
-    #     embed.add_field(name="Current Utility Voltage", value="0.0V", inline=True)
-    #     embed.add_field(name="Load shutdown in", value="<t:0:R>", inline=True)
-    #     embed.timestamp = datetime.datetime.utcnow()
-    #     await ctx.send(embed=embed)
-    #
-    #     embed = discord.Embed(title="Load on Battery Power",
-    #                           description="Reason: Utility Brownout", color=0xffff00)
-    #     embed.add_field(name="Current State of Charge", value="78%", inline=True)
-    #     embed.add_field(name="Current Load", value="302W", inline=True)
-    #     embed.add_field(name="Est Remaining Time", value="15 Minutes", inline=True)
-    #     embed.add_field(name="Previous Utility Voltage", value="104.2V", inline=True)
-    #     embed.add_field(name="Current Utility Voltage", value="87.4V", inline=True)
-    #     embed.add_field(name="Load shutdown in", value="<t:0:R>", inline=True)
-    #     embed.timestamp = datetime.datetime.utcnow()
-    #     await ctx.send(embed=embed)
-    #
-    #
-    #     embed = discord.Embed(title="Shutting Down Load",
-    #                           description="Reason: Utility Brownout", color=0xff0000)
-    #     embed.add_field(name="Current State of Charge", value="45%", inline=True)
-    #     embed.add_field(name="Current Load", value="302W", inline=True)
-    #     embed.add_field(name="Est Remaining Time", value="5 Minutes", inline=True)
-    #     embed.add_field(name="Previous Utility Voltage", value="54.4V", inline=True)
-    #     embed.add_field(name="Current Utility Voltage", value="87.4V", inline=True)
-    #     embed.add_field(name="Load shutdown in", value="Now", inline=True)
-    #     embed.timestamp = datetime.datetime.utcnow()
-    #     await ctx.send(embed=embed)
-    #
-    #     embed = discord.Embed(title="Utility Power Restored",
-    #                           description="Reason: Utility Outage", color=0x00ff00)
-    #     embed.add_field(name="Current State of Charge", value="15%", inline=True)
-    #     embed.add_field(name="Current Load", value="5W", inline=True)
-    #     embed.add_field(name="Outage lasted", value="15 Minutes", inline=True)
-    #     embed.add_field(name="Previous Utility Voltage", value="0.0V", inline=True)
-    #     embed.add_field(name="Current Utility Voltage", value="120.4V", inline=True)
-    #     embed.add_field(name="Load startup in", value="<t:0:R>", inline=True)
-    #     embed.timestamp = datetime.datetime.utcnow()
-    #     await ctx.send(embed=embed)
+    @command(name="test")
+    async def test(self, ctx):
+        """
+        Test how to use discord.py components
+        """
+
+        button = Button(style=ButtonStyle.green, label="Test Button", custom_id="test_button")
+        # Add a callback for the button
+        button.callback = self.test_button_callback
+        view = View()
+        view.add_item(button)
+
+        await ctx.send("Test", view=view)
 
 
-def setup(bot):
-    bot.add_cog(PlexBot(bot))
-    print("Plex cog loaded")
+async def setup(bot):
+    await bot.add_cog(PlexBot(bot))
+    logging.info("PlexBot loaded successfully")

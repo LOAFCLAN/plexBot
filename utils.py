@@ -6,13 +6,19 @@ import langcodes
 import humanize
 import plexapi
 import typing
-from discord_components import DiscordComponents, Button, ButtonStyle, SelectOption, Select, Interaction
+# from discord_components import DiscordComponents, Button, ButtonStyle, SelectOption, Select, Interaction
+from discord import ButtonStyle
+from discord.ui import Select, Button
 import discord
 
 __all__ = ['clean', 'is_clean', 'get_season', 'base_info_layer', 'rating_str', 'stringify', 'make_season_selector',
            'make_episode_selector', 'cleanup_url', 'get_episode', 'text_progress_bar_maker']
 
+from discord.ui import Select
+
 from plex_wrappers import CombinedUser
+
+from loguru import logger as logging
 
 mass_mention = re.compile('@(everyone|here)')
 member_mention = re.compile(r'<@\!?(\d+)>')
@@ -423,41 +429,30 @@ def make_episode_selector(season) -> typing.Union[typing.List[Select], Button] o
     if len(season.episodes()) == 0:
         return None
     elif len(season.episodes()) <= 25:
-        select_things = [Select(
-            custom_id=f"content_search_{hash(season)}",
-            placeholder="Select an episode",
-            options=[
-                SelectOption(
-                    label=f"Episode: {result.title}",
-                    value=f"e_{result.grandparentTitle}_{result.parentIndex}_{result.index}_{hash(result)}",
-                    default=False,
-                ) for result in season.episodes()
-            ],
-        )]
+        select_things = Select(custom_id=f"content_search_{hash(season)}", placeholder="Select an episode",
+                               max_values=1)
+        for result in season.episodes():
+            select_things.add_option(
+                label=f"Episode: {result.title}",
+                value=f"e_{result.grandparentTitle}_{result.parentIndex}_{result.index}_{hash(result)}",
+                default=False,
+            )
     else:
         # If there are more than 25 episodes, make a selector for every 25 episodes
         split_episodes = [season.episodes()[i: i + 25] for i in range(0, len(season.episodes()), 25)]
-        select_things = [
-            Select(
-                custom_id=f"content_search_{hash(season)}_{i}",
-                placeholder=f"Select an episode ({i}/{len(split_episodes)})",
-                options=[
-                    SelectOption(
-                        label=f"Episode: {result.title}",
-                        value=f"e_{result.grandparentTitle}_{result.parentIndex}_{result.index}_{hash(result)}",
-                        default=False,
-
-                    ) for result in episodes
-                ],
-            )
-            for i, episodes in enumerate(split_episodes)
-        ]
-    cancel_button = Button(
-        label="Cancel",
-        style=ButtonStyle.red,
-        custom_id=f"cancel_{hash(season)}",
-    )
-    return select_things + [cancel_button]
+        select_things = []
+        for i in range(len(split_episodes)):
+            select = Select(custom_id=f"content_search_{hash(season)}_{i}", placeholder="Select an episode",
+                                   max_values=1)
+            for result in split_episodes[i]:
+                select.add_option(
+                    label=f"Episode: {result.title}",
+                    value=f"e_{result.grandparentTitle}_{result.parentIndex}_{result.index}_{hash(result)}",
+                    default=False,
+                )
+            select_things.append(select)
+    cancel_button = Button(style=ButtonStyle.red, label="Cancel", custom_id=f"content_search_cancel_{hash(season)}")
+    return select_things if isinstance(select_things, list) else [select_things, cancel_button]
 
 
 def make_season_selector(show) -> typing.Union[typing.List[Select], Button] or None:

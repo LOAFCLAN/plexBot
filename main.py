@@ -1,3 +1,4 @@
+import asyncio
 import datetime
 import os
 import re
@@ -14,9 +15,12 @@ import discord
 
 import utils
 from plex_wrappers import plex_servers, PlexContext, discord_associations, DiscordAssociations
-from discord_components import DiscordComponents, Button, ButtonStyle
+# from discord_components import DiscordComponents, Button, ButtonStyle
+from discord import SelectOption, SelectMenu, Interaction, ButtonStyle, Button
 
 activity = PlexServer.activities
+
+from loguru import logger as logging
 
 
 class PlexBot(commands.Bot):
@@ -69,10 +73,11 @@ class PlexBot(commands.Bot):
         self.database.commit()
 
     def __init__(self, *args, **kwargs):
-        self.component_manager = None
         self.database = sqlite3.connect('plex_bot.db')
         self.database_init()
-
+        self.cog_names = [
+            'plexBot', 'maint', 'plexSearch', 'plexHistory'
+        ]
         self.database.execute('''CREATE TABLE IF NOT EXISTS bot_config (token TEXT, prefix TEXT)''')
         self.database.commit()
         # Get the bot's prefix from the database
@@ -90,13 +95,13 @@ class PlexBot(commands.Bot):
             self.database.commit()
         self.token = config[0]
         super().__init__(command_prefix=config[1], *args, **kwargs)
+        self.client = super()
         for extension in self.extensions:
             self.unload_extension(extension)
-        self.load_extension('plexBot')
-        self.load_extension('maint')
-        self.load_extension('plexSearch')
-        self.load_extension('plexHistory')
-        self.client = super()
+
+    async def load_cogs(self):
+        for cog in self.cog_names:
+            await self.load_extension(cog)
 
     def owner(self):
         return super().owner_id
@@ -127,17 +132,45 @@ class PlexBot(commands.Bot):
         return plex_servers[guild_id]
 
     async def on_ready(self):
+        logging.info(f"Logged in as \"{self.user.name}\" - {self.user.id}")
+        logging.info(f"Discord.py API version: {discord.__version__}")
+        for cog in self.cog_names:
+            try:
+                await self.load_extension(cog)
+            except Exception as e:
+                logging.error(f"Failed to load cog {cog}: {e}")
+
+        # Run the on_ready functions for each loaded cog
+        for cog in self.cogs.values():
+            try:
+                await cog.on_ready()
+            except AttributeError:
+                pass
+            except Exception as e:
+                logging.error(f"Failed to run on_ready for cog {cog}: {e}")
+                logging.trace(e)
+
         for guild in self.guilds:
             await guild.chunk(cache=True)
-        print(f'Logged in as {self.user.name}')
-        print(f'Bot ID: {self.user.id}')
+
         await self.change_presence(activity=discord.Game(name="PlexBot"))
+
+        # Establish a connection to the plex server for each guild
+
+        for guild in self.guilds:
+            try:
+                await self.fetch_plex(guild)
+            except Exception as e:
+                logging.error(f"Failed to connect to plex server for guild \"{guild.name}\": {e}")
+            else:
+                logging.info(f"Connected to plex server for guild {guild.name}")
+
         # To get the activity message IDs and channel IDs
         # Print bot invite link to console
         perms = 469830672
-        print('<{}>'.format(oauth_url(super().user.id, discord.Permissions(perms))))
-        print("Loading all members")
-        self.component_manager = DiscordComponents(self)
+        invite = oauth_url(super().user.id, permissions=discord.Permissions(perms))
+        logging.info(f"Invite link: {invite}")
+        logging.info(f"Prefix: {self.command_prefix}")
 
     def run(self):
         super().run(self.token)
@@ -199,19 +232,19 @@ class PlexBot(commands.Bot):
             return type_msg
 
 
-intents = discord.Intents.default()
-intents.members = True
-intents.presences = True
-intents.messages = True
+intents = discord.Intents.all()
 try:
     plex_bot = PlexBot(intents=intents)
+    # Print the intents we are using
+    logging.info(f"Using intents: Members: {intents.members}, Presences: {intents.presences},"
+                 f" Messages: {intents.messages}")
     plex_bot.run()
 except discord.errors.PrivilegedIntentsRequired:
-    print("Bot requires privileged intents, starting in safe mode.")
+    logging.warning("Privileged intents are required to run this bot. Please enable them in the discord developer "
+                    "portal.")
     plex_bot = PlexBot(intents=discord.Intents.default())
     plex_bot.run()
 except Exception as e:
-    print(e)
-    print(''.join(traceback.format_exception(type(e), e, e.__traceback__)).strip())
-    print("Bot failed to start, exiting.")
+    logging.error(f"Failed to start bot: {e}")
+    logging.trace(e)
     exit(1)

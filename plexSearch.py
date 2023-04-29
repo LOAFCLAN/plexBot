@@ -5,13 +5,17 @@ import discord
 import humanize as humanize
 import plexapi.base
 import plexapi.video
+from discord import Interaction
 from discord.ext import commands
 from discord.ext.commands import command
-from discord_components import DiscordComponents, Button, ButtonStyle, SelectOption, Select, Interaction
+# from discord_components import DiscordComponents, Button, ButtonStyle, SelectOption, Select, Interaction
+
+from discord.ui import Button, View, Select
 
 from utils import get_season, base_info_layer, rating_str, stringify, make_season_selector, make_episode_selector, \
     cleanup_url, safe_field, get_series_duration
 
+from loguru import logger as logging
 
 class PlexSearch(commands.Cog):
 
@@ -218,6 +222,6 @@ class PlexSearch(commands.Cog):
         pass
 
 
-def setup(bot):
-    bot.add_cog(PlexSearch(bot))
-    print(f"Loaded {__name__}")
+async def setup(bot):
+    await bot.add_cog(PlexSearch(bot))
+    logging.info("PlexSearch loaded successfully")

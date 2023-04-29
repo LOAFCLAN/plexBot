@@ -4,14 +4,18 @@ import random
 
 import discord
 import plexapi.video
+from discord import Interaction, ButtonStyle, ActionRow
 from discord.ext import commands
 from discord.ext.commands import Cog, command, has_permissions
-import custom_dpy_overrides
-from discord_components import DiscordComponents, Button, ButtonStyle, SelectOption, Select, Interaction, ActionRow
+# import custom_dpy_overrides
+# from discord_components import DiscordComponents, Button, ButtonStyle, SelectOption, Select, Interaction, ActionRow
+from discord.ui import Button, View, Select
 
 from plex_wrappers import SessionChangeWatcher, SessionWatcher
 from utils import base_info_layer, get_season, get_episode, cleanup_url, text_progress_bar_maker, stringify, \
     base_user_layer
+
+from loguru import logger as logging
 
 
 def hash_media_event(media) -> int:
@@ -31,7 +35,7 @@ class PlexHistory(commands.Cog):
 
     @Cog.listener('on_ready')
     async def on_ready(self):
-
+        logging.info("Starting PlexHistory Cog")
         cursor = self.bot.database.execute(
             '''SELECT * FROM plex_history_messages''')
         for row in cursor.fetchall():
@@ -47,7 +51,7 @@ class PlexHistory(commands.Cog):
             self.msg_cache[row[0]] = {}
             asyncio.get_event_loop().create_task(self.history_watcher(row[0], row[1]))
 
-        print(f"Started {self.__class__.__name__}")
+        logging.info("PlexHistory startup complete")
 
     async def history_watcher(self, guild_id, channel_id):
         channel = await self.bot.fetch_channel(channel_id)
@@ -97,12 +101,12 @@ class PlexHistory(commands.Cog):
 
     async def acquire_history_message(self, guild, channel, msg):
         if hasattr(msg, "components"):
-            for component in msg.components:
-                if isinstance(component, ActionRow):
-                    for thing in component.components:
-                        if isinstance(thing, Button):
-                            self.bot.component_manager.add_callback(thing, self.component_callback)
-                            # print(f"Reattached component callback to {msg.id}")
+            # Attach the button callbacks
+            for button in msg.components[0].children:
+                # Create a buttonui object from the button
+                button_ui = Button(style=button.style, label=button.label, custom_id=button.custom_id)
+                # Attach the callback to the buttonui object
+                button_ui.callback = self.component_callback
         else:
             print(f"Failed to acquire components for {msg.id}, manually fetching")
             msg = await msg.channel.fetch_message(msg.id)
@@ -191,29 +195,30 @@ class PlexHistory(commands.Cog):
         media_button = Button(
             label="Media Info",
             emoji="📹",
-            style=ButtonStyle.blue,
-            id=f"historymore_{m_hash}",
+            style=ButtonStyle.blurple,
+            custom_id=f"historymore_{m_hash}",
         )
+        media_button.callback = self.component_callback
         user_button = Button(
             label="User Info",
             emoji="\N{BUSTS IN SILHOUETTE}",
             style=ButtonStyle.green,
-            id=f"usermore_{accountID}",
+            custom_id=f"usermore_{accountID}",
         )
+        user_button.callback = self.component_callback
         mobile_view_button = Button(
             label="Mobile View",
             emoji="📱",
             style=ButtonStyle.green,
-            id=f"mobileview_{m_hash}",
+            custom_id=f"mobileview_{m_hash}",
         )
+        mobile_view_button.callback = self.component_callback
+        view = View()
+        view.add_item(media_button)
+        view.add_item(user_button)
+        view.add_item(mobile_view_button)
 
-        action_row = ActionRow(media_button, user_button, mobile_view_button)
-
-        self.bot.component_manager.add_callback(media_button, self.component_callback)
-        self.bot.component_manager.add_callback(user_button, self.component_callback)
-        self.bot.component_manager.add_callback(mobile_view_button, self.component_callback)
-
-        msg = await channel.send(embed=embed, components=[action_row])
+        msg = await channel.send(embed=embed, view=view)
 
         if session.type == "episode":
             title = session.grandparentTitle
@@ -222,7 +227,8 @@ class PlexHistory(commands.Cog):
         self.bot.database.execute(
             '''INSERT INTO plex_history_messages
                             (event_hash, guild_id, message_id, history_time,
-                             title, media_type, account_ID, pb_start_offset, pb_end_offset, media_year, session_duration)
+                             title, media_type, account_ID, pb_start_offset, pb_end_offset, media_year,
+                              session_duration)
                             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''',
             (m_hash, guild.id, msg.id, datetime.datetime.now().timestamp(), title, session.type, accountID,
              raw_start_position, raw_current_position, session.year, alive_time.seconds * 1000))
@@ -248,18 +254,19 @@ class PlexHistory(commands.Cog):
             return media
 
     async def component_callback(self, interaction: Interaction):
-        if interaction.custom_id.startswith("historymore"):
+        custom_id = interaction.data["custom_id"]
+        if custom_id.startswith("historymore"):
             await self.media_info_callback(interaction)
-        elif interaction.custom_id.startswith("usermore"):
+        elif custom_id.startswith("usermore"):
             await self.user_info_callback(interaction)
-        elif interaction.custom_id.startswith("mobileview"):
+        elif custom_id.startswith("mobileview"):
             await self.mobile_view_callback(interaction)
         else:
             await interaction.respond(content="Unknown interaction")
 
     async def media_info_callback(self, interaction: Interaction):
-
-        m_hash = int(interaction.custom_id.split("_")[1])
+        custom_id = interaction.data["custom_id"]
+        m_hash = int(custom_id.split("_")[1])
         guild = interaction.guild
 
         content = await self.media_from_hash(guild, m_hash)
@@ -292,15 +299,16 @@ class PlexHistory(commands.Cog):
 
         await interaction.respond(embed=embed)
 
-    async def user_info_callback(self, interaction):
+    async def user_info_callback(self, interaction: Interaction):
         """Format the embed that contains user info"""
-        accountID = int(interaction.custom_id.split("_")[1])
+        custom_id = interaction.data["custom_id"]
+        accountID = int(custom_id.split("_")[1])
         guild = interaction.guild
         plex = await self.bot.fetch_plex(guild)
         user = plex.associations.get(accountID)
         await interaction.respond(embed=base_user_layer(user, self.bot.database))
 
-    async def mobile_view_callback(self, interaction):
+    async def mobile_view_callback(self, interaction: Interaction):
         """Make a smaller embed that is mobile friendly"""
 
         await interaction.respond(content="Not implemented yet")
@@ -314,6 +322,6 @@ class PlexHistory(commands.Cog):
         await ctx.send(f"Set history channel to {channel.mention}")
 
 
-def setup(bot):
-    bot.add_cog(PlexHistory(bot))
-    print(f"Loaded {__name__}")
+async def setup(bot):
+    await bot.add_cog(PlexHistory(bot))
+    logging.info("PlexHistory loaded successfully")
