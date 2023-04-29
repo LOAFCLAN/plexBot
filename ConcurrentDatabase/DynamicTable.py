@@ -122,12 +122,12 @@ class DynamicTable:
         else:
             return []
 
-    def get_all(self) -> list[DynamicEntry]:
+    def get_all(self, reverse=False) -> list[DynamicEntry]:
         """
         Get all rows from the table. This is not recommended for large tables.
         :return: The rows.
         """
-        result = self.database.get(f"SELECT * FROM {self.table_name}")
+        result = self.database.get(f"SELECT * FROM {self.table_name} ORDER BY rowid {'DESC' if reverse else 'ASC'}")
         if result:
             entries = [DynamicEntry(self, load_tuple=row) for row in result]
             self.entries.extend(entries)

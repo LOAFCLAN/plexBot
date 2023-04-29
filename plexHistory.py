@@ -255,6 +255,7 @@ class PlexHistory(commands.Cog):
         table = self.bot.database.get_table("plex_history_messages")
         channel = self.bot.database.get_table("plex_history_channel").get_row(guild_id=ctx.guild.id)["channel_id"]
         message_cache = {}
+        await ctx.send(f"Fetching messages from {ctx.guild.get_channel(channel).mention}")
         async for message in ctx.guild.get_channel(channel).history(limit=None):
             if message.author == self.bot.user:
                 message_cache[message.id] = message
@@ -262,7 +263,7 @@ class PlexHistory(commands.Cog):
         estimated_time = len(message_cache) * 5 / 60  # 0.5 seconds per message
         await ctx.send(f"Updating {len(message_cache)} messages, "
                        f"this will take about {round(estimated_time, 2)} minutes")
-        for entry in table.get_all():
+        for entry in table.get_all(reversed=True):
             if entry["message_id"] in message_cache:
                 message = message_cache[entry["message_id"]]
                 # Check if the message's buttons have the right custom_id
