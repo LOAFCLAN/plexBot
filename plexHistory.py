@@ -179,12 +179,13 @@ class PlexHistory(commands.Cog):
         current_position = datetime.timedelta(seconds=round(raw_current_position / 1000))
         duration = datetime.timedelta(seconds=round(raw_duration / 1000))
         start_position = datetime.timedelta(seconds=round(raw_start_position / 1000))
+        watched_time = datetime.timedelta(seconds=round(watcher.watch_time))
 
-        # if isinstance(user, discord.User):
-        embed = discord.Embed(description=
-                              f"{user.mention()} "
-                              f"watched this with `{device.name}` on `{device.platform.capitalize()}`",
-                              color=0x00ff00, timestamp=time)
+        # Calculate the amount of content that was skipped based on the start and end positions and the watched time
+        text = f"{user.mention()} watched this with `{device.name}` on `{device.platform.capitalize()}`\n" \
+               f"They watched `{watched_time}` of `{duration}`\n" \
+
+        embed = discord.Embed(description=text, color=0x00ff00, timestamp=time)
         if session.type == "episode":
             embed.title = f"{session.title} {f'({session.year})' if session.type != 'episode' else ''}"
             embed.set_author(name=f"{session.grandparentTitle} - "
@@ -192,19 +193,8 @@ class PlexHistory(commands.Cog):
                              icon_url=user.avatar_url())
         else:
             embed.set_author(name=f"{session.title} ({session.year})", icon_url=user.avatar_url())
-        # else:
-        #     embed = discord.Embed(title=f"{session.title} {f'({session.year})' if session.type != 'episode' else ''}",
-        #                           description=
-        #                           f"`{user.name}` "
-        #                           f"watched this with `{device.name}` on `{device.platform.capitalize()}`",
-        #                           color=0x00ff00, timestamp=time)
-        #     if session.type == "episode":
-        #         embed.set_author(name=f"{session.grandparentTitle} - S{session.parentIndex}E{session.index}",
-        #                          icon_url=user.thumb)
-        #     elif session.type == "movie":
-        #         embed.set_author(name="", icon_url=user.thumb)
 
-        embed.add_field(name=f"Progress: ({start_position}->{current_position}) {duration}",
+        embed.add_field(name=f"Progress: {start_position}->{current_position}",
                         value=progress_bar, inline=False)
 
         alive_time = datetime.timedelta(seconds=round((datetime.datetime.utcnow()
