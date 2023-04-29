@@ -426,6 +426,8 @@ class SessionWatcher:
             self.end_offset = self.session.viewOffset
 
             self.alive_time = datetime.datetime.utcnow()
+            self.watch_time = 0
+
         except Exception as e:
             print(f"Error creating SessionWatcher for {session.title} ({session.year}) on {server.friendlyName}\n"
                   f"{traceback.format_exc()}")
@@ -441,6 +443,10 @@ class SessionWatcher:
                 raise Exception("Session is still partial")
 
         self.end_offset = self.session.viewOffset
+        # Check if the media is playing
+        if self.session.players[0].state == "playing":
+            # Add the time since the last update to the watch time
+            self.watch_time += (datetime.datetime.utcnow() - self.alive_time).total_seconds()
 
     async def session_expired(self):
         await self.callback(self)

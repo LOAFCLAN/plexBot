@@ -567,7 +567,7 @@ def base_user_layer(user: CombinedUser, database):
         (accountID,)).fetchall()
     media_list = []
     for row in last_media:
-        timestamp = datetime.datetime.fromtimestamp(row[3], tz=datetime.timezone.utc)
+        timestamp = datetime.datetime.fromtimestamp(int(row[3]), tz=datetime.timezone.utc)
         dynamic_time = f"<t:{round(timestamp.timestamp())}:f>"
         media_duration = datetime.timedelta(seconds=round((row[10] - row[9]) / 1000))
         if media_duration < datetime.timedelta(seconds=1):

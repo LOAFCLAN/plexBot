@@ -6,7 +6,7 @@ import sys
 import traceback
 from decimal import InvalidContext
 
-import sqlite3
+import ConcurrentDatabase
 
 from discord.ext import commands
 from discord.utils import oauth_url
@@ -36,65 +36,65 @@ class PlexBot(commands.Bot):
         self.loop.stop()
 
     def database_init(self):
-        self.database.execute(
-            '''CREATE TABLE IF NOT EXISTS plex_servers (guild_id INTEGER PRIMARY KEY, server_url TEXT, 
-            server_token TEXT);''')
-        self.database.execute(
-            '''CREATE TABLE IF NOT EXISTS discord_associations (guild_id INTEGER,
-             discord_user_id INTEGER, plex_id INTEGER, plex_email 
-            TEXT, plex_username TEXT, PRIMARY KEY (guild_id, discord_user_id));''')
-        self.database.execute(
-            '''CREATE TABLE IF NOT EXISTS activity_messages (guild_id INTEGER PRIMARY KEY, channel_id INTEGER, 
-            message_id INTEGER);''')
-        self.database.execute(
-            '''CREATE TABLE IF NOT EXISTS plex_alert_channel (guild_id INTEGER PRIMARY KEY, channel_id INTEGER);''')
-        self.database.execute(
-            '''CREATE TABLE IF NOT EXISTS plex_history_channel(guild_id INTEGER PRIMARY KEY, channel_id INTEGER);''')
-        self.database.execute(
-            '''CREATE TABLE IF NOT EXISTS plex_history_messages 
-            (event_hash INTEGER, guild_id INTEGER, message_id INTEGER, history_time FLOAT (0.0), 
-            title TEXT NOT NULL, media_type TEXT NOT NULL, season_num INTEGER, ep_num INTEGER, account_ID INTEGER,
-            pb_start_offset FLOAT (0.0, 1.0), pb_end_offset FLOAT (0.0, 1.0), media_year TEXT, session_duration FLOAT (0.0, 1.0),
-            PRIMARY KEY (event_hash, guild_id));''')
+        self.database.create_table("plex_servers", {"guild_id": "INTEGER PRIMARY KEY", "server_url": "TEXT"})
+        self.database.create_table("discord_associations", {"guild_id": "INTEGER", "discord_user_id": "INTEGER",
+                                                                "plex_id": "INTEGER", "plex_email": "TEXT",
+                                                                "plex_username": "TEXT",
+                                                                "PRIMARY KEY": "(guild_id, discord_user_id)"})
+        self.database.create_table("activity_messages", {"guild_id": "INTEGER PRIMARY KEY", "channel_id": "INTEGER",
+                                                         "message_id": "INTEGER"})
+        self.database.create_table("plex_alert_channel", {"guild_id": "INTEGER PRIMARY KEY", "channel_id": "INTEGER"})
 
-        self.database.execute(
-            '''CREATE TABLE IF NOT EXISTS plex_devices
-            (account_id INTEGER, device_id STRING, last_seen INT, PRIMARY KEY (account_id, device_id));''')
+        self.database.create_table("plex_history_channel", {"guild_id": "INTEGER PRIMARY KEY", "channel_id": "INTEGER"})
 
-        # Check if the plex_history_messages table a session_duration column, if not add it and set its value to the
-        # difference between the end and start offset
-        # cursor = self.database.execute('''PRAGMA table_info(plex_history_messages)''')
-        # columns = cursor.fetchall()
-        # if len(columns) == 12:
-        #     self.database.execute('''ALTER TABLE plex_history_messages ADD COLUMN session_duration FLOAT (0.0, 1.0)''')
-        #     self.database.execute('''UPDATE plex_history_messages SET session_duration = pb_end_offset - pb_start_offset''')
-        #     self.database.commit()
-
-        self.database.commit()
+        self.database.create_table("plex_history_messages", {"event_hash": "INTEGER", "guild_id": "INTEGER",
+                                                                "message_id": "INTEGER", "history_time": "FLOAT (0.0)",
+                                                                "title": "TEXT NOT NULL", "media_type": "TEXT NOT NULL",
+                                                                "season_num": "INTEGER", "ep_num": "INTEGER",
+                                                                "account_ID": "INTEGER",
+                                                                "pb_start_offset": "FLOAT (0.0, 1.0)",
+                                                                "pb_end_offset": "FLOAT (0.0, 1.0)",
+                                                                "media_year": "TEXT",
+                                                                "session_duration": "FLOAT (0.0, 1.0)",
+                                                                "PRIMARY KEY": "(event_hash, guild_id)"})
+        self.database.update_table("plex_history_messages", 1,
+                                   ["ALTER TABLE plex_history_messages ADD COLUMN watch_time FLOAT (0.0, 1.0)",
+                                    "UPDATE plex_history_messages SET watch_time = session_duration"])
+        # Change the primary key to message_id instead of event_hash
+        self.database.update_table("plex_history_messages", 2,
+                                      ["CREATE TABLE plex_history_messages_temp (event_hash INTEGER, guild_id INTEGER, "
+                                        "message_id INTEGER, history_time FLOAT (0.0), title TEXT NOT NULL, "
+                                        "media_type TEXT NOT NULL, season_num INTEGER, ep_num INTEGER, "
+                                        "account_ID INTEGER, pb_start_offset FLOAT (0.0, 1.0), "
+                                        "pb_end_offset FLOAT (0.0, 1.0), media_year TEXT,"
+                                       " session_duration FLOAT (0.0, 1.0), "
+                                        "watch_time FLOAT (0.0, 1.0), PRIMARY KEY (message_id))",
+                                        "INSERT INTO plex_history_messages_temp SELECT * FROM plex_history_messages",
+                                        "DROP TABLE plex_history_messages",
+                                        "ALTER TABLE plex_history_messages_temp RENAME TO plex_history_messages"])
+        self.database.create_table("plex_devices", {"account_id": "INTEGER", "device_id": "STRING",
+                                                    "last_seen": "INT", "PRIMARY KEY": "(account_id, device_id)"})
 
     def __init__(self, *args, **kwargs):
-        self.database = sqlite3.connect('plex_bot.db')
+        self.database = ConcurrentDatabase.Database("plex_bot.db")
         self.database_init()
         self.cog_names = [
             'plexBot', 'maint', 'plexSearch', 'plexHistory'
         ]
-        self.database.execute('''CREATE TABLE IF NOT EXISTS bot_config (token TEXT, prefix TEXT)''')
-        self.database.commit()
+        # self.database.execute('''CREATE TABLE IF NOT EXISTS bot_config (token TEXT, prefix TEXT)''')
+        self.database.create_table("bot_config", {"token": "TEXT", "prefix": "TEXT"})
+        # self.database.commit()
         # Get the bot's prefix from the database
-        cursor = self.database.execute('''SELECT * FROM bot_config''')
-        config = cursor.fetchone()
-        if config is None:
-            cursor = self.database.execute('''INSERT INTO bot_config VALUES (?, ?)''', ('', '!'))
-            self.database.commit()
-            config = self.database.cursor()
+        settings = self.database.get_table("bot_config").get_entry_by_row(0)
+        if settings is None:
             print("No config found, created one")
             print("Please set the bot's prefix and token in the database")
             token = input("Token: ")
             prefix = input("Prefix: ")
-            self.database.execute('''UPDATE bot_config SET token = ?, prefix = ?''', (token, prefix))
-            self.database.commit()
-        self.token = config[0]
-        super().__init__(command_prefix=config[1], *args, **kwargs)
+            self.database.get_table("bot_config").add(token=token, prefix=prefix)
+        self.token = self.database.get_table("bot_config").get_entry_by_row(0)["token"]
+        prefix = self.database.get_table("bot_config").get_entry_by_row(0)["prefix"]
+        super().__init__(command_prefix=prefix, *args, **kwargs)
         self.client = super()
         for extension in self.extensions:
             self.unload_extension(extension)
@@ -114,14 +114,13 @@ class PlexBot(commands.Bot):
         """Allows for getting a plex instance for a guild if ctx is not available"""
         guild_id = guild.id
         if guild_id not in plex_servers:
-            cursor = self.database.execute("SELECT * FROM plex_servers WHERE guild_id = ?", (guild_id,))
-            if cursor.rowcount == 0:
-                raise Exception("No plex server found for this guild")
-            row = cursor.fetchone()
+            server_entry = self.database.get_table("plex_servers").get_row(guild_id=guild_id)
+            if server_entry is None:
+                raise ValueError("No plex server found for this guild")
             try:
-                plex_servers[guild_id] = PlexServer(row[1], row[2])
-                plex_servers[guild_id].baseurl = row[1]
-                plex_servers[guild_id].token = row[2]
+                plex_servers[guild_id] = PlexServer(server_entry["server_url"], server_entry["server_token"])
+                plex_servers[guild_id].baseurl = server_entry["server_url"]
+                plex_servers[guild_id].token = server_entry["server_token"]
             except Exception:
                 raise Exception("Invalid plex server credentials, or server is offline")
         if not hasattr(plex_servers[guild_id], "associations"):

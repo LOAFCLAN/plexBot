@@ -26,12 +26,91 @@ def hash_media_event(media) -> int:
 
 
 class PlexHistory(commands.Cog):
+    class HistoryOptions(discord.ui.View):
+
+        def __init__(self, *, timeout=None):
+            super().__init__(timeout=timeout)
+
+        @discord.ui.button(label="Media Info", style=ButtonStyle.blurple, custom_id="mediainfo",
+                           emoji="📹")
+        async def media_info_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+            # Get the message ID
+            message_id = interaction.message.id
+            # Get the event from the database
+            table = interaction.client.database.get_table("plex_history_messages")
+            event = table.get_row(message_id=message_id)
+            # Get the media object
+            media = await self.media_from_message(interaction.guild, interaction.client, event)
+            # Get the embed
+            embed = self.media_embed(media)
+            # Send the embed
+            await interaction.response.send_message(embed=embed, ephemeral=True)
+
+        @discord.ui.button(label="User Info", style=ButtonStyle.green, custom_id="userinfo",
+                           emoji="\N{BUSTS IN SILHOUETTE}")
+        async def user_info_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+            # Get the message ID
+            message_id = interaction.message.id
+            # Get the event from the database
+            table = interaction.client.database.get_table("plex_history_messages")
+            event = table.get_row(message_id=message_id)
+            # Get the user ID
+            account_id = event["account_ID"]
+            guild = interaction.guild
+            plex = await interaction.client.fetch_plex(guild)
+            user = plex.associations.get(account_id)
+            embed = base_user_layer(user, interaction.client.database)
+            await interaction.response.send_message(embed=embed, ephemeral=True)
+
+        @discord.ui.button(label="Mobile View", style=ButtonStyle.green, custom_id="mobileview",
+                           emoji="📱")
+        async def mobile_view_button(self, button: discord.ui.Button, interaction: Interaction):
+            pass
+
+        @staticmethod
+        async def media_from_message(guild, client, entry):
+            plex = await client.fetch_plex(guild)
+            if entry[5] == "episode":
+                media = get_episode(plex, entry[4], season=entry[6], episode=entry[7])
+                return media
+            else:
+                name = entry[4]
+                media = plex.search(name)[0]
+                return media
+
+        @staticmethod
+        def media_embed(content):
+
+            if content.isPartialObject():  # If the media is only partially loaded
+                content.reload()  # do it correctly this time
+
+            if isinstance(content, plexapi.video.Movie):
+                embed = discord.Embed(title=f"{content.title} ({content.year})",
+                                      description=f"{content.tagline}", color=0x00ff00)
+                base_info_layer(embed, content)  # Add the base info layer to the embed
+
+            elif isinstance(content, plexapi.video.Episode):  # ------------------------------------------------------
+                """Format the embed being sent for an episode"""
+                embed = discord.Embed(title=f"{content.grandparentTitle}\n{content.title} "
+                                            f"(S{content.parentIndex}E{content.index})",
+                                      description=f"{content.summary}", color=0x00ff00)
+                base_info_layer(embed, content)
+
+            else:
+                embed = discord.Embed(title=f"Unknown media type", color=0x00ff00)
+
+            if hasattr(content, "thumb"):
+                thumb_url = cleanup_url(content.thumb)
+                embed.set_thumbnail(url=thumb_url)
+
+            return embed
 
     def __init__(self, bot):
         self.bot = bot
         self.msg_cache = {}
         self.cached_history = {}
         self.sent_hashes = []
+        self.button_cache = []
 
     @Cog.listener('on_ready')
     async def on_ready(self):
@@ -60,40 +139,6 @@ class PlexHistory(commands.Cog):
 
         SessionChangeWatcher(plex, self.on_watched, channel)
 
-        async for msg in channel.history(limit=None):
-            if hasattr(msg, "components"):
-                if msg.author.id == self.bot.user.id:
-                    self.msg_cache[guild.id][msg.id] = msg
-            else:
-                print(f"Message {msg.id} has no components")
-                msg = await msg.channel.fetch_message(msg.id)
-
-        # Re attach component watchers to messages on startup
-        events = self.bot.database.execute(
-            '''SELECT * FROM plex_history_messages WHERE guild_id = ?''', (guild.id,))
-        for event in events.fetchall():
-            if event[2] is not None:
-                if event[2] not in self.msg_cache[guild.id]:
-                    try:
-                        self.msg_cache[guild.id][event[2]] = await channel.fetch_message(event[2])
-                    except discord.NotFound:
-                        print(f"Message {event[2]} not found, removing from database")
-                        self.bot.database.execute('''
-                        DELETE FROM plex_history_messages WHERE message_id = ?''', (event[2],))
-                        self.bot.database.commit()
-                    else:
-                        await self.acquire_history_message(guild, channel, self.msg_cache[guild.id][event[2]])
-                else:
-                    await self.acquire_history_message(guild, channel, self.msg_cache[guild.id][event[2]])
-            else:
-                print(f"Message {event[0]} has no message ID, removing from database")
-                self.bot.database.execute(
-                    '''DELETE FROM plex_history_messages WHERE event_hash = ?''', (event[0],))
-                self.bot.database.commit()
-
-            self.sent_hashes.append(event[0])
-        print(f"Acquired {len(self.msg_cache[guild.id])} messages for {guild.name}")
-
     async def on_watched(self, watcher, channel):
         m_hash = hash_media_event(watcher.session)
         if m_hash not in self.sent_hashes:
@@ -103,10 +148,8 @@ class PlexHistory(commands.Cog):
         if hasattr(msg, "components"):
             # Attach the button callbacks
             for button in msg.components[0].children:
-                # Create a buttonui object from the button
-                button_ui = Button(style=button.style, label=button.label, custom_id=button.custom_id)
-                # Attach the callback to the buttonui object
-                button_ui.callback = self.component_callback
+                # Attach a callback to the button if it doesn't have one
+                pass
         else:
             print(f"Failed to acquire components for {msg.id}, manually fetching")
             msg = await msg.channel.fetch_message(msg.id)
@@ -183,6 +226,7 @@ class PlexHistory(commands.Cog):
 
         alive_time = datetime.timedelta(seconds=round((datetime.datetime.utcnow()
                                                        - watcher.alive_time).total_seconds()))
+        watch_time = watcher.watch_time
         embed.set_footer(text=f"This session was alive for {alive_time}, Started")
 
         if hasattr(session, "thumb"):
@@ -191,32 +235,7 @@ class PlexHistory(commands.Cog):
 
         m_hash = hash_media_event(session)
 
-        # Generate more info components
-        media_button = Button(
-            label="Media Info",
-            emoji="📹",
-            style=ButtonStyle.blurple,
-            custom_id=f"historymore_{m_hash}",
-        )
-        media_button.callback = self.component_callback
-        user_button = Button(
-            label="User Info",
-            emoji="\N{BUSTS IN SILHOUETTE}",
-            style=ButtonStyle.green,
-            custom_id=f"usermore_{accountID}",
-        )
-        user_button.callback = self.component_callback
-        mobile_view_button = Button(
-            label="Mobile View",
-            emoji="📱",
-            style=ButtonStyle.green,
-            custom_id=f"mobileview_{m_hash}",
-        )
-        mobile_view_button.callback = self.component_callback
-        view = View()
-        view.add_item(media_button)
-        view.add_item(user_button)
-        view.add_item(mobile_view_button)
+        view = self.HistoryOptions()
 
         msg = await channel.send(embed=embed, view=view)
 
@@ -224,94 +243,17 @@ class PlexHistory(commands.Cog):
             title = session.grandparentTitle
         else:
             title = session.title
-        self.bot.database.execute(
-            '''INSERT INTO plex_history_messages
-                            (event_hash, guild_id, message_id, history_time,
-                             title, media_type, account_ID, pb_start_offset, pb_end_offset, media_year,
-                              session_duration)
-                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''',
-            (m_hash, guild.id, msg.id, datetime.datetime.now().timestamp(), title, session.type, accountID,
-             raw_start_position, raw_current_position, session.year, alive_time.seconds * 1000))
+
+        table = self.bot.database.get_table("plex_history_messages")
+        entry = table.add(event_hash=m_hash, guild_id=guild.id, message_id=msg.id,
+                          history_time=datetime.datetime.now().timestamp(),
+                          title=title, media_type=session.type, account_ID=accountID,
+                          pb_start_offset=raw_start_position,
+                          pb_end_offset=raw_current_position, media_year=session.year,
+                          session_duration=alive_time.seconds * 1000,
+                          watch_time=round(watch_time * 1000))
         if isinstance(session, plexapi.video.Episode):
-            self.bot.database.execute('''
-            UPDATE plex_history_messages SET season_num = ?, ep_num = ? WHERE event_hash = ?''',
-                                      (session.parentIndex, session.index, m_hash))
-        self.bot.database.commit()
-
-    async def media_from_hash(self, guild, m_hash):
-        plex = await self.bot.fetch_plex(guild)
-        cursor = self.bot.database.execute(
-            '''SELECT * FROM plex_history_messages WHERE event_hash = ?''', (m_hash,))
-        if cursor.rowcount == 0:
-            return None
-        row = cursor.fetchone()
-        if row[5] == "episode":
-            media = get_episode(plex, row[4], season=row[6], episode=row[7])
-            return media
-        else:
-            name = row[4]
-            media = plex.search(name)[0]
-            return media
-
-    async def component_callback(self, interaction: Interaction):
-        custom_id = interaction.data["custom_id"]
-        if custom_id.startswith("historymore"):
-            await self.media_info_callback(interaction)
-        elif custom_id.startswith("usermore"):
-            await self.user_info_callback(interaction)
-        elif custom_id.startswith("mobileview"):
-            await self.mobile_view_callback(interaction)
-        else:
-            await interaction.respond(content="Unknown interaction")
-
-    async def media_info_callback(self, interaction: Interaction):
-        custom_id = interaction.data["custom_id"]
-        m_hash = int(custom_id.split("_")[1])
-        guild = interaction.guild
-
-        content = await self.media_from_hash(guild, m_hash)
-
-        if content is None:
-            await interaction.respond(content="Could not find media", ephemeral=True)
-            return
-
-        if content.isPartialObject():  # If the media is only partially loaded
-            content.reload()  # do it correctly this time
-
-        if isinstance(content, plexapi.video.Movie):
-            embed = discord.Embed(title=f"{content.title} ({content.year})",
-                                  description=f"{content.tagline}", color=0x00ff00)
-            base_info_layer(embed, content)  # Add the base info layer to the embed
-
-        elif isinstance(content, plexapi.video.Episode):  # ------------------------------------------------------
-            """Format the embed being sent for an episode"""
-            embed = discord.Embed(title=f"{content.grandparentTitle}\n{content.title} "
-                                        f"(S{content.parentIndex}E{content.index})",
-                                  description=f"{content.summary}", color=0x00ff00)
-            base_info_layer(embed, content)
-
-        else:
-            embed = discord.Embed(title=f"Unknown media type", color=0x00ff00)
-
-        if hasattr(content, "thumb"):
-            thumb_url = cleanup_url(content.thumb)
-            embed.set_thumbnail(url=thumb_url)
-
-        await interaction.respond(embed=embed)
-
-    async def user_info_callback(self, interaction: Interaction):
-        """Format the embed that contains user info"""
-        custom_id = interaction.data["custom_id"]
-        accountID = int(custom_id.split("_")[1])
-        guild = interaction.guild
-        plex = await self.bot.fetch_plex(guild)
-        user = plex.associations.get(accountID)
-        await interaction.respond(embed=base_user_layer(user, self.bot.database))
-
-    async def mobile_view_callback(self, interaction: Interaction):
-        """Make a smaller embed that is mobile friendly"""
-
-        await interaction.respond(content="Not implemented yet")
+            entry.set(season_num=session.parentIndex, ep_num=session.index)
 
     @has_permissions(administrator=True)
     @command(name="set_history_channel", aliases=["shc"])
@@ -323,5 +265,6 @@ class PlexHistory(commands.Cog):
 
 
 async def setup(bot):
+    bot.add_view(PlexHistory.HistoryOptions())
     await bot.add_cog(PlexHistory(bot))
     logging.info("PlexHistory loaded successfully")
