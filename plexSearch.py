@@ -5,7 +5,7 @@ import discord
 import humanize as humanize
 import plexapi.base
 import plexapi.video
-from discord import Interaction
+from discord import Interaction, ButtonStyle
 from discord.ext import commands
 from discord.ext.commands import command
 # from discord_components import DiscordComponents, Button, ButtonStyle, SelectOption, Select, Interaction
@@ -72,16 +72,23 @@ class PlexSearch(commands.Cog):
         else:
             select_thing = Select(
                 custom_id=f"content_search_{ctx.message.id}",
-                placeholder="Select a result",
-                options=[
-                    SelectOption(
-                        label=f"{result.title} ({result.year})",
-                        value=f"{result.title}_{result.year}_{hash(result)}",
-                        default=False,
-                    ) for result in results
-                ],
+                placeholder="Select a result"
             )
-            self.bot.component_manager.add_callback(select_thing, self.on_select)
+            for result in results:
+                if result.type == "movie":
+                    label = f"{result.title} ({result.year})"
+                elif result.type == "show":
+                    label = f"{result.title} ({result.year})"
+                elif result.type == "season":
+                    label = f"{result.show().title} - Season {result.index}"
+                elif result.type == "episode":
+                    label = f"{result.grandparentTitle} - S{result.parentIndex}E{result.index} - {result.title}"
+                else:
+                    label = result.title
+                select_thing.add_option(label=label, value=f"{result.title}_{result.year if result.year else ''}")
+            select_thing.callback = self.on_select
+            view = View()
+            view.add_item(select_thing)
             embed = discord.Embed(title="Search results for '%s'" % query, color=0x00ff00)
             for result in results:
                 embed.add_field(name=f"{result.title} ({result.year})", value=safe_field(result.summary[:1024]),
@@ -91,56 +98,58 @@ class PlexSearch(commands.Cog):
                 style=ButtonStyle.red,
                 custom_id=f"cancel_{ctx.message.id}",
             )
-
-            self.bot.component_manager.add_callback(cancel_button, self.on_select)
-            await ctx.send(embed=embed, components=[select_thing, cancel_button])
+            view.add_item(cancel_button)
+            cancel_button.callback = self.on_select
+            await ctx.send(embed=embed, view=view)
 
         # Clear all components
 
     async def on_select(self, inter: Interaction):
         """Handle the selection of a result"""
-        if inter.custom_id.startswith("cancel"):
-            await inter.disable_components()
-            await inter.message.edit(components=[])
+        custom_id = inter.data["custom_id"]
+        if custom_id.startswith("cancel"):
+            # await i
+            # await inter.message.edit(components=[])
             return
-        if inter.custom_id.startswith("content_search"):
+        if custom_id.startswith("content_search"):
             # Get the selected result
             plex = await self.bot.fetch_plex(inter.guild)
             librarys = plex.library.sections()
-            if inter.values[0].startswith("s"):
+            await inter.response.defer()
+            # Get the selected result
+            value = inter.data["values"][0]
+            if value.startswith('s'):
                 # Season
-                show_name = inter.values[0].split("_")[1]
-                season_num = int(inter.values[0].split("_")[2])
+                show_name = value.split("_")[1]
+                season_num = int(value.split("_")[2])
                 season = get_season(plex, show_name, season_num)
-                await inter.disable_components()
-                await self.content_details(inter.message, season, inter.author, inter)
 
-            elif inter.values[0].startswith("e"):
+                await self.content_details(inter.message, season, inter.user, inter)
+
+            elif value.startswith("e"):
                 # Episode
-                show_name = inter.values[0].split("_")[1]
-                season_num = int(inter.values[0].split("_")[2])
-                episode_num = int(inter.values[0].split("_")[3])
+                show_name = value.split("_")[1]
+                season_num = int(value.split("_")[2])
+                episode_num = int(value.split("_")[3])
                 episode = get_season(plex, show_name, season_num).episodes()[episode_num - 1]
-                await inter.disable_components()
-                await self.content_details(inter.message, episode, inter.author, inter)
+                await self.content_details(inter.message, episode, inter.user, inter)
             else:
                 # Run plex search
-                name = inter.values[0].split("_")[0]
+                name = value.split("_")[0]
                 try:
-                    year = int(inter.values[0].split("_")[1])
+                    year = int(value.split("_")[1])
                 except ValueError:
                     year = None
                 results = plex.search(name)
                 for result in results:
                     if result.year == year:
-                        await inter.disable_components()
-                        await self.content_details(inter.message, result, inter.author, inter)
+                        await self.content_details(inter.message, result, inter.user, inter)
                         return
                 await inter.message.edit(content="Error, unable to locate requested content.")
 
     async def content_details(self, edit_msg, content, requester, inter: Interaction = None):
         """Show details about a content"""
-        select_things = None
+        view = None
 
         if content.isPartialObject():  # For some reason plex likes to not give everything we asked for
             content.reload()  # So if plex is being a jerk, we'll reload the content
@@ -172,9 +181,7 @@ class PlexSearch(commands.Cog):
             embed.add_field(name="Total Duration",
                             value=f"{datetime.timedelta(seconds=round(get_series_duration(content) / 1000))}", inline=True)
             # embed.add_field(name="Media", value="\n".join(media_info), inline=False)
-            select_things = make_season_selector(content)
-            for thing in select_things:
-                self.bot.component_manager.add_callback(thing, self.on_select)
+            view = make_season_selector(content, self.on_select)
 
         elif isinstance(content, plexapi.video.Season):  # ------------------------------------------------------
             """Format the embed being sent for a season"""
@@ -185,9 +192,7 @@ class PlexSearch(commands.Cog):
             embed.add_field(name="Total Duration",
                             value=f"{datetime.timedelta(seconds=round(get_series_duration(content) / 1000))}",
                             inline=True)
-            select_things = make_episode_selector(content)
-            for thing in select_things:
-                self.bot.component_manager.add_callback(thing, self.on_select)
+            view = make_episode_selector(content, self.on_select)
 
         elif isinstance(content, plexapi.video.Episode):  # ------------------------------------------------------
             """Format the embed being sent for an episode"""
@@ -201,21 +206,21 @@ class PlexSearch(commands.Cog):
 
         ###############################################################################################################
 
-        if inter is not None:
-            await inter.disable_components()
+        # if inter is not None:
+        #     await inter.disable_components()
 
         if hasattr(content, "thumb"):
             thumb_url = cleanup_url(content.thumb)
             embed.set_thumbnail(url=thumb_url)
 
         # embed.set_footer(text=f"{content.guid}", icon_url=requester.avatar_url)
-        embed.set_author(name=f"Requested by: {requester.display_name}", icon_url=requester.avatar_url)
+        embed.set_author(name=f"Requested by: {requester.display_name}", icon_url=requester.display_avatar.url)
 
         embed.set_footer(text=f"Located in {content.librarySectionTitle}")
-        if select_things:
-            await edit_msg.edit(embed=embed, components=select_things)
+        if view:
+            await edit_msg.edit(embed=embed, view=view)
         else:
-            await edit_msg.edit(embed=embed, components=[])
+            await edit_msg.edit(embed=embed, view=None)
 
     @command(name="library", aliases=["lib", "libraries"], description="List all libraries")
     async def library_list(self, ctx):

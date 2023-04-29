@@ -8,7 +8,7 @@ import plexapi
 import typing
 # from discord_components import DiscordComponents, Button, ButtonStyle, SelectOption, Select, Interaction
 from discord import ButtonStyle
-from discord.ui import Select, Button
+from discord.ui import Select, Button, View
 import discord
 
 __all__ = ['clean', 'is_clean', 'get_season', 'base_info_layer', 'rating_str', 'stringify', 'make_season_selector',
@@ -317,8 +317,11 @@ def get_media_info(media_list: [plexapi.media.Media]) -> list:
 
                 for audio_stream in streams:
                     opener = "`┠──>" if stream_num < len(streams) else "`└──>"
-                    bitrate = humanize.naturalsize(audio_stream.bitrate * 1000)
-                    audio_bitrate = f"{bitrate.split(' ')[0]} {bitrate.split(' ')[1].capitalize()}/s".rjust(10)
+                    if audio_stream.bitrate is None:
+                        audio_bitrate = "IDFK"
+                    else:
+                        bitrate = humanize.naturalsize(audio_stream.bitrate * 1000)
+                        audio_bitrate = f"{bitrate.split(' ')[0]} {bitrate.split(' ')[1].capitalize()}/s".rjust(10)
                     if audio_stream.codec is None:
                         audio_codec = "IDFK"
                     else:
@@ -424,7 +427,7 @@ def get_series_duration(content: typing.Union[plexapi.video.Show, plexapi.video.
     return total_duration
 
 
-def make_episode_selector(season) -> typing.Union[typing.List[Select], Button] or None:
+def make_episode_selector(season, callback) -> typing.Union[typing.List[Select], Button] or None:
     """Make an episode selector for a show"""
     if len(season.episodes()) == 0:
         return None
@@ -433,7 +436,7 @@ def make_episode_selector(season) -> typing.Union[typing.List[Select], Button] o
                                max_values=1)
         for result in season.episodes():
             select_things.add_option(
-                label=f"Episode: {result.title}",
+                label=f"Episode {result.index}: {result.title}",
                 value=f"e_{result.grandparentTitle}_{result.parentIndex}_{result.index}_{hash(result)}",
                 default=False,
             )
@@ -443,57 +446,83 @@ def make_episode_selector(season) -> typing.Union[typing.List[Select], Button] o
         select_things = []
         for i in range(len(split_episodes)):
             select = Select(custom_id=f"content_search_{hash(season)}_{i}", placeholder="Select an episode",
-                                   max_values=1)
+                            max_values=1)
             for result in split_episodes[i]:
                 select.add_option(
-                    label=f"Episode: {result.title}",
+                    label=f"Episode {result.index}: {result.title}",
                     value=f"e_{result.grandparentTitle}_{result.parentIndex}_{result.index}_{hash(result)}",
                     default=False,
                 )
             select_things.append(select)
     cancel_button = Button(style=ButtonStyle.red, label="Cancel", custom_id=f"content_search_cancel_{hash(season)}")
-    return select_things if isinstance(select_things, list) else [select_things, cancel_button]
+    view = View(timeout=60)
+    if isinstance(select_things, list):
+        for select in select_things:
+            select.callback = callback
+            view.add_item(select)
+    else:
+        select_things.callback = callback
+        view.add_item(select_things)
+    view.add_item(cancel_button)
+    return view
 
 
-def make_season_selector(show) -> typing.Union[typing.List[Select], Button] or None:
+def make_season_selector(show, callback) -> typing.Union[typing.List[Select], Button] or None:
     """Make a season selector for a show"""
     if len(show.seasons()) == 0:
         return None
     elif len(show.seasons()) <= 25:
-        select_things = [Select(
-            custom_id=f"content_search_{hash(show)}",
-            placeholder="Select a season",
-            options=[
-                SelectOption(
-                    label=f"Season {result.index}",
-                    value=f"s_{result.parentTitle}_{result.index}_{hash(result)}",
-                    default=False,
-                ) for result in show.seasons()
-            ],
-        )]
+        # select_things = [Select(
+        #     custom_id=f"content_search_{hash(show)}",
+        #     placeholder="Select a season",
+        #     options=[
+        #         SelectOption(
+        #             label=f"Season {result.index}",
+        #             value=f"s_{result.parentTitle}_{result.index}_{hash(result)}",
+        #             default=False,
+        #         ) for result in show.seasons()
+        #     ],
+        # )]
+        select_things = Select(custom_id=f"content_search_{hash(show)}", placeholder="Select a season",
+                               max_values=1)
+        select_things.callback = callback
+        for result in show.seasons():
+            select_things.add_option(
+                label=f"Season {result.index}",
+                value=f"s_{result.parentTitle}_{result.index}_{hash(result)}",
+                default=False,
+            )
     else:
         # If there are more than 25 seasons, make a selector for every 25 seasons
         split_seasons = [show.seasons()[i: i + 25] for i in range(0, len(show.seasons()), 25)]
-        select_things = [
-            Select(
-                custom_id=f"content_search_{hash(show)}_{i}",
-                placeholder=f"Select a season ({i}/{len(split_seasons)})",
-                options=[
-                    SelectOption(
-                        label=f"Season {result.index}",
-                        value=f"s_{result.parentTitle}_{result.index}_{hash(result)}",
-                        default=False,
-                    ) for result in seasons
-                ],
-            )
-            for i, seasons in enumerate(split_seasons)
-        ]
+        select_things = []
+        for i in range(len(split_seasons)):
+            select = Select(custom_id=f"content_search_{hash(show)}_{i}", placeholder="Select a season",
+                            max_values=1)
+            for result in split_seasons[i]:
+                select.add_option(
+                    label=f"Season {result.index}",
+                    value=f"s_{result.parentTitle}_{result.index}_{hash(result)}",
+                    default=False,
+                )
+            select_things.append(select)
+
     cancel_button = Button(
         label="Cancel",
         style=ButtonStyle.red,
         custom_id=f"cancel_{hash(show)}",
     )
-    return select_things + [cancel_button]
+    view = View()
+    if isinstance(select_things, list):
+        for select in select_things:
+            view.add_item(select)
+            select.callback = callback
+    else:
+        view.add_item(select_things)
+        select_things.callback = callback
+    view.add_item(cancel_button)
+    cancel_button.callback = callback
+    return view
 
 
 def base_info_layer(embed, content):
@@ -543,7 +572,8 @@ def base_user_layer(user: CombinedUser, database):
 
     # Get the total duration of the media items the user has watched
     session_duration = database.execute(
-        '''SELECT SUM(session_duration) FROM plex_history_messages WHERE account_ID = ? and session_duration > 0''', (accountID,)).fetchone()[0]
+        '''SELECT SUM(session_duration) FROM plex_history_messages WHERE account_ID = ? and session_duration > 0''',
+        (accountID,)).fetchone()[0]
     media_duration = database.execute(
         '''SELECT SUM(pb_end_offset - pb_start_offset) FROM plex_history_messages WHERE account_ID = ? 
         AND pb_end_offset > 0''',

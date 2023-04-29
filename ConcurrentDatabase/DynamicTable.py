@@ -276,11 +276,18 @@ class DynamicTable:
             raise KeyError(f"Column {key} not found in table {self.table_name}")
 
     def __iter__(self):
-        for column in self.columns:
-            yield column
+        """
+        Iterate over the entries in the table.
+        """
+        # Load all entries
+        return self.get_all()
 
     def __len__(self):
-        return len(self.columns)
+        """
+        Get the number of entries in the table.
+        """
+        sql = f"SELECT COUNT(*) FROM {self.table_name}"
+        return self.database.get(sql)[0][0]
 
     def __contains__(self, key):
         return key in self.columns

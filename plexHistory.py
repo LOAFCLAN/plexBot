@@ -144,23 +144,6 @@ class PlexHistory(commands.Cog):
         if m_hash not in self.sent_hashes:
             await self.send_history_message(channel.guild, channel, watcher, await self.bot.fetch_plex(channel.guild))
 
-    async def acquire_history_message(self, guild, channel, msg):
-        if hasattr(msg, "components"):
-            # Attach the button callbacks
-            for button in msg.components[0].children:
-                # Attach a callback to the button if it doesn't have one
-                pass
-        else:
-            print(f"Failed to acquire components for {msg.id}, manually fetching")
-            msg = await msg.channel.fetch_message(msg.id)
-            if hasattr(msg, "components"):
-                for component in msg.components:
-                    if isinstance(component, Button):
-                        self.bot.component_manager.add_callback(component, self.component_callback)
-            else:
-                print(f"Message {msg.id} has no components")
-            pass
-
     async def send_history_message(self, guild, channel, watcher: SessionWatcher, plex):
 
         start_session = watcher.initial_session
@@ -262,6 +245,31 @@ class PlexHistory(commands.Cog):
             '''INSERT OR REPLACE INTO plex_history_channel VALUES (?, ?)''', (ctx.guild.id, channel.id))
         self.bot.database.commit()
         await ctx.send(f"Set history channel to {channel.mention}")
+
+    @has_permissions(administrator=True)
+    @command(name="update_components", aliases=["uc"])
+    async def update_components(self, ctx):
+        """
+        Updates the components on history messages to the new HistoryOptions view
+        """
+        table = self.bot.database.get_table("plex_history_messages")
+        channel = self.bot.database.get_table("plex_history_channel").get_row(guild_id=ctx.guild.id)["channel_id"]
+        message_cache = {}
+        async for message in ctx.guild.get_channel(channel).history(limit=None):
+            if message.author == self.bot.user:
+                message_cache[message.id] = message
+        logging.info(f"Updating {len(message_cache)} messages")
+        estimated_time = len(message_cache) * 0.5 / 60  # 0.5 seconds per message
+        await ctx.send(f"Updating {len(message_cache)} messages, "
+                       f"this will take about {round(estimated_time, 2)} minutes")
+        for entry in table.get_all():
+            if entry["message_id"] in message_cache:
+                message = message_cache[entry["message_id"]]
+                # Check if the message's buttons have the right custom_id
+                if message.components[0].children[0].custom_id == "mediainfo":
+                    continue
+                view = self.HistoryOptions()
+                await message.edit(view=view)
 
 
 async def setup(bot):
