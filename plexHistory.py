@@ -270,6 +270,7 @@ class PlexHistory(commands.Cog):
                     continue
                 view = self.HistoryOptions()
                 await message.edit(view=view)
+                await asyncio.sleep(0.5)
 
 
 async def setup(bot):
