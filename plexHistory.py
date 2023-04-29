@@ -263,7 +263,7 @@ class PlexHistory(commands.Cog):
         estimated_time = len(message_cache) * 5 / 60  # 0.5 seconds per message
         await ctx.send(f"Updating {len(message_cache)} messages, "
                        f"this will take about {round(estimated_time, 2)} minutes")
-        for entry in table.get_all(reversed=True):
+        for entry in table.get_all(reverse=True):
             if entry["message_id"] in message_cache:
                 message = message_cache[entry["message_id"]]
                 # Check if the message's buttons have the right custom_id
