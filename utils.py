@@ -236,7 +236,7 @@ async def session_embed(plex):
         except Exception as e:
             embed.add_field(name=f"{session.usernames[0]} on {device} ({type(e)})", value=value, inline=False)
 
-    embed.timestamp = datetime.datetime.utcnow()
+    embed.timestamp = datetime.datetime.now()
     embed.set_footer(text=f"{round(total_bandwidth)} kps of bandwidth reserved")
     return embed
 
