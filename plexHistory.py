@@ -136,12 +136,6 @@ class PlexHistory(commands.Cog):
     async def on_message_delete(self, message: discord.Message):
         # Check if the message was a history message
         if message.channel in self.history_channels:
-            # Check if the message was cached
-            if message.id in self.msg_cache[message.channel.id]:
-                # Delete the cached message
-                del self.msg_cache[message.channel.id][message.id]
-
-            # Delete the record from the database
             table = self.bot.database.get_table("plex_history_messages")
             table.delete_row(message_id=message.id)
             logging.info(f"Deleted history message {message.id} from database")
