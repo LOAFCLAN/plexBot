@@ -132,118 +132,136 @@ async def session_embed(plex):
     # available_bandwidth = -1
 
     for session in plex_sessions:
-
-        if not session.isFullObject:
-            session.reload(checkFiles=False)
-            if not session.isFullObject:
-                raise Exception("Session is still partial")
-
-        if isinstance(session.session, list):
-            session_instance = session.session[0]
-        elif isinstance(session.session, plexapi.media.Session):
-            session_instance = session.session
-        elif isinstance(session, plexapi.video.MovieSession):
-            session_instance = session
-        else:
-            if len(session.usernames) == 0:
-                embed.add_field(name=f"{session.title}", value="Session has no users", inline=False)
-            else:
-                embed.add_field(name=f"{session.usernames[0]} has encountered an error",
-                                value=f"Invalid session type, {type(session)}", inline=False)
-            continue
-
-        if len(session.media) > 1:
-            # Find which media file has a bitrate closest to the reserved bitrate
-            reserved_bitrate = session_instance.bandwidth
-            closest_bitrate = 0
-            closest_media = None
-            for media in session.media:
-                if closest_bitrate < media.bitrate < reserved_bitrate:
-                    closest_bitrate = media.bitrate
-                    closest_media = media
-            media = closest_media
-            if closest_media is None:
-                media = session.media[0]
-        elif len(session.media) == 1:
-            media = session.media[0]
-        else:
-            media = None
-
-        current_position = datetime.timedelta(seconds=round(session.viewOffset / 1000))
-        total_duration = datetime.timedelta(seconds=round(session.duration / 1000))
-
-        progress_bar = text_progress_bar_maker(duration=total_duration.total_seconds(),
-                                               end=current_position.total_seconds(), length=35)
-
-        timeline = f"{current_position} / {total_duration} - {str(session.players[0].state).capitalize()}"
-
-        if hasattr(session_instance, "location"):
-            if session_instance.location.startswith("lan"):
-                bandwidth = "Local session, no bandwidth reserved"
-            else:
-                if media is None:
-                    bandwidth = "Unknown media"
-                else:
-                    bandwidth = f"`{round(media.bitrate)}` kbps of bandwidth reserved"
-                    total_bandwidth += media.bitrate
-        else:
-            bandwidth = "No bandwidth attribute!"
-
-        if len(session.transcodeSessions) == 0:
-            media_info = f"`{media.container}` - `{media.videoCodec}:" \
-                         f" {media.width}x{media.height}@{media.videoFrameRate} " \
-                         f"| {media.audioCodec}: {media.audioChannels}ch`"
-        elif len(session.transcodeSessions) == 1:
-            transcode = session.transcodeSessions[0]
-            if transcode.videoDecision == "transcode" or transcode.audioDecision == "transcode":
-                media_info = f"`{transcode.sourceVideoCodec}:{transcode.sourceAudioCodec}" \
-                             f"`->`{transcode.videoCodec}:{transcode.audioCodec}`"
-            else:
-                media_info = f"`{media.container}` - `{media.videoCodec}:" \
-                             f" {media.width}x{media.height}@{media.videoFrameRate} " \
-                             f"| {media.audioCodec}: {media.audioChannels}ch`"
-        else:
-            media_info = "`Multiple transcode sessions detected!`"
-
-        if session.players[0].title:
-            device = session.players[0].title
-        elif session.players[0].model:
-            device = session.players[0].model
-        else:
-            device = session.players[0].platform
-
-        # print(session.__dict__)
-        # print(session.session[0].__dict__)
-
-        if session.type == 'movie':
-            value = f"{session.title} ({session.year})\n" \
-                    f"{timeline}\n" \
-                    f"{progress_bar}\n" \
-                    f"{bandwidth}\n" \
-                    f"{media_info}"
-        elif session.type == 'episode':
-            value = f"{session.grandparentTitle} - `{session.parentTitle}`\n" \
-                    f"{session.title} - `Episode {session.index}`\n" \
-                    f"{timeline}\n" \
-                    f"{progress_bar}\n" \
-                    f"{bandwidth}\n" \
-                    f"{media_info}"
-        else:
-            value = f"{session.title} - {session.type}\n" \
-                    f"{timeline}\n" \
-                    f"{progress_bar}\n" \
-                    f"{bandwidth}\n" \
-                    f"{media_info}"
-        # print(session.players[0].__dict__)
         try:
-            embed.add_field(name=f"{plex.associations.display_name(session.usernames[0])} on {device}", value=value,
-                            inline=False)
+            make_session_entry(plex, total_bandwidth, session, embed)
         except Exception as e:
-            embed.add_field(name=f"{session.usernames[0]} on {device} ({type(e)})", value=value, inline=False)
+            if hasattr(session, 'title') and hasattr(session, 'usernames'):
+                if len(session.usernames) > 0:
+                    embed.add_field(name=f"Error with {session.title} ({session.usernames[0]})",
+                                    value=f"```{e}```", inline=False)
+                else:
+                    embed.add_field(name=f"Error with {session.title}",
+                                    value=f"```{e}```", inline=False)
+            else:
+                embed.add_field(name=f"Error with session",
+                                value=f"```{e}```", inline=False)
+            logging.error(f"Error in session embed: {e}\n{traceback.format_exc()}")
 
     embed.timestamp = datetime.datetime.now()
     embed.set_footer(text=f"{round(total_bandwidth)} kps of bandwidth reserved")
     return embed
+
+
+def make_session_entry(plex, total_bandwidth, session, embed):
+    if not session.isFullObject:
+        session.reload(checkFiles=False)
+        if not session.isFullObject:
+            embed.add_field(name="Session Error",
+                            value=f"Session `{session.id}` is not a full object and could not be reloaded")
+            return
+
+    if isinstance(session.session, list):
+        session_instance = session.session[0]
+    elif isinstance(session.session, plexapi.media.Session):
+        session_instance = session.session
+    elif isinstance(session, plexapi.video.MovieSession):
+        session_instance = session
+    else:
+        if len(session.usernames) == 0:
+            embed.add_field(name=f"{session.title}", value="Session has no users", inline=False)
+        else:
+            embed.add_field(name=f"{session.usernames[0]} has encountered an error",
+                            value=f"Invalid session type, {type(session)}", inline=False)
+        return
+
+    if len(session.media) > 1:
+        # Find which media file has a bitrate closest to the reserved bitrate
+        reserved_bitrate = session_instance.bandwidth
+        closest_bitrate = 0
+        closest_media = None
+        for media in session.media:
+            if closest_bitrate < media.bitrate < reserved_bitrate:
+                closest_bitrate = media.bitrate
+                closest_media = media
+        media = closest_media
+        if closest_media is None:
+            media = session.media[0]
+    elif len(session.media) == 1:
+        media = session.media[0]
+    else:
+        media = None
+
+    current_position = datetime.timedelta(seconds=round(session.viewOffset / 1000))
+    total_duration = datetime.timedelta(seconds=round(session.duration / 1000))
+
+    progress_bar = text_progress_bar_maker(duration=total_duration.total_seconds(),
+                                           end=current_position.total_seconds(), length=35)
+
+    timeline = f"{current_position} / {total_duration} - {str(session.players[0].state).capitalize()}"
+
+    if hasattr(session_instance, "location"):
+        if session_instance.location.startswith("lan"):
+            bandwidth = "Local session, no bandwidth reserved"
+        else:
+            if media is None:
+                bandwidth = "Unknown media"
+            else:
+                bandwidth = f"`{round(media.bitrate)}` kbps of bandwidth reserved"
+                total_bandwidth += media.bitrate
+    else:
+        bandwidth = "No bandwidth attribute!"
+
+    if len(session.transcodeSessions) == 0:
+        media_info = f"`{media.container}` - `{media.videoCodec}:" \
+                     f" {media.width}x{media.height}@{media.videoFrameRate} " \
+                     f"| {media.audioCodec}: {media.audioChannels}ch`"
+    elif len(session.transcodeSessions) == 1:
+        transcode = session.transcodeSessions[0]
+        if transcode.videoDecision == "transcode" or transcode.audioDecision == "transcode":
+            media_info = f"`{transcode.sourceVideoCodec}:{transcode.sourceAudioCodec}" \
+                         f"`->`{transcode.videoCodec}:{transcode.audioCodec}`"
+        else:
+            media_info = f"`{media.container}` - `{media.videoCodec}:" \
+                         f" {media.width}x{media.height}@{media.videoFrameRate} " \
+                         f"| {media.audioCodec}: {media.audioChannels}ch`"
+    else:
+        media_info = "`Multiple transcode sessions detected!`"
+
+    if session.players[0].title:
+        device = session.players[0].title
+    elif session.players[0].model:
+        device = session.players[0].model
+    else:
+        device = session.players[0].platform
+
+    # print(session.__dict__)
+    # print(session.session[0].__dict__)
+
+    if session.type == 'movie':
+        value = f"{session.title} ({session.year})\n" \
+                f"{timeline}\n" \
+                f"{progress_bar}\n" \
+                f"{bandwidth}\n" \
+                f"{media_info}"
+    elif session.type == 'episode':
+        value = f"{session.grandparentTitle} - `{session.parentTitle}`\n" \
+                f"{session.title} - `Episode {session.index}`\n" \
+                f"{timeline}\n" \
+                f"{progress_bar}\n" \
+                f"{bandwidth}\n" \
+                f"{media_info}"
+    else:
+        value = f"{session.title} - {session.type}\n" \
+                f"{timeline}\n" \
+                f"{progress_bar}\n" \
+                f"{bandwidth}\n" \
+                f"{media_info}"
+    # print(session.players[0].__dict__)
+    try:
+        embed.add_field(name=f"{plex.associations.display_name(session.usernames[0])} on {device}", value=value,
+                        inline=False)
+    except Exception as e:
+        embed.add_field(name=f"{session.usernames[0]} on {device} ({type(e)})", value=value, inline=False)
 
 
 def subtitle_details(content, max_subs=-1) -> list:
