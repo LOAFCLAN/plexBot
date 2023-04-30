@@ -35,7 +35,6 @@ class PlexBot(Cog):
             return
         for invite in pending:
             if invite.username == plex_id:
-                print(invite.__dict__)
                 embed = discord.Embed(title="Add User", description=f"User `{invite.username}` was added",
                                       color=0x00ff00)
                 celery.acceptInvite(invite.username)
@@ -60,15 +59,13 @@ class PlexBot(Cog):
 
     def __init__(self, bot):
         self.bot = bot
-        cursor = self.bot.database.execute("SELECT * FROM activity_messages")
-        self.activity_messages = [row for row in cursor.fetchall()]
-        cursor = self.bot.database.execute("SELECT * FROM plex_alert_channel")
-        self.plex_alert_channels = [row for row in cursor.fetchall()]
-
+        table = self.bot.database.get_table("activity_messages")
+        self.activity_messages = table.get_all()
+        table = self.bot.database.get_table("plex_alert_channel")
+        self.plex_alert_channels = table.get_all()
 
     @Cog.listener('on_ready')
     async def on_ready(self):
-        print(f"plexBot cog is ready")
         for message_config in self.activity_messages:
             self.bot.loop.create_task(self.monitor_plex(message_config[0], message_config[1], message_config[2]))
         for alert_config in self.plex_alert_channels:

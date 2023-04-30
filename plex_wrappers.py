@@ -10,6 +10,8 @@ import plexapi
 from discord.ext import commands
 from plexapi.server import PlexServer
 
+from loguru import logger as logging
+
 plex_servers = {}
 discord_associations = {}
 
@@ -287,11 +289,12 @@ class DiscordAssociations:
         self.bot.loop.create_task(self.load_associations())
 
     async def load_associations(self) -> None:
-        print(f"Loading associations for {self.guild}")
-        await self.bot.wait_until_ready()
+        logging.info(f"Loading associations for {self.guild.name}")
+        await self.bot.wait_until_ready()  # Wait until the bot is ready for API calls
         self.plex_server = await self.bot.fetch_plex(self.guild)
-        cursor = self.bot.database.execute("SELECT * FROM discord_associations WHERE guild_id = ?", (self.guild.id,))
-        for row in cursor:
+        # cursor = self.bot.database.execute("SELECT * FROM discord_associations WHERE guild_id = ?", (self.guild.id,))
+        table = self.bot.database.get_table("discord_associations")
+        for row in table.get_rows(guild_id=self.guild.id):
             try:
                 member = await self.guild.fetch_member(row[1])
             except discord.NotFound:
@@ -301,7 +304,7 @@ class DiscordAssociations:
                                                       discord_member=member,
                                                       plex_id=row[2], plex_email=row[3], plex_username=row[4]))
             except Exception as e:
-                print(e)
+                logging.exception(e)
         self.ready = True
 
     def get_discord_association(self, discord_member: discord.Member) -> CombinedUser:

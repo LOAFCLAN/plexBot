@@ -40,11 +40,15 @@ class PlexHistory(commands.Cog):
             table = interaction.client.database.get_table("plex_history_messages")
             event = table.get_row(message_id=message_id)
             # Get the media object
-            media = await self.media_from_message(interaction.guild, interaction.client, event)
-            # Get the embed
-            embed = self.media_embed(media)
-            # Send the embed
-            await interaction.response.send_message(embed=embed, ephemeral=True)
+            if event:
+                media = await self.media_from_message(interaction.guild, interaction.client, event)
+                # Get the embed
+                embed = self.media_embed(media)
+                # Send the embed
+                await interaction.response.send_message(embed=embed, ephemeral=True)
+            else:
+                await interaction.response.send_message("PlexBot was unable to find this media event in the database.",
+                                                        ephemeral=True)
 
         @discord.ui.button(label="User Info", style=ButtonStyle.green, custom_id="userinfo",
                            emoji="\N{BUSTS IN SILHOUETTE}")
@@ -54,13 +58,17 @@ class PlexHistory(commands.Cog):
             # Get the event from the database
             table = interaction.client.database.get_table("plex_history_messages")
             event = table.get_row(message_id=message_id)
-            # Get the user ID
-            account_id = event["account_ID"]
-            guild = interaction.guild
-            plex = await interaction.client.fetch_plex(guild)
-            user = plex.associations.get(account_id)
-            embed = base_user_layer(user, interaction.client.database)
-            await interaction.response.send_message(embed=embed, ephemeral=True)
+            if event:
+                # Get the user ID
+                account_id = event["account_ID"]
+                guild = interaction.guild
+                plex = await interaction.client.fetch_plex(guild)
+                user = plex.associations.get(account_id)
+                embed = base_user_layer(user, interaction.client.database)
+                await interaction.response.send_message(embed=embed, ephemeral=True)
+            else:
+                await interaction.response.send_message("PlexBot was unable to find this media event in the database.",
+                                                        ephemeral=True)
 
         @discord.ui.button(label="Mobile View", style=ButtonStyle.green, custom_id="mobileview",
                            emoji="📱")
@@ -115,34 +123,35 @@ class PlexHistory(commands.Cog):
     @Cog.listener('on_ready')
     async def on_ready(self):
         logging.info("Starting PlexHistory Cog")
-        cursor = self.bot.database.execute(
-            '''SELECT * FROM plex_history_messages''')
-        for row in cursor.fetchall():
+        table = self.bot.database.get_table("plex_history_messages")
+        for row in table.get_all():
             guild_id = row[1]
             if guild_id not in self.cached_history:
                 self.cached_history[guild_id] = {}
             self.cached_history[guild_id][row[0]] = {"message_id": row[2],
                                                      "history_time": row[4]}
 
-        cursor = self.bot.database.execute(
-            '''SELECT * FROM plex_history_channel''')
-        for row in cursor:
+        table = self.bot.database.get_table("plex_history_channel")
+        for row in table.get_all():
             self.msg_cache[row[0]] = {}
             asyncio.get_event_loop().create_task(self.history_watcher(row[0], row[1]))
-
         logging.info("PlexHistory startup complete")
 
-    @Cog.listener('on_message_delete')
-    async def on_message_delete(self, message: discord.Message):
-        # Check if the message was a history message
-        if message.channel in self.history_channels:
+    @Cog.listener('on_raw_message_delete')
+    async def on_raw_message_delete(self, payload: discord.RawMessageDeleteEvent):
+        # Check if the message was in a history channel
+        if payload.channel_id in self.history_channels:
             table = self.bot.database.get_table("plex_history_messages")
-            table.delete_row(message_id=message.id)
-            logging.info(f"Deleted history message {message.id} from database")
+            entry = table.get_row(message_id=payload.message_id)
+            if entry:
+                table.delete(message_id=payload.message_id)
+                logging.info(f"Deleted history message {payload.message_id} from database")
+            else:
+                logging.info(f"Message {payload.message_id} was not a history message")
 
     async def history_watcher(self, guild_id, channel_id):
         channel = await self.bot.fetch_channel(channel_id)
-        self.history_channels.append(channel)
+        self.history_channels.append(channel.id)
         guild = await self.bot.fetch_guild(guild_id)
         plex = await self.bot.fetch_plex(guild)
 
@@ -192,8 +201,7 @@ class PlexHistory(commands.Cog):
 
         # Calculate the amount of content that was skipped based on the start and end positions and the watched time
         text = f"{user.mention()} watched this with `{device.name}` on `{device.platform.capitalize()}`\n" \
-               f"They watched `{watched_time}` of `{duration}`\n" \
-
+               f"They watched `{watched_time}` of `{duration}`\n"
         embed = discord.Embed(description=text, color=0x00ff00, timestamp=time)
         if session.type == "episode":
             embed.title = f"{session.title} {f'({session.year})' if session.type != 'episode' else ''}"
@@ -272,6 +280,27 @@ class PlexHistory(commands.Cog):
                 await message.edit(view=view)
                 await asyncio.sleep(7.5)
         await ctx.send("All messages updated to new component format")
+
+    @has_permissions(administrator=True)
+    @command(name="clean_history", aliases=["ch"])
+    async def clean_history(self, ctx):
+        """Check for any unmatched history messages and remove them from the database"""
+        table = self.bot.database.get_table("plex_history_messages")
+        channel = self.bot.database.get_table("plex_history_channel").get_row(guild_id=ctx.guild.id)["channel_id"]
+        message_cache = {}
+        await ctx.send(f"Fetching messages from {ctx.guild.get_channel(channel).mention}")
+        async for message in ctx.guild.get_channel(channel).history(limit=None):
+            if message.author == self.bot.user:
+                message_cache[message.id] = message
+        logging.info(f"Checking {len(message_cache)} messages")
+        # Check if any messages are in the database but not in the channel
+        removed = 0
+        for entry in table.get_all():
+            if entry["message_id"] not in message_cache:
+                logging.info(f"Removing {entry['message_id']} from database")
+                table.delete(message_id=entry["message_id"])
+                removed += 1
+        await ctx.send(f"Removed {removed} unmatched watch logs from the database")
 
 
 async def setup(bot):

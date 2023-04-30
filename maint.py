@@ -2,11 +2,14 @@ import asyncio
 import copy
 import os
 import re
+import sqlite3
 
 from discord.ext.commands import command, has_permissions, Cog, Context, NotOwner, is_owner
 from plexapi.server import PlexServer
 import discord.errors as discord_errors
 import discord
+
+import ConcurrentDatabase
 
 
 def table_str_generator(ret):
@@ -73,6 +76,37 @@ class maintCog(Cog):
             e.color = 0xFF0000
             e.add_field(name='Error', value='```\n%s\n```' % repr(err))
         await ctx.send('', embed=e)
+
+    @is_owner()
+    @command(name='db_rollback')
+    async def db_rollback(self, ctx):
+        """Rollback the database to the last backup"""
+
+        # Check if the backup file exists
+        if not os.path.isfile('plex_bot.db'):
+            await ctx.send('No backup file found')
+            return
+
+        # Create a second backup file
+        second_backup = sqlite3.connect('plex_bot.db.bak2')
+        self.bot.backup_database.backup(target=second_backup)
+
+        # Close all database connections
+        self.bot.database.close()
+        self.bot.backup_database.close()
+        second_backup.close()
+
+        # Copy the backup file to the main database file
+        os.remove('plex_bot.db')
+        os.rename('plex_bot.db.bak', 'plex_bot.db')
+
+        # Reopen the database connections
+        self.bot.database = ConcurrentDatabase.Database('plex_bot.db')
+        self.bot.backup_database = sqlite3.connect('plex_bot.db.bak')
+        second_backup = sqlite3.connect('plex_bot.db.bak2')
+        second_backup.backup(target=self.bot.backup_database)
+        second_backup.close()
+        await ctx.send('Database rollback complete')
 
     @is_owner()
     @command(name='sql_eval')

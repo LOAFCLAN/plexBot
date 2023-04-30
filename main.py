@@ -2,6 +2,7 @@ import asyncio
 import datetime
 import os
 import re
+import sqlite3
 import sys
 import traceback
 from decimal import InvalidContext
@@ -38,9 +39,9 @@ class PlexBot(commands.Bot):
     def database_init(self):
         self.database.create_table("plex_servers", {"guild_id": "INTEGER PRIMARY KEY", "server_url": "TEXT"})
         self.database.create_table("discord_associations", {"guild_id": "INTEGER", "discord_user_id": "INTEGER",
-                                                                "plex_id": "INTEGER", "plex_email": "TEXT",
-                                                                "plex_username": "TEXT",
-                                                                "PRIMARY KEY": "(guild_id, discord_user_id)"})
+                                                            "plex_id": "INTEGER", "plex_email": "TEXT",
+                                                            "plex_username": "TEXT",
+                                                            "PRIMARY KEY": "(guild_id, discord_user_id)"})
         self.database.create_table("activity_messages", {"guild_id": "INTEGER PRIMARY KEY", "channel_id": "INTEGER",
                                                          "message_id": "INTEGER"})
         self.database.create_table("plex_alert_channel", {"guild_id": "INTEGER PRIMARY KEY", "channel_id": "INTEGER"})
@@ -48,35 +49,45 @@ class PlexBot(commands.Bot):
         self.database.create_table("plex_history_channel", {"guild_id": "INTEGER PRIMARY KEY", "channel_id": "INTEGER"})
 
         self.database.create_table("plex_history_messages", {"event_hash": "INTEGER", "guild_id": "INTEGER",
-                                                                "message_id": "INTEGER", "history_time": "FLOAT (0.0)",
-                                                                "title": "TEXT NOT NULL", "media_type": "TEXT NOT NULL",
-                                                                "season_num": "INTEGER", "ep_num": "INTEGER",
-                                                                "account_ID": "INTEGER",
-                                                                "pb_start_offset": "FLOAT (0.0, 1.0)",
-                                                                "pb_end_offset": "FLOAT (0.0, 1.0)",
-                                                                "media_year": "TEXT",
-                                                                "session_duration": "FLOAT (0.0, 1.0)",
-                                                                "PRIMARY KEY": "(event_hash, guild_id)"})
+                                                             "message_id": "INTEGER", "history_time": "FLOAT (0.0)",
+                                                             "title": "TEXT NOT NULL", "media_type": "TEXT NOT NULL",
+                                                             "season_num": "INTEGER", "ep_num": "INTEGER",
+                                                             "account_ID": "INTEGER",
+                                                             "pb_start_offset": "FLOAT (0.0, 1.0)",
+                                                             "pb_end_offset": "FLOAT (0.0, 1.0)",
+                                                             "media_year": "TEXT",
+                                                             "session_duration": "FLOAT (0.0, 1.0)",
+                                                             "PRIMARY KEY": "(event_hash, guild_id)"})
         self.database.update_table("plex_history_messages", 1,
                                    ["ALTER TABLE plex_history_messages ADD COLUMN watch_time FLOAT (0.0, 1.0)",
                                     "UPDATE plex_history_messages SET watch_time = session_duration"])
         # Change the primary key to message_id instead of event_hash
         self.database.update_table("plex_history_messages", 2,
-                                      ["CREATE TABLE plex_history_messages_temp (event_hash INTEGER, guild_id INTEGER, "
-                                        "message_id INTEGER, history_time FLOAT (0.0), title TEXT NOT NULL, "
-                                        "media_type TEXT NOT NULL, season_num INTEGER, ep_num INTEGER, "
-                                        "account_ID INTEGER, pb_start_offset FLOAT (0.0, 1.0), "
-                                        "pb_end_offset FLOAT (0.0, 1.0), media_year TEXT,"
-                                       " session_duration FLOAT (0.0, 1.0), "
-                                        "watch_time FLOAT (0.0, 1.0), PRIMARY KEY (message_id))",
-                                        "INSERT INTO plex_history_messages_temp SELECT * FROM plex_history_messages",
-                                        "DROP TABLE plex_history_messages",
-                                        "ALTER TABLE plex_history_messages_temp RENAME TO plex_history_messages"])
+                                   ["CREATE TABLE plex_history_messages_temp (event_hash INTEGER, guild_id INTEGER, "
+                                    "message_id INTEGER, history_time FLOAT (0.0), title TEXT NOT NULL, "
+                                    "media_type TEXT NOT NULL, season_num INTEGER, ep_num INTEGER, "
+                                    "account_ID INTEGER, pb_start_offset FLOAT (0.0, 1.0), "
+                                    "pb_end_offset FLOAT (0.0, 1.0), media_year TEXT,"
+                                    " session_duration FLOAT (0.0, 1.0), "
+                                    "watch_time FLOAT (0.0, 1.0), PRIMARY KEY (message_id))",
+                                    "INSERT INTO plex_history_messages_temp SELECT * FROM plex_history_messages",
+                                    "DROP TABLE plex_history_messages",
+                                    "ALTER TABLE plex_history_messages_temp RENAME TO plex_history_messages"])
         self.database.create_table("plex_devices", {"account_id": "INTEGER", "device_id": "STRING",
                                                     "last_seen": "INT", "PRIMARY KEY": "(account_id, device_id)"})
 
+    @staticmethod
+    def db_backup_callback(status, remaining, total):
+        if remaining == 0 and status == 101:
+            logging.info(f"Database backup complete, {total} pages backed up")
+        elif remaining == 0 and status != 101:
+            logging.error(f"Database backup failed with status {status}")
+        else:
+            logging.info(f"Database backup in progress. {remaining} pages remaining.")
+
     def __init__(self, *args, **kwargs):
         self.database = ConcurrentDatabase.Database("plex_bot.db")
+        self.backup_database = sqlite3.connect("plex_bot.db.bak")
         self.database_init()
         self.cog_names = [
             'plexBot', 'maint', 'plexSearch', 'plexHistory'
@@ -131,6 +142,7 @@ class PlexBot(commands.Bot):
         return plex_servers[guild_id]
 
     async def on_ready(self):
+        self.database.backup(target=self.backup_database, progress=self.db_backup_callback)
         logging.info(f"Logged in as \"{self.user.name}\" - {self.user.id}")
         logging.info(f"Discord.py API version: {discord.__version__}")
         for cog in self.cog_names:
