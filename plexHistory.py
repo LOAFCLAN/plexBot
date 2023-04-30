@@ -110,7 +110,7 @@ class PlexHistory(commands.Cog):
         self.msg_cache = {}
         self.cached_history = {}
         self.sent_hashes = []
-        self.button_cache = []
+        self.history_channels = []
 
     @Cog.listener('on_ready')
     async def on_ready(self):
@@ -132,8 +132,23 @@ class PlexHistory(commands.Cog):
 
         logging.info("PlexHistory startup complete")
 
+    @Cog.listener('on_message_delete')
+    async def on_message_delete(self, message: discord.Message):
+        # Check if the message was a history message
+        if message.channel in self.history_channels:
+            # Check if the message was cached
+            if message.id in self.msg_cache[message.channel.id]:
+                # Delete the cached message
+                del self.msg_cache[message.channel.id][message.id]
+
+            # Delete the record from the database
+            table = self.bot.database.get_table("plex_history_messages")
+            table.delete_row(message_id=message.id)
+            logging.info(f"Deleted history message {message.id} from database")
+
     async def history_watcher(self, guild_id, channel_id):
         channel = await self.bot.fetch_channel(channel_id)
+        self.history_channels.append(channel)
         guild = await self.bot.fetch_guild(guild_id)
         plex = await self.bot.fetch_plex(guild)
 

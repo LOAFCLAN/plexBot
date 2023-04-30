@@ -19,8 +19,11 @@ from utils import get_all_library, session_embed, base_user_layer
 
 from loguru import logger as logging
 
+
 class PlexBot(Cog):
 
+    @has_permissions(administrator=True)
+    @command(name="user_add", aliases=["add_user", "adduser", "useradd"])
     async def user_add(self, ctx, plex_id):
         celery = ctx.plex().myPlexAccount()
         pending = celery.pendingInvites()
@@ -34,7 +37,7 @@ class PlexBot(Cog):
             if invite.username == plex_id:
                 print(invite.__dict__)
                 embed = discord.Embed(title="Add User", description=f"User `{invite.username}` was added",
-                                      thumbnail=f"{invite.thumb}.png", color=0x00ff00)
+                                      color=0x00ff00)
                 celery.acceptInvite(invite.username)
                 celery.inviteFriend(invite.email, ctx.plex, get_all_library(ctx.plex))
                 movie_library_string = ""
@@ -62,6 +65,7 @@ class PlexBot(Cog):
         cursor = self.bot.database.execute("SELECT * FROM plex_alert_channel")
         self.plex_alert_channels = [row for row in cursor.fetchall()]
 
+
     @Cog.listener('on_ready')
     async def on_ready(self):
         print(f"plexBot cog is ready")
@@ -69,6 +73,25 @@ class PlexBot(Cog):
             self.bot.loop.create_task(self.monitor_plex(message_config[0], message_config[1], message_config[2]))
         for alert_config in self.plex_alert_channels:
             self.bot.loop.create_task(self.plex_alerts(alert_config[0], alert_config[1]))
+        self.bot.loop.create_task(self.status_update())
+
+    async def status_update(self):
+        """Update plexbots status every 10 seconds to show the current number of sessions across all servers"""
+        while True:
+            await asyncio.sleep(10)
+            total_sessions = 0
+            for guild in self.bot.guilds:
+                plex = await self.bot.fetch_plex(guild)
+                total_sessions += len(plex.sessions())
+            if total_sessions == 0:
+                await self.bot.change_presence(activity=discord.Activity(type=discord.ActivityType.watching,
+                                                                         name="Plex"))
+            elif total_sessions == 1:
+                await self.bot.change_presence(activity=discord.Activity(type=discord.ActivityType.watching,
+                                                                         name=f"{total_sessions} session"))
+            else:
+                await self.bot.change_presence(activity=discord.Activity(type=discord.ActivityType.watching,
+                                                                         name=f"{total_sessions} sessions"))
 
     async def plex_alerts(self, guild_id: int, channel_id: int):
         """Handles plex alerts"""

@@ -142,12 +142,14 @@ async def session_embed(plex):
             session_instance = session.session[0]
         elif isinstance(session.session, plexapi.media.Session):
             session_instance = session.session
+        elif isinstance(session, plexapi.video.MovieSession):
+            session_instance = session
         else:
             if len(session.usernames) == 0:
                 embed.add_field(name=f"{session.title}", value="Session has no users", inline=False)
             else:
                 embed.add_field(name=f"{session.usernames[0]} has encountered an error",
-                                value=f"Invalid session type, {type(session.session)}", inline=False)
+                                value=f"Invalid session type, {type(session)}", inline=False)
             continue
 
         if len(session.media) > 1:
@@ -175,14 +177,17 @@ async def session_embed(plex):
 
         timeline = f"{current_position} / {total_duration} - {str(session.players[0].state).capitalize()}"
 
-        if session_instance.location.startswith("lan"):
-            bandwidth = "Local session, no bandwidth reserved"
-        else:
-            if media is None:
-                bandwidth = "Unknown media"
+        if hasattr(session_instance, "location"):
+            if session_instance.location.startswith("lan"):
+                bandwidth = "Local session, no bandwidth reserved"
             else:
-                bandwidth = f"`{round(media.bitrate)}` kbps of bandwidth reserved"
-                total_bandwidth += media.bitrate
+                if media is None:
+                    bandwidth = "Unknown media"
+                else:
+                    bandwidth = f"`{round(media.bitrate)}` kbps of bandwidth reserved"
+                    total_bandwidth += media.bitrate
+        else:
+            bandwidth = "No bandwidth attribute!"
 
         if len(session.transcodeSessions) == 0:
             media_info = f"`{media.container}` - `{media.videoCodec}:" \
