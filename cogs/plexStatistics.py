@@ -45,21 +45,6 @@ class PlexStatistics(commands.Cog):
                                                            "GROUP BY title, season_num, ep_num "
                                                            "ORDER BY SUM(watch_time) DESC LIMIT 5")
 
-        # Get the most popular movies by number of plays
-        most_popular_movies_plays = self.bot.database.get("SELECT title, COUNT(*) "
-                                                              "FROM main.plex_history_messages WHERE media_type = 'movie' "
-                                                                "GROUP BY title ORDER BY COUNT(*) DESC LIMIT 5")
-        # Get the most popular shows by number of plays
-        most_popular_shows_plays = self.bot.database.get("SELECT title, COUNT(*) "
-                                                                "FROM main.plex_history_messages WHERE media_type = 'episode' "
-                                                                "GROUP BY title ORDER BY COUNT(*) DESC LIMIT 5")
-        # Get the most popular episodes by number of plays (this is a bit more complicated)
-        most_popular_episodes_plays = self.bot.database.get("SELECT title, season_num, ep_num, COUNT(*) "
-                                                                     "FROM main.plex_history_messages"
-                                                                        " WHERE media_type = 'episode' "
-                                                                        "GROUP BY title, season_num, ep_num "
-                                                                        "ORDER BY COUNT(*) DESC LIMIT 5")
-
         # Format the data into a nice embed
         embed = discord.Embed(title="Global Plex Statistics",
                               description=f"Globally, {total_sessions} sessions have been logged,"
@@ -70,27 +55,44 @@ class PlexStatistics(commands.Cog):
                         value="\n".join([f"`{i + 1}`. `{movie[0]}` - {datetime.timedelta(seconds=round(movie[1]))}"
                                          for i, movie in enumerate(most_popular_movies_time)]), inline=False)
 
-        embed.add_field(name="Most Popular Movies by Number of Plays",
-                        value="\n".join([f"`{i + 1}`. `{movie[0]}` - {movie[1]} plays"
-                                            for i, movie in enumerate(most_popular_movies_plays)]), inline=False)
-
         embed.add_field(name="Most Popular Shows by Watch Time",
                         value="\n".join([f"`{i + 1}`. `{show[0]}` - {datetime.timedelta(seconds=round(show[1]))}"
                                          for i, show in enumerate(most_popular_shows_time)]), inline=False)
-
-        embed.add_field(name="Most Popular Shows by Number of Plays",
-                        value="\n".join([f"`{i + 1}`. `{show[0]}` - {show[1]} plays"
-                                            for i, show in enumerate(most_popular_shows_plays)]), inline=False)
 
         embed.add_field(name="Most Popular Episodes by Watch Time",
                         value="\n".join([f"`{i + 1}`. `{episode[0]} - S{episode[1]}E{episode[2]}` - "
                                          f"{datetime.timedelta(seconds=round(episode[3]))}"
                                          for i, episode in enumerate(most_popular_episodes_time)]), inline=False)
 
-        embed.add_field(name="Most Popular Episodes by Number of Plays",
-                        value="\n".join([f"`{i + 1}`. `{episode[0]} - S{episode[1]}E{episode[2]}` - "
-                                            f"{episode[3]} plays"
-                                            for i, episode in enumerate(most_popular_episodes_plays)]), inline=False)
+        await ctx.send(embed=embed)
+
+    @commands.command(name="top_movies")
+    async def top_movies(self, ctx):
+        """Gets the top 6 movies"""
+        # To determine the top movies we use the following idea:
+        # We get the number of distinct users who have watched each movie and then determine what percentage of the
+        # total runtime of the movie each user has watched. We then sum this percentage for each user and divide by the
+        # number of users who have watched the movie. This gives us a number which we can use to rank the movies.
+
+        # We do this all in database because it's much faster than doing it in python
+
+        # Attach a sqlite function to get the 'score' of a movie
+        self.bot.database.create_function("get_movie_score", 1, lambda x: self.bot.database.get(
+            "SELECT SUM(watch_time) / 1000 / (SELECT COUNT(DISTINCT account_ID) FROM main.plex_history_messages "
+            "WHERE title = ?) FROM main.plex_history_messages WHERE title = ?", (x, x))[0][0])
+
+        # Get the top 6 movies
+        result = self.bot.database.execute("SELECT title, get_movie_score(title) FROM main.plex_history_messages "
+                                           "WHERE media_type = 'movie' GROUP BY title ORDER BY get_movie_score(title) "
+                                           "DESC LIMIT 6")
+
+        # Format the data into a nice embed
+        embed = discord.Embed(title="Top Movies",
+                              description="The top 6 movies are:",
+                              color=0x00ff00)
+        embed.add_field(name="Top Movies",
+                        value="\n".join([f"`{i + 1}`. `{movie[0]}` - Score: `{movie[1]:.2f}`"
+                                         for i, movie in enumerate(result)]), inline=False)
 
         await ctx.send(embed=embed)
 
