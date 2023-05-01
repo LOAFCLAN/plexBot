@@ -90,7 +90,7 @@ class PlexBot(commands.Bot):
         self.backup_database = sqlite3.connect("plex_bot.db.bak")
         self.database_init()
         self.cog_names = [
-            'plexBot', 'maint', 'plexSearch', 'plexHistory'
+            'cogs.plexBot', 'maint', 'cogs.plexSearch', 'cogs.plexHistory', 'cogs.plexStatistics'
         ]
         # self.database.execute('''CREATE TABLE IF NOT EXISTS bot_config (token TEXT, prefix TEXT)''')
         self.database.create_table("bot_config", {"token": "TEXT", "prefix": "TEXT"})
@@ -105,7 +105,7 @@ class PlexBot(commands.Bot):
             self.database.get_table("bot_config").add(token=token, prefix=prefix)
         self.token = self.database.get_table("bot_config").get_entry_by_row(0)["token"]
         prefix = self.database.get_table("bot_config").get_entry_by_row(0)["prefix"]
-        super().__init__(command_prefix=prefix, *args, **kwargs)
+        super().__init__(command_prefix=prefix, assume_unsync_clock=True, *args, **kwargs)
         self.client = super()
         for extension in self.extensions:
             self.unload_extension(extension)

@@ -106,6 +106,7 @@ class PlexBot(Cog):
             channel = await self.bot.fetch_channel(channel_id)
             guild = await self.bot.fetch_guild(guild_id)
             plex = await self.bot.fetch_plex(guild)
+            update_rate = 0
 
             async def create_message():
                 new_message = await channel.send(f"Initializing activity monitor")
@@ -129,10 +130,12 @@ class PlexBot(Cog):
 
             while True:
                 try:
+                    # Get the current discord ratelimit bucket for this channel
                     embed = await session_embed(plex)
                     await message.edit(embed=embed, content="")
-                    # await log_scan()
                     await asyncio.sleep(10)
+                    # await log_scan()
+                    # Dynamic sleep based on our current discord rate limit
                 except discord_errors.NotFound:
                     message = await create_message()
                 except Exception as e:

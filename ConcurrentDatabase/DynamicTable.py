@@ -135,6 +135,14 @@ class DynamicTable:
         else:
             return []
 
+    def custom_query(self, sql: str):
+        """
+        Run a custom query on the table.
+        :param sql: The query to run.
+        :return: The result of the query.
+        """
+        return self.database.get(sql)
+
     def add(self, **kwargs) -> DynamicEntry:
         """
         Add a row to the table.
