@@ -69,29 +69,27 @@ class PlexStatistics(commands.Cog):
     @commands.command(name="top_movies")
     async def top_movies(self, ctx):
         """Gets the top 6 movies"""
-        # To determine the top movies we use the following idea:
-        # We get the number of distinct users who have watched each movie and then determine what percentage of the
-        # total runtime of the movie each user has watched. We then sum this percentage for each user and divide by the
-        # number of users who have watched the movie. This gives us a number which we can use to rank the movies.
-
         # We do this all in database because it's much faster than doing it in python
 
-        # Attach a sqlite function to get the 'score' of a movie
-        self.bot.database.create_function("get_movie_score", 1, lambda x: self.bot.database.get(
-            "SELECT SUM(watch_time) / 1000 / (SELECT COUNT(DISTINCT account_ID) FROM main.plex_history_messages "
-            "WHERE title = ?) FROM main.plex_history_messages WHERE title = ?", (x, x))[0][0])
+        # A movie's score is based on the number of different users who have watched it, and the number of times
+        # each user has watched it (so if a movie has been watched 10 times by 1 user, it will have a lower score
+        # than a movie that has been watched 10 times by 10 users)
+        self.bot.database.create_function("get_movie_score", 2, lambda x: self.bot.database.get(
+            "SELECT COUNT(DISTINCT account_ID) * COUNT(*) FROM main.plex_history_messages "
+            "WHERE title = ? and media_year = ? and media_type = 'movie'", x)[0][0])
 
         # Get the top 6 movies
-        result = self.bot.database.execute("SELECT title, get_movie_score(title) FROM main.plex_history_messages "
-                                           "WHERE media_type = 'movie' GROUP BY title ORDER BY get_movie_score(title) "
-                                           "DESC LIMIT 6")
+        result = self.bot.database.execute("SELECT title, media_year, get_movie_score(title, media_year) "
+                                           " FROM main.plex_history_messages "
+                                           "WHERE media_type = 'movie' GROUP BY title, media_year "
+                                           "ORDER BY get_movie_score(title, media_year) DESC LIMIT 6")
 
         # Format the data into a nice embed
         embed = discord.Embed(title="Top Movies",
                               description="The top 6 movies are:",
                               color=0x00ff00)
         embed.add_field(name="Top Movies",
-                        value="\n".join([f"`{i + 1}`. `{movie[0]}` - Score: `{movie[1]:.2f}`"
+                        value="\n".join([f"`{i + 1}`. `{movie[0]}({movie[1]})` - Score: `{movie[2]:.2f}`"
                                          for i, movie in enumerate(result)]), inline=False)
 
         await ctx.send(embed=embed)
