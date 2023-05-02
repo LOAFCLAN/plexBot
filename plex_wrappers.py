@@ -514,7 +514,8 @@ class SessionChangeWatcher:
                     try:
                         session_still_exists = False
                         for session in sessions:
-                            if watcher.session == session and session.title == watcher.initial_session.title:
+                            if watcher.session == session and session.title == watcher.initial_session.title \
+                                    and session.usernames == watcher.initial_session.usernames:
                                 session_still_exists = True
                                 break
                         if not session_still_exists:

@@ -7,8 +7,7 @@ import sys
 import traceback
 from decimal import InvalidContext
 
-import ConcurrentDatabase
-from ConcurrentDatabase import Database
+from ConcurrentDatabase.Database import Database
 
 from discord.ext import commands
 from discord.utils import oauth_url
@@ -87,7 +86,7 @@ class PlexBot(commands.Bot):
             logging.info(f"Database backup in progress. {remaining} pages remaining.")
 
     def __init__(self, *args, **kwargs):
-        self.database = Database.Database("plex_bot.db")
+        self.database = Database("plex_bot.db")
         self.backup_database = sqlite3.connect("plex_bot.db.bak")
         self.database_init()
         self.cog_names = [

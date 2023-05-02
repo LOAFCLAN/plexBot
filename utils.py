@@ -164,7 +164,7 @@ def make_session_entry(plex, total_bandwidth, session, embed):
         session_instance = session.session[0]
     elif isinstance(session.session, plexapi.media.Session):
         session_instance = session.session
-    elif isinstance(session, plexapi.video.MovieSession):
+    elif isinstance(session, plexapi.video.MovieSession) or isinstance(session, plexapi.video.EpisodeSession):
         session_instance = session
     else:
         if len(session.usernames) == 0:
