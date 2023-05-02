@@ -400,8 +400,8 @@ class SessionWatcher:
     def __init__(self, session: plexapi.video.Video, server, callback) -> None:
 
         try:
-            print(f"Creating SessionWatcher for {session.title} ({session.year}) on {server.friendlyName} "
-                  f" for {session.usernames[0]}")
+            logging.info(f"Creating SessionWatcher for {session.title} ({session.year}) on {server.friendlyName} "
+                         f"for {session.usernames[0]}")
 
             self.callback = callback
             self.server = server
@@ -421,9 +421,8 @@ class SessionWatcher:
             # Get the hardware ID of the device that is playing the video
             device_id = session.player.machineIdentifier
             user_id = session.player.userID
-            self.server.database.execute("INSERT OR REPLACE INTO plex_devices VALUES (?, ?, ?);",
-                                         (user_id, device_id, datetime.datetime.now().timestamp()))
-            self.server.database.commit()
+            table = self.server.database.get_table("plex_devices")
+            table.update_or_add(device_id=device_id, account_id=user_id, last_seen=datetime.datetime.now().timestamp())
 
             self.end_offset = self.session.viewOffset
 
@@ -433,8 +432,9 @@ class SessionWatcher:
             self.last_update = datetime.datetime.utcnow()
 
         except Exception as e:
-            print(f"Error creating SessionWatcher for {session.title} ({session.year}) on {server.friendlyName}\n"
-                  f"{traceback.format_exc()}")
+            logging.error(f"Error creating SessionWatcher for {session.title}"
+                          f" ({session.year}) on {server.friendlyName}")
+            logging.exception(e)
             raise e
 
     async def refresh_session(self, session: plexapi.video.Video) -> None:
@@ -508,7 +508,8 @@ class SessionChangeWatcher:
                             watcher = SessionWatcher(session, self.server, self.callback)
                             self.watchers.append(watcher)
                     except Exception as e:
-                        print(f"Error refreshing session {session.title}: {e}\n{traceback.format_exc()}")
+                        logging.error(f"Error refreshing session {session.title}: {e}")
+                        logging.exception(e)
 
                 for watcher in self.watchers:
                     try:
@@ -521,11 +522,12 @@ class SessionChangeWatcher:
                         if not session_still_exists:
                             await watcher.session_expired()
                     except Exception as e:
-                        print(f"Error checking for continued existence of session "
-                              f"{watcher.session.title}: {e}\n{traceback.format_exc()}")
+                        logging.error(f"Error checking for continued existence of session {watcher.session.title}: {e}")
+                        logging.exception(e)
 
             except Exception as e:
-                print(f"Error checking sessions: {e}\n{traceback.format_exc()}")
+                logging.error(f"Error checking sessions: {e}")
+                logging.exception(e)
             finally:
                 await asyncio.sleep(1.5)
 
@@ -533,6 +535,7 @@ class SessionChangeWatcher:
         try:
             await self.callbacktoback(watcher, self.channel)
         except Exception as e:
-            print(f"Error in callback: {e}\n{traceback.format_exc()}")
+            logging.error(f"Error in callback: {e}")
+            logging.exception(e)
         finally:
             self.watchers.remove(watcher)
