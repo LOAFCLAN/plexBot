@@ -683,10 +683,10 @@ def get_watch_time(content, db) -> datetime.timedelta:
     elif isinstance(content, plexapi.video.Show):
         entries.extend(table.get_rows(title=content.title))
     elif isinstance(content, plexapi.video.Episode):
-        entries.extend(table.get_rows(title=content.grandparentTitle, season=content.parentIndex,
-                                      episode=content.index))
+        entries.extend(table.get_rows(title=content.grandparentTitle, season_num=content.parentIndex,
+                                      ep_num=content.index))
     elif isinstance(content, plexapi.video.Season):
-        entries.extend(table.get_rows(title=content.parentTitle, season=content.index))
+        entries.extend(table.get_rows(title=content.parentTitle, season_num=content.index))
 
     total_time = datetime.timedelta()
     for entry in entries:
