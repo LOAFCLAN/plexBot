@@ -124,7 +124,7 @@ class PlexSearch(commands.Cog):
                 season_num = int(value.split("_")[2])
                 season = get_season(plex, show_name, season_num)
 
-                await self.content_details(inter.message, season, inter.user, inter)
+                await self.content_details(inter.message, season, inter.user)
 
             elif value.startswith("e"):
                 # Episode
@@ -132,7 +132,7 @@ class PlexSearch(commands.Cog):
                 season_num = int(value.split("_")[2])
                 episode_num = int(value.split("_")[3])
                 episode = get_season(plex, show_name, season_num).episodes()[episode_num - 1]
-                await self.content_details(inter.message, episode, inter.user, inter)
+                await self.content_details(inter.message, episode, inter.user)
             else:
                 # Run plex search
                 name = value.split("_")[0]
@@ -143,7 +143,7 @@ class PlexSearch(commands.Cog):
                 results = plex.search(name)
                 for result in results:
                     if result.year == year:
-                        await self.content_details(inter.message, result, inter.user, inter)
+                        await self.content_details(inter.message, result, inter.user)
                         return
                 await inter.message.edit(content="Error, unable to locate requested content.")
 
