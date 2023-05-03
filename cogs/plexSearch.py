@@ -13,7 +13,7 @@ from discord.ext.commands import command
 from discord.ui import Button, View, Select
 
 from utils import get_season, base_info_layer, rating_str, stringify, make_season_selector, make_episode_selector, \
-    cleanup_url, safe_field, get_series_duration
+    cleanup_url, safe_field, get_series_duration, get_watch_time, get_session_count
 
 from loguru import logger as logging
 
@@ -108,8 +108,8 @@ class PlexSearch(commands.Cog):
         """Handle the selection of a result"""
         custom_id = inter.data["custom_id"]
         if custom_id.startswith("cancel"):
-            # await i
-            # await inter.message.edit(components=[])
+            # Clear all components
+            await inter.message.edit(view=None)
             return
         if custom_id.startswith("content_search"):
             # Get the selected result
@@ -147,7 +147,7 @@ class PlexSearch(commands.Cog):
                         return
                 await inter.message.edit(content="Error, unable to locate requested content.")
 
-    async def content_details(self, edit_msg, content, requester, inter: Interaction = None):
+    async def content_details(self, edit_msg, content, requester):
         """Show details about a content"""
         view = None
 
@@ -160,7 +160,7 @@ class PlexSearch(commands.Cog):
                                   description=f"{content.tagline if content.tagline else 'No Tagline'}", color=0x00ff00)
             embed.add_field(name="Summary", value=content.summary, inline=False)
 
-            base_info_layer(embed, content)
+            base_info_layer(embed, content, database=self.bot.database)
 
         elif isinstance(content, plexapi.video.Show):  # ----------------------------------------------------------
             """Format the embed being sent for a show"""
@@ -172,15 +172,22 @@ class PlexSearch(commands.Cog):
             embed.add_field(name="Summary", value=safe_field(content.summary), inline=False)
             embed.add_field(name="Rating", value=rating_string, inline=False)
             embed.add_field(name="Genres", value=stringify(content.genres), inline=False)
-            embed.add_field(name="Network", value=content.network, inline=True)
+
             embed.add_field(name="Studio", value=content.studio, inline=True)
+            embed.add_field(name="Network", value=content.network, inline=True)
+            embed.add_field(name="Originally Aired", value=content.originallyAvailableAt.strftime("%B %d, %Y"),
+                            inline=True)
+
             embed.add_field(name="Average Episode Runtime",
                             value=f"{datetime.timedelta(milliseconds=content.duration)}", inline=True)
-            embed.add_field(name="Total Seasons", value=content.childCount, inline=True)
-            embed.add_field(name="Total Episodes", value=f"{len(content.episodes())}", inline=True)
             embed.add_field(name="Total Duration",
-                            value=f"{datetime.timedelta(seconds=round(get_series_duration(content) / 1000))}", inline=True)
-            # embed.add_field(name="Media", value="\n".join(media_info), inline=False)
+                            value=f"{datetime.timedelta(seconds=round(get_series_duration(content) / 1000))}",
+                            inline=True)
+            embed.add_field(name="Watch Time", value=f"{get_watch_time(content, self.bot.database)}", inline=True)
+            embed.add_field(name="Total Season", value=content.childCount, inline=True)
+            embed.add_field(name="Total Episodes", value=f"{len(content.episodes())}", inline=True)
+            embed.add_field(name="Total Sessions", value=f"{get_session_count(content, self.bot.database)}",
+                            inline=True)
             view = make_season_selector(content, self.on_select)
 
         elif isinstance(content, plexapi.video.Season):  # ------------------------------------------------------
@@ -199,7 +206,7 @@ class PlexSearch(commands.Cog):
             embed = discord.Embed(title=f"{content.grandparentTitle}\n{content.title} "
                                         f"(S{content.parentIndex}E{content.index})",
                                   description=f"{content.summary}", color=0x00ff00)
-            base_info_layer(embed, content)
+            base_info_layer(embed, content, database=self.bot.database)
 
         else:
             embed = discord.Embed(title="Unknown content type", color=0x00ff00)

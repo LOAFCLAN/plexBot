@@ -417,12 +417,14 @@ class SessionWatcher:
             self.media = media
             self.initial_session = session
             self.session = session
+            self.guid = session.guid
 
             # Get the hardware ID of the device that is playing the video
-            device_id = session.player.machineIdentifier
-            user_id = session.player.userID
+            self.device_id = session.player.machineIdentifier
+            self.account_id = session.player.userID
             table = self.server.database.get_table("plex_devices")
-            table.update_or_add(device_id=device_id, account_id=user_id, last_seen=datetime.datetime.now().timestamp())
+            table.update_or_add(device_id=self.device_id, account_id=self.account_id,
+                                last_seen=datetime.datetime.now().timestamp())
 
             self.end_offset = self.session.viewOffset
 
@@ -456,26 +458,29 @@ class SessionWatcher:
     async def session_expired(self):
         await self.callback(self)
 
+    def _session_compare(self, other, attribute: str) -> bool:
+        if hasattr(self.session, attribute) and hasattr(other, attribute):
+            return getattr(self.session, attribute) == getattr(other, attribute)
+
+    def _user_compare(self, other) -> bool:
+        if hasattr(self.session, "usernames") and hasattr(other, "usernames"):
+            return self.session.usernames[0] == other.usernames[0]
+
     def __str__(self):
         return f"{self.session.title}@{self.server.friendlyName}"
 
     def __eq__(self, other):
-        print(f"Comparing {self} to {other}, Type: {type(other)}")
         if isinstance(other, SessionWatcher):
-            return self.session == other.session
-        elif isinstance(other, plexapi.media.Session):
-            return self.session == other
-        elif isinstance(other, plexapi.media.Media):
-            return self.media == other
-        elif isinstance(other, plexapi.video.Video):
-            return self.media == other
-        elif isinstance(other, list):
-            return False
-        elif other is None:
-            return False
+            return self.guid == other.guid and self._user_compare(other) and self.device_id == other.device_id
         else:
-            raise TypeError(f"Invalid type for comparison, must be SessionWatcher, "
-                            f"plexapi.media.Session, or plexapi.media.Media. Not {type(other)}")
+            try:
+                return self._session_compare(other, "title") and self._user_compare(other) and \
+                       self._session_compare(other, "guid") and \
+                       self.device_id == getattr(other.player, "machineIdentifier", None)
+            except Exception as e:
+                logging.error(f"Error comparing {self} to {other}")
+                logging.exception(e)
+                return False
 
     def __iter__(self):
         yield self
@@ -499,8 +504,7 @@ class SessionChangeWatcher:
                     try:
                         already_exists = False
                         for watcher in self.watchers:
-                            if watcher.session == session and session.title == watcher.initial_session.title \
-                                    and session.usernames == watcher.initial_session.usernames:
+                            if watcher == session:
                                 await watcher.refresh_session(session)
                                 already_exists = True
                                 break
@@ -515,8 +519,7 @@ class SessionChangeWatcher:
                     try:
                         session_still_exists = False
                         for session in sessions:
-                            if watcher.session == session and session.title == watcher.initial_session.title \
-                                    and session.usernames == watcher.initial_session.usernames:
+                            if watcher == session:
                                 session_still_exists = True
                                 break
                         if not session_still_exists:

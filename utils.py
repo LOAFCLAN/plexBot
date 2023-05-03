@@ -548,7 +548,7 @@ def make_season_selector(show, callback) -> typing.Union[typing.List[Select], Bu
     return view
 
 
-def base_info_layer(embed, content):
+def base_info_layer(embed, content, database=None):
     """Make the base info layer for a media"""
 
     media_info = get_media_info(content.media)
@@ -562,6 +562,8 @@ def base_info_layer(embed, content):
         embed.add_field(name="Genres", value="Not applicable", inline=True)
 
     embed.add_field(name="Runtime", value=f"{datetime.timedelta(seconds=rounded_duration)}", inline=True)
+    if database:
+        embed.add_field(name="Watch Time", value=f"{get_watch_time(content, database)}", inline=True)
     actors = content.roles
     if len(actors) == 0:
         embed.add_field(name="Cast", value="No information available", inline=False)
@@ -670,3 +672,41 @@ def text_progress_bar_maker(duration: float, end: float, start: float = 0, lengt
     elapsed = max(length - front_porch - back_porch, 1)
     bar = f"`<{'-' * front_porch}{'=' * elapsed}{'-' * back_porch}>`"
     return bar
+
+
+def get_watch_time(content, db) -> datetime.timedelta:
+    """Get the total watch time of a piece of content from the plex_history_messages table"""
+    table = db.get_table("plex_history_messages")
+    entries = []
+    if isinstance(content, plexapi.video.Movie):
+        entries.extend(table.get_rows(title=content.title, media_year=content.year))
+    elif isinstance(content, plexapi.video.Show):
+        entries.extend(table.get_rows(title=content.title))
+    elif isinstance(content, plexapi.video.Episode):
+        entries.extend(table.get_rows(title=content.grandparentTitle, season=content.parentIndex,
+                                      episode=content.index))
+    elif isinstance(content, plexapi.video.Season):
+        entries.extend(table.get_rows(title=content.parentTitle, season=content.index))
+
+    total_time = datetime.timedelta()
+    for entry in entries:
+        total_time += datetime.timedelta(seconds=round(entry["watch_time"] / 1000))
+
+    return total_time
+
+
+def get_session_count(content, db) -> int:
+    """Get the total watch time of a piece of content from the plex_history_messages table"""
+    table = db.get_table("plex_history_messages")
+    entries = []
+    if isinstance(content, plexapi.video.Movie):
+        entries.extend(table.get_rows(title=content.title, year=content.year))
+    elif isinstance(content, plexapi.video.Show):
+        entries.extend(table.get_rows(title=content.title))
+    elif isinstance(content, plexapi.video.Episode):
+        entries.extend(table.get_rows(title=content.grandparentTitle, season=content.parentIndex,
+                                      episode=content.index))
+    elif isinstance(content, plexapi.video.Season):
+        entries.extend(table.get_rows(title=content.parentTitle, season=content.index))
+
+    return len(entries)
