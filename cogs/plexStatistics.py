@@ -105,7 +105,7 @@ class PlexStatistics(commands.Cog):
                                               f"Total Media Count: `{total_media_count} | {top_level_media_count}`\n"
                                               f"Total Media Size: `{humanize.naturalsize(total_media_size)}`",
                                   color=0x00ff00)
-            embed.add_field(name="Detailed Statistics", value="Loading...", inline=False)
+            embed.add_field(name="Top Media Elements", value="Loading...", inline=False)
         message = await ctx.send(embed=embed)
 
         # For each item in the library get its info from the database
