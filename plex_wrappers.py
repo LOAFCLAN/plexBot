@@ -494,7 +494,7 @@ class SessionChangeWatcher:
         self.watchers = []
         self.callbacktoback = callback
         self.channel = channel
-        asyncio.get_event_loop().create_task(self.observer())
+        self.task = asyncio.get_event_loop().create_task(self.observer())
 
     async def observer(self):
         while True:
@@ -533,6 +533,13 @@ class SessionChangeWatcher:
                 logging.exception(e)
             finally:
                 await asyncio.sleep(1.5)
+
+    async def bot_shutdown(self):
+        logging.info(f"Shutting down SessionChangeWatcher for {self.server.friendlyName}")
+        for watcher in self.watchers:
+            logging.info(f"Dumping session {watcher.session.title} for {watcher.session.usernames[0]}")
+            await watcher.session_expired()
+        self.task.cancel()
 
     async def callback(self, watcher: SessionWatcher):
         try:

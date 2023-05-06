@@ -155,7 +155,7 @@ class PlexHistory(commands.Cog):
         guild = await self.bot.fetch_guild(guild_id)
         plex = await self.bot.fetch_plex(guild)
 
-        SessionChangeWatcher(plex, self.on_watched, channel)
+        self.bot.session_watchers.append(SessionChangeWatcher(plex, self.on_watched, channel))
 
     async def on_watched(self, watcher, channel):
         m_hash = hash_media_event(watcher.session)

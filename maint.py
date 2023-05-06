@@ -217,6 +217,9 @@ class maintCog(Cog):
     @is_owner()
     @command(name="restart", help="Restarts the bot", is_owner=True)
     async def restart(self, ctx):
+        # Get all session watchers and have them dump to the database and their respective channels
+        for watcher in self.bot.session_watchers:
+            await watcher.bot_shutdown()
         await ctx.send("Restarting...")
         await self.bot.restart()
 

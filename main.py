@@ -89,6 +89,7 @@ class PlexBot(commands.Bot):
         self.database = Database("plex_bot.db")
         self.backup_database = sqlite3.connect("plex_bot.db.bak")
         self.database_init()
+        self.session_watchers = []
         self.cog_names = [
             'cogs.plexBot', 'maint', 'cogs.plexSearch', 'cogs.plexHistory', 'cogs.plexStatistics'
         ]
