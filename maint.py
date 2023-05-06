@@ -256,7 +256,7 @@ class maintCog(Cog):
         """Update the bot from the master branch"""
         msg = await ctx.send("Updating...")
         res = os.popen("git pull").read()
-        if res.startswith('Already up to date.'):
+        if res.startswith('Already up to date.') or "CONFLICT (content):" in res:
             await ctx.send('```\n' + res + '```')
         else:
             await ctx.send('```\n' + res + '```')

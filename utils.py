@@ -88,7 +88,7 @@ def clean_channel_name(ctx, channel_id):
         return '<#\N{ZERO WIDTH SPACE}%d>' % channel.id
 
 
-def get_all_library(plex):
+def get_all_library(plex) -> typing.List[plexapi.library.LibrarySection]:
     all_library = []
     for library in plex.library.sections():
         all_library.append(library)

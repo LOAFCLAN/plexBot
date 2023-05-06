@@ -3,6 +3,7 @@ import datetime
 import random
 
 import discord
+import humanize
 import plexapi.video
 from discord import Interaction, ButtonStyle, ActionRow
 from discord.ext import commands
@@ -13,7 +14,7 @@ from discord.ui import Button, View, Select
 
 from plex_wrappers import SessionChangeWatcher, SessionWatcher
 from utils import base_info_layer, get_season, get_episode, cleanup_url, text_progress_bar_maker, stringify, \
-    base_user_layer
+    base_user_layer, get_all_library, get_watch_time, get_session_count
 
 from loguru import logger as logging
 
@@ -66,33 +67,75 @@ class PlexStatistics(commands.Cog):
 
         await ctx.send(embed=embed)
 
-    @commands.command(name="top_movies")
-    async def top_movies(self, ctx):
-        """Gets the top 6 movies"""
-        # We do this all in database because it's much faster than doing it in python
+    @commands.command(name="library_stats")
+    async def library_stats(self, ctx, *, library_name):
+        """
+        Gets library watch statistics for the server, such as total watch time, total number of episodes watched,
+        most popular content from that library.
+        """
+        # Send a typing indicator
+        async with ctx.typing():
+            libraries = get_all_library(ctx.plex)
+            for library in libraries:
+                if library.title.lower() == library_name.lower():
+                    library = library
+                    break
+            else:
+                await ctx.send("Could not find library with that name.")
+                return
 
-        # A movie's score is based on the number of different users who have watched it, and the number of times
-        # each user has watched it (so if a movie has been watched 10 times by 1 user, it will have a lower score
-        # than a movie that has been watched 10 times by 10 users)
-        self.bot.database.create_function("get_movie_score", 2, lambda x: self.bot.database.get(
-            "SELECT COUNT(DISTINCT account_ID) * COUNT(*) FROM main.plex_history_messages "
-            "WHERE title = ? and media_year = ? and media_type = 'movie'", x)[0][0])
+            library_content = library.all()
+            total_media_length = round(library.totalDuration / 1000)
+            top_level_media_count = library.totalSize
+            # Because TV shows only count as one item, we need to get the total number of episodes for
+            # the total number of episodes
+            total_media_count = 0
+            for item in library_content:
+                if isinstance(item, plexapi.video.Show):
+                    total_media_count += len(item.episodes())
+                else:
+                    total_media_count += 1
+            total_media_size = library.totalStorage
 
-        # Get the top 6 movies
-        result = self.bot.database.execute("SELECT title, media_year, get_movie_score(title, media_year) "
-                                           " FROM main.plex_history_messages "
-                                           "WHERE media_type = 'movie' GROUP BY title, media_year "
-                                           "ORDER BY get_movie_score(title, media_year) DESC LIMIT 6")
+            embed = discord.Embed(title=f"Library Statistics for {library.title}",
+                                  description=f"Total Media Length: "
+                                              f"`{datetime.timedelta(seconds=total_media_length)}`\n"
+                                              f"Total Media Watch Time: Loading...\n"
+                                              f"Total Session Count: Loading...\n"
+                                              f"Total Media Count: `{total_media_count} | {top_level_media_count}`\n"
+                                              f"Total Media Size: `{humanize.naturalsize(total_media_size)}`",
+                                  color=0x00ff00)
+            embed.add_field(name="Detailed Statistics", value="Loading...", inline=False)
+        message = await ctx.send(embed=embed)
 
-        # Format the data into a nice embed
-        embed = discord.Embed(title="Top Movies",
-                              description="The top 6 movies are:",
-                              color=0x00ff00)
-        embed.add_field(name="Top Movies",
-                        value="\n".join([f"`{i + 1}`. `{movie[0]}({movie[1]})` - Score: `{movie[2]:.2f}`"
-                                         for i, movie in enumerate(result)]), inline=False)
+        # For each item in the library get its info from the database
+        library_content_info = []
+        for item in library_content:
+            watch_time = get_watch_time(item, self.bot.database)
+            session_count = get_session_count(item, self.bot.database)
+            library_content_info.append((item, watch_time, session_count))
 
-        await ctx.send(embed=embed)
+        # Add all the timedeltas together to get the total watch time
+        total_watch_time = datetime.timedelta(seconds=0)
+        total_session_count = 0
+        for item, watch_time, session_count in library_content_info:
+            total_watch_time += watch_time
+            total_session_count += session_count
+
+        # Sort the library content by watch time
+        library_content_info.sort(key=lambda x: x[1], reverse=True)
+
+        # Add the information to the embed
+        embed.description = f"Total Media Length: `{datetime.timedelta(seconds=total_media_length)}`\n" \
+                            f"Total Media Watch Time: `{total_watch_time}`\n" \
+                            f"Total Session Count: `{total_session_count}`\n" \
+                            f"Total Media Count: `{total_media_count} | {top_level_media_count}`\n" \
+                            f"Total Media Size: `{humanize.naturalsize(total_media_size)}`"
+        embed.set_field_at(0, name="Top Media Elements",  # Max 10 entries
+                           value="\n".join([f"`{i + 1}`. `{item[0].title}` - "
+                                            f"{item[1]}"
+                                            for i, item in enumerate(library_content_info[:10])]), inline=False)
+        await message.edit(embed=embed)
 
 
 async def setup(bot):
