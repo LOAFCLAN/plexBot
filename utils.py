@@ -700,7 +700,7 @@ def get_session_count(content, db) -> int:
     table = db.get_table("plex_history_messages")
     entries = []
     if isinstance(content, plexapi.video.Movie):
-        entries.extend(table.get_rows(title=content.title, year=content.year))
+        entries.extend(table.get_rows(title=content.title, media_year=content.year))
     elif isinstance(content, plexapi.video.Show):
         entries.extend(table.get_rows(title=content.title))
     elif isinstance(content, plexapi.video.Episode):
