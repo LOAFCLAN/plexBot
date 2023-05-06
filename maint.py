@@ -277,6 +277,8 @@ class maintCog(Cog):
             else:
                 await ctx.send('```\n' + new_res + '```')
             await msg.edit(content="Restarting...")
+            for watcher in self.bot.session_watchers:
+                await watcher.bot_shutdown()
             await self.bot.restart()
 
 
