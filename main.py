@@ -14,6 +14,7 @@ from discord.utils import oauth_url
 from plexapi.server import PlexServer
 import discord
 
+import database_migrations
 import utils
 from plex_wrappers import plex_servers, PlexContext, discord_associations, DiscordAssociations
 # from discord_components import DiscordComponents, Button, ButtonStyle
@@ -58,23 +59,11 @@ class PlexBot(commands.Bot):
                                                              "media_year": "TEXT",
                                                              "session_duration": "FLOAT (0.0, 1.0)",
                                                              "PRIMARY KEY": "(event_hash, guild_id)"})
-        self.database.update_table("plex_history_messages", 1,
-                                   ["ALTER TABLE plex_history_messages ADD COLUMN watch_time FLOAT (0.0, 1.0)",
-                                    "UPDATE plex_history_messages SET watch_time = session_duration"])
-        # Change the primary key to message_id instead of event_hash
-        self.database.update_table("plex_history_messages", 2,
-                                   ["CREATE TABLE plex_history_messages_temp (event_hash INTEGER, guild_id INTEGER, "
-                                    "message_id INTEGER, history_time FLOAT (0.0), title TEXT NOT NULL, "
-                                    "media_type TEXT NOT NULL, season_num INTEGER, ep_num INTEGER, "
-                                    "account_ID INTEGER, pb_start_offset FLOAT (0.0, 1.0), "
-                                    "pb_end_offset FLOAT (0.0, 1.0), media_year TEXT,"
-                                    " session_duration FLOAT (0.0, 1.0), "
-                                    "watch_time FLOAT (0.0, 1.0), PRIMARY KEY (message_id))",
-                                    "INSERT INTO plex_history_messages_temp SELECT * FROM plex_history_messages",
-                                    "DROP TABLE plex_history_messages",
-                                    "ALTER TABLE plex_history_messages_temp RENAME TO plex_history_messages"])
         self.database.create_table("plex_devices", {"account_id": "INTEGER", "device_id": "STRING",
                                                     "last_seen": "INT", "PRIMARY KEY": "(account_id, device_id)"})
+        logging.info("Database initialized, performing migrations")
+        database_migrations.preform_migrations(self.database)
+        logging.info("Migrations complete")
 
     @staticmethod
     def db_backup_callback(status, remaining, total):
@@ -86,6 +75,12 @@ class PlexBot(commands.Bot):
             logging.info(f"Database backup in progress. {remaining} pages remaining.")
 
     def __init__(self, *args, **kwargs):
+
+        # # TODO: Remove this when the migration code is done
+        # if os.path.exists("migration_backup.db"):
+        #     os.remove("plex_bot.db")
+        #     os.rename("migration_backup.db", "plex_bot.db")
+
         self.database = Database("plex_bot.db")
         self.backup_database = sqlite3.connect("plex_bot.db.bak")
         self.database_init()
@@ -128,12 +123,16 @@ class PlexBot(commands.Bot):
         if guild_id not in plex_servers:
             server_entry = self.database.get_table("plex_servers").get_row(guild_id=guild_id)
             if server_entry is None:
+                logging.warning(f"No plex server found for guild {guild_id}")
                 raise ValueError("No plex server found for this guild")
             try:
-                plex_servers[guild_id] = PlexServer(server_entry["server_url"], server_entry["server_token"])
+                logging.debug(f"Connecting to plex server {server_entry['server_url']} for guild {guild_id}")
+                plex_servers[guild_id] = PlexServer(server_entry["server_url"], server_entry["server_token"],
+                                                    timeout=10)
                 plex_servers[guild_id].baseurl = server_entry["server_url"]
                 plex_servers[guild_id].token = server_entry["server_token"]
             except Exception:
+                logging.error(f"Failed to connect to plex server for guild {guild_id}")
                 raise Exception("Invalid plex server credentials, or server is offline")
         if not hasattr(plex_servers[guild_id], "associations"):
             discord_associations.update({guild_id: DiscordAssociations(self, guild)})
@@ -258,5 +257,5 @@ except discord.errors.PrivilegedIntentsRequired:
     plex_bot.run()
 except Exception as e:
     logging.error(f"Failed to start bot: {e}")
-    logging.trace(e)
-    exit(1)
+    logging.exception(e)
+    exit(-1)

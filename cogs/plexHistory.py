@@ -123,14 +123,6 @@ class PlexHistory(commands.Cog):
     @Cog.listener('on_ready')
     async def on_ready(self):
         logging.info("Starting PlexHistory Cog")
-        table = self.bot.database.get_table("plex_history_messages")
-        for row in table.get_all():
-            guild_id = row[1]
-            if guild_id not in self.cached_history:
-                self.cached_history[guild_id] = {}
-            self.cached_history[guild_id][row[0]] = {"message_id": row[2],
-                                                     "history_time": row[4]}
-
         table = self.bot.database.get_table("plex_history_channel")
         for row in table.get_all():
             self.msg_cache[row[0]] = {}

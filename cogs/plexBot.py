@@ -103,6 +103,7 @@ class PlexBot(Cog):
 
     async def monitor_plex(self, guild_id: int, channel_id: int, message_id: int):
         try:
+            logging.info(f"Starting plex monitor for guild: {guild_id}, channel: {channel_id}, message: {message_id}")
             channel = await self.bot.fetch_channel(channel_id)
             guild = await self.bot.fetch_guild(guild_id)
             plex = await self.bot.fetch_plex(guild)
@@ -149,8 +150,7 @@ class PlexBot(Cog):
                     await message.edit(embed=embed, content="")
                     await asyncio.sleep(5)
         except Exception as e:
-            print(e)
-            traceback.print_exc()
+            logging.error(f"Error in plex monitor: {e}")
             await asyncio.sleep(5)
             self.bot.loop.create_task(self.monitor_plex(guild_id, channel_id, message_id))
 
@@ -377,10 +377,8 @@ class PlexBot(Cog):
     @command(name='set_activity_channel', aliases=['setactivitychannel', 'setactivity'])
     async def set_activity_channel(self, ctx, channel: discord.TextChannel):
         """Adds a plex activity channel to the database"""
-        self.bot.database.execute(
-            "INSERT INTO activity_messages (guild_id, channel_id, message_id) VALUES (?, ?, ?)",
-            (ctx.guild.id, channel.id, 0))
-        self.bot.database.commit()
+        table = self.bot.database.get_table("activity_messages")
+        table.update_or_add(guild_id=ctx.guild.id, channel_id=channel.id)
         embed = discord.Embed(title="Set Activity Channel", description=f"Set activity channel to {channel.mention}",
                               color=0x00ff00)
         embed.timestamp = datetime.datetime.utcnow()

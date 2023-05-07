@@ -4,4 +4,4 @@ language_data~=1.1.0
 PlexAPI==4.12.1
 humanize==4.3.0
 loguru~=0.7.0
-ConcurrentDatabase==0.0.4
+ConcurrentDatabase==0.0.5
