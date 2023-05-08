@@ -66,17 +66,20 @@ def preform_migrations(database):
         backup.close()
 
     database.create_table("plex_watched_media", {"media_id": "INTEGER PRIMARY KEY AUTOINCREMENT",
-                                                 "title": "TEXT NOT NULL", "media_type": "TEXT NOT NULL",
+                                                 "guild_id": "INTEGER NOT NULL", "title": "TEXT NOT NULL",
+                                                 "media_type": "TEXT NOT NULL", "media_length": "INTEGER",
                                                  "season_num": "INTEGER", "ep_num": "INTEGER",
-                                                 "media_year": "TEXT", "library_name": "TEXT NOT NULL",
+                                                 "media_year": "TEXT", "library_id": "TEXT NOT NULL",
                                                  "media_guid": "TEXT NOT NULL"})
 
-    database.create_table("plex_history_events", {"event_id": "INTEGER PRIMARY KEY", "account_id": "INTEGER",
-                                                  "media_id": "INTEGER NOT NULL",
+    database.create_table("plex_history_events", {"event_id": "INTEGER PRIMARY KEY", "guild_id": "INTEGER NOT NULL",
+                                                  "account_id": "INTEGER",
+                                                  "media_id": "INTEGER NOT NULL", "history_time": "FLOAT",
                                                   "pb_start_offset": "INTEGER", "pb_end_offset": "INTEGER",
                                                   "session_duration": "INTEGER", "watch_time": "INTEGER"},
                           linked_tables=[CreateTableLink(target_table="plex_watched_media", target_key="media_id",
                                                          source_table="plex_history_events", source_key="media_id")])
+
     # Migrate some data from plex_history_messages to plex_history_events and plex_watched_media
     # The data only data remaining in plex_history_messages will be the message_id and guild_id
 
@@ -93,21 +96,21 @@ def preform_migrations(database):
     if table_version["version"] == 2:
         database.batch_transaction([
             "INSERT INTO plex_watched_media "
-            "(title, media_type, season_num, ep_num, media_year, media_guid, library_name)"
-            "SELECT DISTINCT title, media_type, season_num, ep_num, media_year, 'TBA', 'TBA'"
+            "(guild_id, title, media_type, season_num, ep_num, media_year, media_guid, library_id, media_length)"
+            "SELECT DISTINCT guild_id, title, media_type, season_num, ep_num, media_year, 'N/A', 'N/A', NULL"
             " FROM plex_history_messages;",
             "-- Insert the values into plex_history_events next, we will need to use the find_media function to get the"
             "-- media_id for each row as that isn't stored in plex_history_messages",
-            "INSERT INTO plex_history_events (event_id, account_id, media_id, pb_start_offset, pb_end_offset,"
-            "session_duration, watch_time)"
-            "SELECT event_hash, account_id, find_media(title, media_type, season_num, ep_num, media_year),"
+            "INSERT INTO plex_history_events (event_id, guild_id, account_id, history_time, media_id,"
+            " pb_start_offset, pb_end_offset, session_duration, watch_time)"
+            "SELECT event_hash, guild_id, account_id, history_time,"
+            " find_media(title, media_type, season_num, ep_num, media_year),"
             " pb_start_offset, pb_end_offset, session_duration, watch_time FROM plex_history_messages;",
             "-- Now update plex_history_messages to be of a reduced size",
             "CREATE TABLE plex_history_messages_temp (event_id INTEGER, guild_id INTEGER, message_id INTEGER,"
-            "history_time FLOAT, PRIMARY KEY (message_id), "
-            "FOREIGN KEY (event_id) REFERENCES plex_history_events(event_id));"
-            "INSERT INTO plex_history_messages_temp SELECT event_hash, guild_id, message_id, history_time "
-            "FROM plex_history_messages;",
+            "PRIMARY KEY (message_id), FOREIGN KEY (event_id) REFERENCES plex_history_events(event_id));"
+            "INSERT INTO plex_history_messages_temp "
+            "SELECT event_hash, guild_id, message_id FROM plex_history_messages;",
             "DROP TABLE plex_history_messages;",
             "ALTER TABLE plex_history_messages_temp RENAME TO plex_history_messages;"])
         table_version.set(version=3)

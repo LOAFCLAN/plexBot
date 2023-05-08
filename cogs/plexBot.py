@@ -139,6 +139,13 @@ class PlexBot(Cog):
                     # Dynamic sleep based on our current discord rate limit
                 except discord_errors.NotFound:
                     message = await create_message()
+                except discord_errors.Forbidden as e:
+                    # Check if it's a 50005 error (Different author)
+                    if e.code == 50005:
+                        message = await create_message()
+                        logging.warning(f"Wrong author for updating message, creating new message")
+                    else:
+                        logging.error(f"Missing permissions to edit message in channel: {channel_id}")
                 except Exception as e:
                     print(e)
                     traceback.print_exc()
@@ -185,7 +192,7 @@ class PlexBot(Cog):
         else:
             embed.add_field(name=f"Outgoing invites: {len(outgoing)}", value="No outgoing invites", inline=False)
 
-        embed.timestamp = datetime.datetime.utcnow()
+        embed.timestamp = datetime.datetime.now()
         await ctx.send(embed=embed)
 
     @has_permissions(manage_guild=True)
@@ -204,8 +211,8 @@ class PlexBot(Cog):
             if library.type == "show":
                 show_library_string += f"`{library.title}` (Size: `{library.totalSize}`)\n"
         embed.add_field(name="Show Library's", value=show_library_string, inline=True)
-        embed.set_footer(text="Check you email to accept the invite")
-        embed.timestamp = datetime.datetime.utcnow()
+        embed.set_footer(text="Check your email to accept the invite")
+        embed.timestamp = datetime.datetime.now()
         await ctx.send(embed=embed)
 
     @has_permissions(manage_guild=True)
@@ -214,7 +221,7 @@ class PlexBot(Cog):
         celery = ctx.plex.myPlexAccount()
         invite = celery.cancelInvite(plex_id)
         embed = discord.Embed(title="Cancel Invite", description="Invite was canceled", color=0x00ff00)
-        embed.timestamp = datetime.datetime.utcnow()
+        embed.timestamp = datetime.datetime.now()
 
         await ctx.send(embed=embed)
 
@@ -246,27 +253,30 @@ class PlexBot(Cog):
                         try:
                             celery.removeFriend(user.id)
                             embed = discord.Embed(title="Remove User",
-                                                  description=f"User `{user.name}` was removed from {ctx.plex.friendlyName}",
+                                                  description=f"User `{user.name}` was removed from "
+                                                              f"{ctx.plex.friendlyName}",
                                                   color=0x00ff00)
-                            embed.timestamp = datetime.datetime.utcnow()
+                            embed.timestamp = datetime.datetime.now()
                             await msg.edit(embed=embed)
                         except Exception as e:
                             embed = discord.Embed(title="Remove User",
-                                                  description=f"User `{user.name}` was not removed from {ctx.plex.friendlyName}",
+                                                  description=f"User `{user.name}` was not removed from "
+                                                              f"{ctx.plex.friendlyName}",
                                                   color=0xFF0000)
                             embed.add_field(name="Error", value=f"{e}", inline=False)
-                            embed.timestamp = datetime.datetime.utcnow()
+                            embed.timestamp = datetime.datetime.now()
                             await msg.edit(embed=embed)
                     elif str(reaction.emoji) == "❎":
                         embed = discord.Embed(title="Remove User",
-                                              description=f"User `{user.name}` was not removed from {ctx.plex.friendlyName}"
+                                              description=f"User `{user.name}` was not removed from "
+                                                          f"{ctx.plex.friendlyName}"
                                               , color=0xFF0000)
-                        embed.timestamp = datetime.datetime.utcnow()
+                        embed.timestamp = datetime.datetime.now()
                         await msg.edit(embed=embed)
                 except asyncio.TimeoutError:
                     embed = discord.Embed(title="Remove User",
                                           description="Timed out waiting for confirmation", color=0xFF0000)
-                    embed.timestamp = datetime.datetime.utcnow()
+                    embed.timestamp = datetime.datetime.now()
                     await ctx.send(embed=embed)
                     return
 
@@ -284,7 +294,7 @@ class PlexBot(Cog):
             if email is None or len(email) <= 0:
                 email = "N/A"
             embed.add_field(name=f"{username} - {user.id}", value=f"{email}", inline=False)
-        embed.timestamp = datetime.datetime.utcnow()
+        embed.timestamp = datetime.datetime.now()
         await ctx.send(embed=embed, delete_after=30)
 
     @command(name='user', aliases=['u'])
@@ -381,7 +391,7 @@ class PlexBot(Cog):
         table.update_or_add(guild_id=ctx.guild.id, channel_id=channel.id)
         embed = discord.Embed(title="Set Activity Channel", description=f"Set activity channel to {channel.mention}",
                               color=0x00ff00)
-        embed.timestamp = datetime.datetime.utcnow()
+        embed.timestamp = datetime.datetime.now()
         await ctx.send(embed=embed)
         self.bot.loop.create_task(self.monitor_plex(ctx.guild.id, channel.id, 0))
 
@@ -395,7 +405,7 @@ class PlexBot(Cog):
         self.bot.database.commit()
         embed = discord.Embed(title="Set Alert Channel", description=f"Set alert channel to {channel.mention}",
                               color=0x00ff00)
-        embed.timestamp = datetime.datetime.utcnow()
+        embed.timestamp = datetime.datetime.now()
         await ctx.send(embed=embed)
         self.bot.loop.create_task(self.plex_alerts(ctx.guild.id, channel.id))
 
@@ -411,7 +421,7 @@ class PlexBot(Cog):
         self.bot.database.commit()
         embed = discord.Embed(title="Set Plex Server", description=f"Set plex server to {plex_url}",
                               color=0x00ff00)
-        embed.timestamp = datetime.datetime.utcnow()
+        embed.timestamp = datetime.datetime.now()
         await ctx.send(embed=embed)
         # Delete the command message as it contains the servers token
         await ctx.message.delete()
@@ -441,26 +451,6 @@ class PlexBot(Cog):
         """Force the plex server to run a deep media analysis"""
         ctx.plex.runButlerTask("DeepMediaAnalysis")
         await ctx.send("Deep media analysis started")
-
-    async def test_button_callback(self, interaction: Interaction):
-        response = interaction.response
-        # Get the custom id of the button that was pressed
-        button_id = interaction.data["custom_id"]
-        await response.send_message("Button pressed with id: " + button_id)
-
-    @command(name="test")
-    async def test(self, ctx):
-        """
-        Test how to use discord.py components
-        """
-
-        button = Button(style=ButtonStyle.green, label="Test Button", custom_id="test_button")
-        # Add a callback for the button
-        button.callback = self.test_button_callback
-        view = View()
-        view.add_item(button)
-
-        await ctx.send("Test", view=view)
 
 
 async def setup(bot):

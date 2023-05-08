@@ -382,7 +382,10 @@ def get_episode(plex, show_name, **kwargs):
                 if "name" in kwargs:
                     return content.episode(title=kwargs["name"])
                 elif "season" in kwargs and "episode" in kwargs:
-                    return content.episode(season=kwargs["season"], episode=kwargs["episode"])
+                    try:
+                        return content.episode(season=kwargs["season"], episode=kwargs["episode"])
+                    except plexapi.exceptions.NotFound:
+                        return None
                 else:
                     return None
 
@@ -592,20 +595,16 @@ def base_user_layer(user: CombinedUser, database):
     # - How many devices the user has watched on
 
     # Get the number of media items the user has watched
-    num_media = database.run(
-        '''SELECT COUNT(*) FROM plex_history_messages WHERE account_ID = ?''', (accountID,)).fetchone()[0]
+    num_media = database.get(
+        '''SELECT COUNT(*) FROM plex_history_events WHERE account_id = ?''', (accountID,))[0][0]
 
-    # Get the total duration of the media items the user has watched
-    session_duration = database.run(
-        '''SELECT SUM(session_duration) FROM plex_history_messages WHERE account_ID = ? and session_duration > 0''',
-        (accountID,)).fetchone()[0]
-    watch_time = database.run(
-        '''SELECT SUM(watch_time) FROM plex_history_messages WHERE account_ID = ? and watch_time > 0''',
-        (accountID,)).fetchone()[0]
-    media_duration = database.run(
-        '''SELECT SUM(pb_end_offset - pb_start_offset) FROM plex_history_messages WHERE account_ID = ? 
-        AND pb_end_offset > 0''',
-        (accountID,)).fetchone()[0]
+    # Get the total duration of the media sessions the user has watched
+    session_duration = database.get(
+        '''SELECT SUM(session_duration) FROM plex_history_events WHERE account_id = ?''', (accountID,))[0][0]
+
+    media_duration = database.get(
+        '''SELECT SUM(watch_time) FROM plex_history_events WHERE account_id = ?''', (accountID,))[0][0]
+
     if session_duration is None:
         session_duration = "Unknown"
     else:
@@ -620,22 +619,27 @@ def base_user_layer(user: CombinedUser, database):
                         f"totaling `{media_duration}` on `{len(user.devices)}` devices"
 
     # Display the last 6 media items the user has watched
-    last_media = database.execute(
-        '''SELECT * FROM plex_history_messages WHERE account_ID = ? ORDER BY history_time DESC LIMIT 6''',
-        (accountID,)).fetchall()
+
+    # In order to get the last 6 media items the user has watched, we need to get the last 6 history events
+    # And then using the foreign key (media_id) we can get the media item from plex_watched_media
+
+    table = database.get_table("plex_history_events")
+    history_events = table.select(f"account_id = '{accountID}'", order_by="history_time DESC", limit=6)
     media_list = []
-    for row in last_media:
-        timestamp = datetime.datetime.fromtimestamp(int(row[3]), tz=datetime.timezone.utc)
+    for row in history_events:
+        media = row.get("plex_watched_media")[0]
+        timestamp = datetime.datetime.fromtimestamp(int(row['history_time'] / 1000))
         dynamic_time = f"<t:{round(timestamp.timestamp())}:f>"
-        media_duration = datetime.timedelta(seconds=round((row[10] - row[9]) / 1000))
+        media_duration = datetime.timedelta(seconds=round((row["watch_time"] / 1000)))
         if media_duration < datetime.timedelta(seconds=1):
             media_duration = "Unknown"
-        session_duration = datetime.timedelta(seconds=round(row[12] / 1000))
-        if row[5] == "episode":
-            media_list.append(f"`{row[4]} (S{str(row[6]).zfill(2)}E{str(row[7]).zfill(2)})` `[{media_duration}]`\n"
+        session_duration = datetime.timedelta(seconds=round(row["session_duration"] / 1000))
+        if media['media_type'] == "episode":
+            media_list.append(f"`{media['title']} (S{str(media['season_num']).zfill(2)}E"
+                              f"{str(media['ep_num']).zfill(2)})` `[{media_duration}]`\n"
                               f"└─>{dynamic_time} for `{session_duration}`")
         else:
-            media_list.append(f"`{row[4]} ({row[11]})` `[{media_duration}]`\n"
+            media_list.append(f"`{media['title']} ({media['media_year']})` `[{media_duration}]`\n"
                               f"└─>{dynamic_time} for `{session_duration}`")
     embed.add_field(name="Last 6 media sessions", value=stringify(media_list, separator='\n'), inline=False)
 
