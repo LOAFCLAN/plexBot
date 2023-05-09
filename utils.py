@@ -682,38 +682,51 @@ def text_progress_bar_maker(duration: float, end: float, start: float = 0, lengt
 
 
 def get_watch_time(content, db) -> datetime.timedelta:
-    """Get the total watch time of a piece of content from the plex_history_messages table"""
-    table = db.get_table("plex_history_messages")
-    entries = []
+    """Get the total watch time of a piece of content from the plex_history_events table"""
+    media_table = db.get_table("plex_watched_media")
     if isinstance(content, plexapi.video.Movie):
-        entries.extend(table.get_rows(title=content.title, media_year=content.year))
+        media_id = media_table.get_row(title=content.title, media_year=content.year, media_type="movie")["media_id"]
+        result = db.get('''SELECT SUM(watch_time) FROM plex_history_events WHERE media_id = ?''', (media_id,))
     elif isinstance(content, plexapi.video.Show):
-        entries.extend(table.get_rows(title=content.title))
+        media_id = media_table.get_row(title=content.title, media_year=content.year, media_type="show")["media_id"]
+        result = db.get(
+            '''SELECT SUM(watch_time) FROM plex_history_events WHERE media_id in 
+            (SELECT media_id FROM plex_watched_media WHERE show_id = ?)''',
+            (media_id,))
     elif isinstance(content, plexapi.video.Episode):
-        entries.extend(table.get_rows(title=content.grandparentTitle, season_num=content.parentIndex,
-                                      ep_num=content.index))
-    elif isinstance(content, plexapi.video.Season):
-        entries.extend(table.get_rows(title=content.parentTitle, season_num=content.index))
+        show_id = media_table.get_row(title=content.grandparentTitle, media_type="show")["media_id"]
+        media_id = media_table.get_row(season_num=content.parentIndex,
+                                       ep_num=content.index, show_id=show_id)["media_id"]
+        result = db.get('''SELECT SUM(watch_time) FROM plex_history_events WHERE media_id = ?''', (media_id,))
+    else:
+        raise TypeError("content must be a plexapi video object")
 
-    total_time = datetime.timedelta()
-    for entry in entries:
-        total_time += datetime.timedelta(seconds=round(entry["watch_time"] / 1000))
+    total_watch_time = datetime.timedelta(seconds=round(result[0][0] / 1000))
 
-    return total_time
+    return total_watch_time
 
 
 def get_session_count(content, db) -> int:
-    """Get the total watch time of a piece of content from the plex_history_messages table"""
-    table = db.get_table("plex_history_messages")
-    entries = []
+    """Get the total number of sessions of a piece of content from the plex_history_events table"""
+    media_table = db.get_table("plex_watched_media")
     if isinstance(content, plexapi.video.Movie):
-        entries.extend(table.get_rows(title=content.title, media_year=content.year))
+        media_id = media_table.get_row(title=content.title, media_year=content.year, media_type="movie")["media_id"]
+        result = db.get('''SELECT COUNT(*) FROM plex_history_events WHERE media_id = ?''', (media_id,))
     elif isinstance(content, plexapi.video.Show):
-        entries.extend(table.get_rows(title=content.title))
+        media_id = media_table.get_row(title=content.title, media_year=content.year, media_type="show")["media_id"]
+        result = db.get(
+            '''SELECT COUNT(*) FROM plex_history_events WHERE media_id in 
+            (SELECT media_id FROM plex_watched_media WHERE show_id = ?)''',
+            (media_id,))
     elif isinstance(content, plexapi.video.Episode):
-        entries.extend(table.get_rows(title=content.grandparentTitle, season=content.parentIndex,
-                                      episode=content.index))
-    elif isinstance(content, plexapi.video.Season):
-        entries.extend(table.get_rows(title=content.parentTitle, season=content.index))
+        show_id = media_table.get_row(title=content.grandparentTitle, media_type="show")["media_id"]
+        media_id = media_table.get_row(season_num=content.parentIndex,
+                                        ep_num=content.index, show_id=show_id)["media_id"]
+        result = db.get('''SELECT COUNT(*) FROM plex_history_events WHERE media_id = ?''', (media_id,))
+    else:
+        raise TypeError("content must be a plexapi video object")
 
-    return len(entries)
+    total_sessions = result[0][0]
+
+    return total_sessions
+

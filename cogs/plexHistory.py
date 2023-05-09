@@ -262,9 +262,17 @@ class PlexHistory(commands.Cog):
             logging.debug(f"Could not find media entry for {session.title} in database, creating new entry")
             media_entry = media_table.add(guild_id=guild.id, media_guid=session.guid,
                                           title=session.title, media_year=session.year,
+                                          media_length=round(session.duration / 1000),
                                           media_type=session.type, library_id=session.librarySectionID)
-            if session.type == "episode":
-                media_entry.set(season_num=session.parentIndex, ep_num=session.index)
+        if session.type == "episode":
+            parent_show = media_table.get_row(title=session.grandparentTitle, guild_id=guild.id,
+                                              media_type="show")
+            if not parent_show:
+                parent_show = media_table.add(guild_id=guild.id, media_guid=session.grandparentGuid,
+                                              title=session.grandparentTitle, media_year=session.show().year,
+                                              media_length=round(get_series_duration(session.show()) / 1000),
+                                              media_type="show", library_id=session.librarySectionID)
+            media_entry.set(season_num=session.parentIndex, ep_num=session.index, show_id=parent_show["media_id"])
 
         event_table = self.bot.database.get_table("plex_history_events")
         entry = event_table.add(event_id=m_hash, guild_id=guild.id,
