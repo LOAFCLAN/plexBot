@@ -68,7 +68,7 @@ def preform_migrations(database):
     database.create_table("plex_watched_media", {"media_id": "INTEGER PRIMARY KEY AUTOINCREMENT",
                                                  "guild_id": "INTEGER NOT NULL", "title": "TEXT NOT NULL",
                                                  "media_type": "TEXT NOT NULL", "media_length": "INTEGER",
-                                                 "season_num": "INTEGER", "ep_num": "INTEGER",
+                                                 "show_id": "INTEGER", "season_num": "INTEGER", "ep_num": "INTEGER",
                                                  "media_year": "TEXT", "library_id": "TEXT NOT NULL",
                                                  "media_guid": "TEXT NOT NULL"})
 

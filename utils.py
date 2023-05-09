@@ -449,7 +449,10 @@ def get_series_duration(content: typing.Union[plexapi.video.Show, plexapi.video.
     """Get the total duration of a series"""
     total_duration = 0
     for episode in content.episodes():
-        total_duration += episode.duration
+        try:
+            total_duration += episode.duration
+        except TypeError:
+            pass
     return total_duration
 
 
@@ -628,7 +631,7 @@ def base_user_layer(user: CombinedUser, database):
     media_list = []
     for row in history_events:
         media = row.get("plex_watched_media")[0]
-        timestamp = datetime.datetime.fromtimestamp(int(row['history_time'] / 1000))
+        timestamp = datetime.datetime.fromtimestamp(int(row['history_time']), tz=datetime.timezone.utc)
         dynamic_time = f"<t:{round(timestamp.timestamp())}:f>"
         media_duration = datetime.timedelta(seconds=round((row["watch_time"] / 1000)))
         if media_duration < datetime.timedelta(seconds=1):

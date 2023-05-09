@@ -13,7 +13,7 @@ from discord.ui import Button, View, Select
 
 from plex_wrappers import SessionChangeWatcher, SessionWatcher
 from utils import base_info_layer, get_season, get_episode, cleanup_url, text_progress_bar_maker, stringify, \
-    base_user_layer
+    base_user_layer, get_series_duration
 
 from loguru import logger as logging
 
@@ -39,19 +39,26 @@ class PlexHistory(commands.Cog):
             # Get the event from the database
             table = interaction.client.database.get_table("plex_history_messages")
             message = table.get_row(message_id=message_id)
-            media_entry = message.get("plex_history_events")[0].get("plex_watched_media")[0]
+            history_entry = message.get("plex_history_events")
+            if len(history_entry) == 0:
+                await interaction.response.send_message("No history found for this message", ephemeral=True)
+                return
+            history_entry = history_entry[0]
+            # Get the media from the database
+            media_entry = history_entry.get("plex_watched_media")
             # Get the media object
-            if media_entry:
-                media = await self.media_from_entry(interaction.message.guild, interaction.client, media_entry)
+            if len(media_entry) == 1:
+                media = await self.media_from_entry(interaction.message.guild, interaction.client, media_entry[0])
                 if media:
                     # Get the embed
                     embed = self.media_embed(media)
                     # Send the embed
                     await interaction.response.send_message(embed=embed, ephemeral=True)
                 else:
-                    await interaction.response.send_message("Media not found", ephemeral=True)
+                    await interaction.response.send_message("Bad Plex Media GUID!", ephemeral=True)
             else:
-                await interaction.response.send_message("PlexBot was unable to find this media event in the database.",
+                await interaction.response.send_message("PlexBot was able to find a watch event but"
+                                                        " was unable to find the media entry associated with it",
                                                         ephemeral=True)
 
         @discord.ui.button(label="User Info", style=ButtonStyle.green, custom_id="userinfo",
@@ -62,7 +69,11 @@ class PlexHistory(commands.Cog):
             # Get the event from the database
             table = interaction.client.database.get_table("plex_history_messages")
             message = table.get_row(message_id=message_id)
-            event = message.get("plex_history_events")[0]
+            event = message.get("plex_history_events")
+            if len(event) == 0:
+                await interaction.response.send_message("No history found for this message", ephemeral=True)
+                return
+            event = event[0]
             if event:
                 # Get the user ID
                 account_id = event["account_id"]
@@ -83,15 +94,20 @@ class PlexHistory(commands.Cog):
         @staticmethod
         async def media_from_entry(guild, client, entry):
             plex = await client.fetch_plex(guild)
-            try:
-                library = plex.library.sectionByID(int(entry["library_id"]))
-                media = library.getGuid(entry["media_guid"])
-            except plexapi.exceptions.NotFound:  # Try falling back to searching by title
-                if entry["media_type"] == "episode":
-                    media = get_episode(plex, entry["title"], season=entry["season_num"], episode=entry["ep_num"])
+            if entry["library_id"] == "N/A" or entry["media_guid"] == "N/A":
+                return None
+            library = plex.library.sectionByID(int(entry["library_id"]))
+            if entry["media_type"] == "episode":
+                show_entry = client.database.get_table("plex_watched_media").get_row(media_id=entry["show_id"])
+                if show_entry:
+                    show = library.getGuid(show_entry["media_guid"])
+                    media = show.episode(
+                        title=entry["title"], season=int(entry["season_num"]), episode=int(entry["ep_num"]))
                 else:
-                    media = plex.search(entry["title"])[0]
-                    logging.debug(f"Was unable to find media by guid, falling back to search. {media.title}")
+                    logging.warning(f"Unable to find show with ID {entry['show_id']}")
+                    return None
+            else:
+                media = library.getGuid(entry["media_guid"])
             return media
 
         @staticmethod
@@ -142,12 +158,16 @@ class PlexHistory(commands.Cog):
         # Check if the message was in a history channel
         if payload.channel_id in self.history_channels:
             table = self.bot.database.get_table("plex_history_messages")
-            entry = table.get_row(message_id=payload.message_id)
-            if entry:
-                table.delete(message_id=payload.message_id)
-                logging.info(f"Deleted history message {payload.message_id} from database")
-            else:
-                logging.info(f"Message {payload.message_id} was not a history message")
+            message_entry = table.get_row(message_id=payload.message_id)
+            if message_entry:
+                history_entry = message_entry.get("plex_history_events")
+                if len(history_entry) == 1:
+                    # Delete the history entry
+                    history_entry[0].delete()
+                    table.delete(message_id=payload.message_id)
+                    logging.debug(f"Deleted history entry for message {payload.message_id}")
+                else:
+                    logging.error("Found multiple history entries for a single message")
 
     async def history_watcher(self, guild_id, channel_id):
         channel = await self.bot.fetch_channel(channel_id)
@@ -241,8 +261,8 @@ class PlexHistory(commands.Cog):
         if not media_entry:  # If no media entry exists at all, insert a new one
             logging.debug(f"Could not find media entry for {session.title} in database, creating new entry")
             media_entry = media_table.add(guild_id=guild.id, media_guid=session.guid,
-                                             title=session.title, media_year=session.year,
-                                             media_type=session.type, library_id=session.librarySectionID)
+                                          title=session.title, media_year=session.year,
+                                          media_type=session.type, library_id=session.librarySectionID)
             if session.type == "episode":
                 media_entry.set(season_num=session.parentIndex, ep_num=session.index)
 
@@ -332,11 +352,36 @@ class PlexHistory(commands.Cog):
         for media in rows:
             # Get the media object from plex
             if media["media_type"] == "episode":
-                content = get_episode(ctx.plex, media["title"],
-                                      season=media["season_num"], episode=media["ep_num"])
-                if content is None:
+                show = media_table.get_row(title=media["title"], media_type="show")
+                if not show:
+                    show = media_table.get_row(media_id=media["show_id"])
+
+                if not show:
+                    content = get_episode(ctx.plex, media["title"],
+                                          season=media["season_num"], episode=media["ep_num"])
+                    if not content:
+                        continue
+                    media_table.add(title=content.grandparentTitle, media_type="show", guild_id=ctx.guild.id,
+                                    media_guid=content.grandparentGuid, media_year=content.show().year,
+                                    library_id=content.librarySectionID,
+                                    media_length=round(get_series_duration(content.show()) / 1000))
+                    show = media_table.get_row(title=content.grandparentTitle, media_type="show",
+                                               guild_id=ctx.guild.id)
+                    logging.info(f"Added show {content.grandparentTitle} to watched media")
+                else:
+                    content = get_episode(ctx.plex, show["title"],
+                                          season=media["season_num"], episode=media["ep_num"])
+
+                if content is None or show is None:
                     logging.warning(f"Failed to find episode"
                                     f" {media['title']} S{media['season_num']}E{media['ep_num']}")
+                    failed += 1
+                    continue
+
+                media.set(title=content.title, media_guid=content.guid, library_id=content.librarySectionID,
+                          media_length=round(content.duration / 1000), show_id=show["media_id"])
+                show.set(media_length=round(get_series_duration(content.show()) / 1000))
+
             else:
                 results = ctx.plex.search(media["title"], mediatype=media["media_type"])
                 possible_contents = [r for r in results if isinstance(r, plexapi.video.Video)]
@@ -349,20 +394,20 @@ class PlexHistory(commands.Cog):
                 else:
                     if len(possible_contents) == 1:
                         content = possible_contents[0]
-                        logging.warning(f"Found {content.title} ({content.year}) instead of {media['title']} "
-                                        f"({media['media_year']})")
+                        # logging.warning(f"Found {content.title} ({content.year}) instead of {media['title']} "
+                        #                 f"({media['media_year']})")
                     else:
                         logging.warning(f"Failed to find {media['title']} ({media['media_year']}) search returned "
                                         f"{len(possible_contents)} results but none matched")
 
-            if content is None:
-                failed += 1
-                continue
+                if content is None:
+                    failed += 1
+                    continue
 
-            media.set(media_guid=content.guid, library_id=content.librarySectionID,
-                      media_length=round(content.duration / 1000))
-            logging.debug(f"Updated [{media['title']}] with content GUID {content.guid}"
-                          f" and library ID {content.librarySectionID}")
+                media.set(media_guid=content.guid, library_id=content.librarySectionID,
+                          media_length=round(content.duration / 1000))
+                # logging.debug(f"Updated [{media['title']}] with content GUID {content.guid}"
+                #               f" and library ID {content.librarySectionID}")
             if updated % 10 == 0:
                 embed.description = f"Progress: {updated}/{row_count} [Failed: {failed}]"
                 await msg.edit(embed=embed)

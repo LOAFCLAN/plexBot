@@ -75,20 +75,24 @@ class PlexBot(Cog):
     async def status_update(self):
         """Update plexbots status every 10 seconds to show the current number of sessions across all servers"""
         while True:
-            await asyncio.sleep(10)
-            total_sessions = 0
-            for guild in self.bot.guilds:
-                plex = await self.bot.fetch_plex(guild)
-                total_sessions += len(plex.sessions())
-            if total_sessions == 0:
-                await self.bot.change_presence(activity=discord.Activity(type=discord.ActivityType.watching,
-                                                                         name="Plex"))
-            elif total_sessions == 1:
-                await self.bot.change_presence(activity=discord.Activity(type=discord.ActivityType.watching,
-                                                                         name=f"{total_sessions} session"))
-            else:
-                await self.bot.change_presence(activity=discord.Activity(type=discord.ActivityType.watching,
-                                                                         name=f"{total_sessions} sessions"))
+            try:
+                await asyncio.sleep(10)
+                total_sessions = 0
+                for guild in self.bot.guilds:
+                    plex = await self.bot.fetch_plex(guild)
+                    total_sessions += len(plex.sessions())
+                if total_sessions == 0:
+                    await self.bot.change_presence(activity=discord.Activity(type=discord.ActivityType.watching,
+                                                                             name="Plex"))
+                elif total_sessions == 1:
+                    await self.bot.change_presence(activity=discord.Activity(type=discord.ActivityType.watching,
+                                                                             name=f"{total_sessions} session"))
+                else:
+                    await self.bot.change_presence(activity=discord.Activity(type=discord.ActivityType.watching,
+                                                                             name=f"{total_sessions} sessions"))
+            except Exception as e:
+                logging.error(e)
+                logging.exception(e)
 
     async def plex_alerts(self, guild_id: int, channel_id: int):
         """Handles plex alerts"""
