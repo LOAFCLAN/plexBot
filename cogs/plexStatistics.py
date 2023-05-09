@@ -5,6 +5,7 @@ import random
 import discord
 import humanize
 import plexapi.video
+from ConcurrentDatabase.DynamicEntry import DynamicEntry
 from discord import Interaction, ButtonStyle, ActionRow
 from discord.ext import commands
 from discord.ext.commands import Cog, command, has_permissions
@@ -125,34 +126,95 @@ class PlexStatistics(commands.Cog):
             embed.add_field(name="Top Media Elements", value="Loading...", inline=False)
             message = await ctx.send(embed=embed)
             if library.type == "show":
-                most_popular = self.bot.database.get(
-                    f"SELECT show.title, show.media_guid, "
-                    f"SUM(events.watch_time) / show.media_length, "
-                    f"SUM(events.watch_time) "
-                    f"FROM plex_history_events AS events "
-                    f"INNER JOIN plex_watched_media AS media ON events.media_id = show.media_id "
-                    f"INNER JOIN plex_watched_media AS show ON media.show_id = show.media_id " 
-                    f"WHERE show.library_id = {library.key} and show.media_type = 'show' "
-                    f"GROUP BY show.media_id "
-                    f"ORDER BY SUM(events.watch_time) DESC LIMIT 9")
+                most_popular = self.bot.database.get("""
+                SELECT show.title, show.media_guid,
+                SUM(DISTINCT events.watch_time) / 1000 AS total_watch_time,
+                show.media_length AS length,
+                COUNT(DISTINCT media.title) AS total_episodes
+                FROM plex_watched_media AS media
+                JOIN plex_history_events AS events ON events.media_id = media.media_id
+                JOIN plex_watched_media
+                    AS show ON show.media_type = 'show'
+                WHERE media.media_type = 'episode' and show.media_id = media.show_id AND show.library_id = ?
+                GROUP BY show.media_id
+                ORDER BY total_watch_time / length DESC LIMIT 10""", (library.key,))
             else:
-                most_popular = self.bot.database.get(
-                    f"SELECT media.title, media.media_guid, "
-                    f"SUM(events.watch_time) / media.media_length as watch_percentage,"
-                    f"SUM(events.watch_time) as watch_time "
-                    f"FROM plex_watched_media as media "
-                    f"INNER JOIN plex_history_events as events ON media.media_id = events.media_id "
-                    f"WHERE media.library_id = {library.key} AND media.media_length != 0 "
-                    f"GROUP BY media.title, media.media_year "
-                    f"ORDER BY watch_percentage DESC LIMIT 9")
+                most_popular = self.bot.database.get("""
+                SELECT media.title, media.media_guid,
+                SUM(events.watch_time) / 1000 AS total_watch_time,
+                media.media_length AS length
+                FROM plex_watched_media AS media
+                JOIN plex_history_events AS events ON events.media_id = media.media_id
+                WHERE media.media_type = 'movie', media.library_id = ?
+                GROUP BY media.media_id
+                ORDER BY total_watch_time / length DESC LIMIT 10;""", (library.key,))
 
-            print(most_popular)
+            # print(most_popular)
 
             embed.set_field_at(0, name="Top Media Elements",
-                               value="\n".join([f"`{i + 1}`. `{movie[0]}` - {round(movie[2] / 10)}% - "
-                                                f"`{datetime.timedelta(seconds=round(movie[3] / 1000))}`"
-                                                for i, movie in enumerate(most_popular)]), inline=False)
+                               value="\n".join([f"`{str(i + 1).zfill(2)}. "
+                                                f"{round(media[2] / media[3] * 100)}%` - "
+                                                f"`{datetime.timedelta(seconds=media[2])}` - "
+                                                f"`{media[0]}`"
+                                                for i, media in enumerate(most_popular)]), inline=False)
             await message.edit(embed=embed)
+
+    @commands.command(name="who_watched", aliases=["watched_by", "watched", "ww", "wb"])
+    async def who_watched(self, ctx, *, media_name):
+        # Preform a search for the media
+        async with ctx.typing():
+            search_results = ctx.plex.search(media_name)
+            # Get the media object
+            search_results = [r for r in search_results if isinstance(r, plexapi.video.Video)]
+
+            # Filter out episodes and seasons
+            search_results = [r for r in search_results if r.type not in ["season", "episode"]]
+
+            embed = discord.Embed(title=f"Who Watched",
+                                  color=0x00ff00)
+            for plex_media in search_results:
+                # Get the media history
+                media = self.bot.database.get_table("plex_watched_media").get_row(media_guid=plex_media.guid)
+                if media is None:
+                    embed.add_field(name=f"Who Watched \"{plex_media.title}\" ({plex_media.year})",
+                                    value="No one has watched this media yet.", inline=False)
+                    continue
+                if media["media_type"] == "show":
+                    results = self.bot.database.get("""
+                    SELECT events.account_id,
+                        SUM(events.watch_time) / 1000 AS total_watch_time,
+                        COUNT(events.watch_time) AS total_watches
+                    FROM plex_history_events AS events
+                    JOIN plex_watched_media AS media ON media.media_id = events.media_id
+                    WHERE media.media_type = 'episode' AND media.show_id = ?
+                    GROUP BY events.account_id ORDER BY total_watch_time DESC""", (media["media_id"],))
+
+                else:
+                    results = self.bot.database.get("""
+                    SELECT events.account_id,
+                        SUM(events.watch_time) / 1000 AS total_watch_time,
+                        COUNT(events.watch_time) AS total_watches
+                    FROM plex_history_events AS events
+                    JOIN plex_watched_media AS media ON media.media_id = events.media_id
+                    WHERE media.media_type = 'movie' AND media.media_id = ?
+                    GROUP BY events.account_id ORDER BY total_watch_time DESC""", (media["media_id"],))
+
+                if len(results) == 0:
+                    embed.description = "No one has watched this media."
+                    await ctx.send(embed=embed)
+                    return
+
+                # Get the users who watched the media (remove duplicates)
+                # Get the user objects
+                users = [(ctx.plex.associations.get(account_id), total_watch_time, total_watches) for
+                         account_id, total_watch_time, total_watches in results]
+                # Add the user names to the embed
+                embed.add_field(name=f"Who Watched \"{plex_media.title}\" ({plex_media.year})",
+                                value="\n".join([f"`{i + 1}.` {user.mention()} - "
+                                                 f"`{datetime.timedelta(seconds=total_watch_time)}`"
+                                                 for i, (user, total_watch_time, total_watches) in enumerate(users)])
+                                , inline=False)
+            await ctx.send(embed=embed)
 
 
 async def setup(bot):

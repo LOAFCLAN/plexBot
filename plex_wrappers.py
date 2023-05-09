@@ -225,6 +225,16 @@ class CombinedUser:
             return self.plex_user.id == other.id
         elif isinstance(other, str):
             return self._compare_plex_info(other)
+        elif isinstance(other, int):
+            # Check if the other is a discord id
+            if self.discord_member is not None:
+                return self.discord_member.id == other
+            elif self.plex_user is not None:
+                return self.plex_user.id == other
+            elif self.plex_system_account is not None:
+                return self.plex_system_account.id == other
+            else:
+                return False
         else:
             raise TypeError(f"Can only compare PlexUser, SystemAccount, or str, not {type(other)}")
 
@@ -352,13 +362,13 @@ class DiscordAssociations:
         return False
 
     def mention(self, plex_user: str) -> str:
-        association = self.get_plex_association(plex_user)
+        association = self.get(plex_user)
         if association is not None:
             return association.discord_member.mention
         return plex_user
 
-    def display_name(self, plex_user: str) -> str:
-        association = self.get_plex_association(plex_user)
+    def display_name(self, plex_user: typing.Union[str, int]) -> str:
+        association = self.get(plex_user)
         if association is not None:
             return association.display_name()
         return plex_user

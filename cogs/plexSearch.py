@@ -17,6 +17,7 @@ from utils import get_season, base_info_layer, rating_str, stringify, make_seaso
 
 from loguru import logger as logging
 
+
 class PlexSearch(commands.Cog):
 
     def __init__(self, bot):

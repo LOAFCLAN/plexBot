@@ -69,6 +69,9 @@ class PlexHistory(commands.Cog):
             # Get the event from the database
             table = interaction.client.database.get_table("plex_history_messages")
             message = table.get_row(message_id=message_id)
+            if message is None:
+                await interaction.response.send_message("Unknown History Message", ephemeral=True)
+                return
             event = message.get("plex_history_events")
             if len(event) == 0:
                 await interaction.response.send_message("No history found for this message", ephemeral=True)
@@ -260,18 +263,22 @@ class PlexHistory(commands.Cog):
                                                   media_type=session.type, guild_id=guild.id)
         if not media_entry:  # If no media entry exists at all, insert a new one
             logging.debug(f"Could not find media entry for {session.title} in database, creating new entry")
-            media_entry = media_table.add(guild_id=guild.id, media_guid=session.guid,
-                                          title=session.title, media_year=session.year,
-                                          media_length=round(session.duration / 1000),
-                                          media_type=session.type, library_id=session.librarySectionID)
+            media_table.add(guild_id=guild.id, media_guid=session.guid,
+                            title=session.title, media_year=session.year,
+                            media_length=round(session.duration / 1000),
+                            media_type=session.type, library_id=session.librarySectionID)
+            media_entry = media_table.get_row(media_guid=session.guid, guild_id=guild.id)
+
         if session.type == "episode":
             parent_show = media_table.get_row(title=session.grandparentTitle, guild_id=guild.id,
                                               media_type="show")
             if not parent_show:
-                parent_show = media_table.add(guild_id=guild.id, media_guid=session.grandparentGuid,
-                                              title=session.grandparentTitle, media_year=session.show().year,
-                                              media_length=round(get_series_duration(session.show()) / 1000),
-                                              media_type="show", library_id=session.librarySectionID)
+                media_table.add(guild_id=guild.id, media_guid=session.grandparentGuid,
+                                title=session.grandparentTitle, media_year=session.show().year,
+                                media_length=round(get_series_duration(session.show()) / 1000),
+                                media_type="show", library_id=session.librarySectionID)
+                parent_show = media_table.get_row(title=session.grandparentTitle, guild_id=guild.id,
+                                                  media_type="show")
             media_entry.set(season_num=session.parentIndex, ep_num=session.index, show_id=parent_show["media_id"])
 
         event_table = self.bot.database.get_table("plex_history_events")

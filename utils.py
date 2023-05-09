@@ -626,8 +626,9 @@ def base_user_layer(user: CombinedUser, database):
     # In order to get the last 6 media items the user has watched, we need to get the last 6 history events
     # And then using the foreign key (media_id) we can get the media item from plex_watched_media
 
-    table = database.get_table("plex_history_events")
-    history_events = table.select(f"account_id = '{accountID}'", order_by="history_time DESC", limit=6)
+    history_table = database.get_table("plex_history_events")
+    media_table = database.get_table("plex_watched_media")
+    history_events = history_table.select(f"account_id = '{accountID}'", order_by="history_time DESC", limit=6)
     media_list = []
     for row in history_events:
         media = row.get("plex_watched_media")[0]
@@ -638,7 +639,8 @@ def base_user_layer(user: CombinedUser, database):
             media_duration = "Unknown"
         session_duration = datetime.timedelta(seconds=round(row["session_duration"] / 1000))
         if media['media_type'] == "episode":
-            media_list.append(f"`{media['title']} (S{str(media['season_num']).zfill(2)}E"
+            show = media_table.get_row(media_id=media['show_id'])
+            media_list.append(f"`{show['title']} (S{str(media['season_num']).zfill(2)}E"
                               f"{str(media['ep_num']).zfill(2)})` `[{media_duration}]`\n"
                               f"└─>{dynamic_time} for `{session_duration}`")
         else:
@@ -685,19 +687,27 @@ def get_watch_time(content, db) -> datetime.timedelta:
     """Get the total watch time of a piece of content from the plex_history_events table"""
     media_table = db.get_table("plex_watched_media")
     if isinstance(content, plexapi.video.Movie):
-        media_id = media_table.get_row(title=content.title, media_year=content.year, media_type="movie")["media_id"]
-        result = db.get('''SELECT SUM(watch_time) FROM plex_history_events WHERE media_id = ?''', (media_id,))
+        media = media_table.get_row(title=content.title, media_year=content.year, media_type="movie")
+        if media is None:
+            return datetime.timedelta(seconds=0)
+        result = db.get('''SELECT SUM(watch_time) FROM plex_history_events WHERE media_id = ?''', (media['media_id'],))
     elif isinstance(content, plexapi.video.Show):
-        media_id = media_table.get_row(title=content.title, media_year=content.year, media_type="show")["media_id"]
+        media = media_table.get_row(title=content.title, media_year=content.year, media_type="show")
+        if media is None:
+            return datetime.timedelta(seconds=0)
         result = db.get(
             '''SELECT SUM(watch_time) FROM plex_history_events WHERE media_id in 
             (SELECT media_id FROM plex_watched_media WHERE show_id = ?)''',
-            (media_id,))
+            (media['show_id'],))
     elif isinstance(content, plexapi.video.Episode):
-        show_id = media_table.get_row(title=content.grandparentTitle, media_type="show")["media_id"]
-        media_id = media_table.get_row(season_num=content.parentIndex,
-                                       ep_num=content.index, show_id=show_id)["media_id"]
-        result = db.get('''SELECT SUM(watch_time) FROM plex_history_events WHERE media_id = ?''', (media_id,))
+        show = media_table.get_row(title=content.grandparentTitle, media_type="show")
+        if show is None:
+            return datetime.timedelta(seconds=0)
+        media = media_table.get_row(season_num=content.parentIndex,
+                                       ep_num=content.index, show_id=show['show_id'])
+        if media is None:
+            return datetime.timedelta(seconds=0)
+        result = db.get('''SELECT SUM(watch_time) FROM plex_history_events WHERE media_id = ?''', (media['media_id'],))
     else:
         raise TypeError("content must be a plexapi video object")
 
@@ -710,23 +720,29 @@ def get_session_count(content, db) -> int:
     """Get the total number of sessions of a piece of content from the plex_history_events table"""
     media_table = db.get_table("plex_watched_media")
     if isinstance(content, plexapi.video.Movie):
-        media_id = media_table.get_row(title=content.title, media_year=content.year, media_type="movie")["media_id"]
-        result = db.get('''SELECT COUNT(*) FROM plex_history_events WHERE media_id = ?''', (media_id,))
+        media = media_table.get_row(title=content.title, media_year=content.year, media_type="movie")
+        if media is None:
+            return 0
+        result = db.get('''SELECT COUNT(*) FROM plex_history_events WHERE media_id = ?''', (media['media_id'],))
     elif isinstance(content, plexapi.video.Show):
-        media_id = media_table.get_row(title=content.title, media_year=content.year, media_type="show")["media_id"]
+        media = media_table.get_row(title=content.title, media_year=content.year, media_type="show")
+        if media is None:
+            return 0
         result = db.get(
             '''SELECT COUNT(*) FROM plex_history_events WHERE media_id in 
             (SELECT media_id FROM plex_watched_media WHERE show_id = ?)''',
-            (media_id,))
+            (media['show_id'],))
     elif isinstance(content, plexapi.video.Episode):
-        show_id = media_table.get_row(title=content.grandparentTitle, media_type="show")["media_id"]
-        media_id = media_table.get_row(season_num=content.parentIndex,
-                                        ep_num=content.index, show_id=show_id)["media_id"]
-        result = db.get('''SELECT COUNT(*) FROM plex_history_events WHERE media_id = ?''', (media_id,))
+        show = media_table.get_row(title=content.grandparentTitle, media_type="show")
+        if show is None:
+            return 0
+        media = media_table.get_row(season_num=content.parentIndex,
+                                        ep_num=content.index, show_id=show['show_id'])
+        if media is None:
+            return 0
+        result = db.get('''SELECT COUNT(*) FROM plex_history_events WHERE media_id = ?''', (media['media_id'],))
     else:
         raise TypeError("content must be a plexapi video object")
 
-    total_sessions = result[0][0]
-
-    return total_sessions
+    return result[0][0]
 
