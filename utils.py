@@ -133,7 +133,7 @@ async def session_embed(plex):
 
     for session in plex_sessions:
         try:
-            make_session_entry(plex, total_bandwidth, session, embed)
+            total_bandwidth += make_session_entry(plex, total_bandwidth, session, embed)
         except Exception as e:
             if hasattr(session, 'title') and hasattr(session, 'usernames'):
                 if len(session.usernames) > 0:
@@ -150,6 +150,25 @@ async def session_embed(plex):
     embed.timestamp = datetime.datetime.now()
     embed.set_footer(text=f"{round(total_bandwidth)} kps of bandwidth reserved")
     return embed
+
+
+def get_stream_parts(media: plexapi.media.Media) -> typing.Tuple[plexapi.media.VideoStream, plexapi.media.AudioStream,
+                                                                 plexapi.media.SubtitleStream]:
+    video_stream = None
+    audio_stream = None
+    subtitle_stream = None
+
+    parts = getattr(media, 'parts', [])
+    for part in parts:
+        for stream in getattr(part, 'streams', []):
+            if stream.STREAMTYPE == 1:
+                video_stream = stream
+            elif stream.STREAMTYPE == 2:
+                audio_stream = stream
+            elif stream.STREAMTYPE == 3:
+                subtitle_stream = stream
+
+    return video_stream, audio_stream, subtitle_stream
 
 
 def make_session_entry(plex, total_bandwidth, session, embed):
@@ -176,7 +195,7 @@ def make_session_entry(plex, total_bandwidth, session, embed):
 
     if len(session.media) > 1:
         # Find which media file has a bitrate closest to the reserved bitrate
-        reserved_bitrate = session_instance.bandwidth
+        reserved_bitrate = getattr(session_instance, 'bandwidth', 0)
         closest_bitrate = 0
         closest_media = None
         for media in session.media:
@@ -190,6 +209,17 @@ def make_session_entry(plex, total_bandwidth, session, embed):
         media = session.media[0]
     else:
         media = None
+
+    player = getattr(session, 'player', None)
+
+    video_stream, audio_stream, subtitle_stream = get_stream_parts(media)
+
+    if session.players[0].title:
+        device = session.players[0].title
+    elif session.players[0].model:
+        device = session.players[0].model
+    else:
+        device = session.players[0].platform
 
     current_position = datetime.timedelta(seconds=round(session.viewOffset / 1000))
     total_duration = datetime.timedelta(seconds=round(session.duration / 1000))
@@ -206,7 +236,8 @@ def make_session_entry(plex, total_bandwidth, session, embed):
             if media is None:
                 bandwidth = "Unknown media"
             else:
-                bandwidth = f"`{round(media.bitrate)}` kbps of bandwidth reserved"
+                bandwidth = f"Reserved `{media.bitrate} kps " \
+                            f"{'[RELAY]' if player.relayed else '[DIRECT]'}`"
                 total_bandwidth += media.bitrate
     else:
         bandwidth = "No bandwidth attribute!"
@@ -227,25 +258,21 @@ def make_session_entry(plex, total_bandwidth, session, embed):
     else:
         media_info = "`Multiple transcode sessions detected!`"
 
-    if session.players[0].title:
-        device = session.players[0].title
-    elif session.players[0].model:
-        device = session.players[0].model
-    else:
-        device = session.players[0].platform
+    if subtitle_stream is not None:
+        media_info += f"\n└──> `{str(subtitle_stream.codec).upper().rjust(4)}: {subtitle_stream.title}`"
 
     # print(session.__dict__)
     # print(session.session[0].__dict__)
 
     if session.type == 'movie':
-        value = f"{session.title} ({session.year})\n" \
+        value = f"{session.title[:30]} ({session.year})\n" \
                 f"{timeline}\n" \
                 f"{progress_bar}\n" \
                 f"{bandwidth}\n" \
                 f"{media_info}"
     elif session.type == 'episode':
-        value = f"{session.grandparentTitle} - `{session.parentTitle}`\n" \
-                f"{session.title} - `Episode {session.index}`\n" \
+        value = f"{session.grandparentTitle[:30]} - `{session.parentTitle}`\n" \
+                f"{session.title[:30]} - `Episode {session.index}`\n" \
                 f"{timeline}\n" \
                 f"{progress_bar}\n" \
                 f"{bandwidth}\n" \
@@ -262,6 +289,8 @@ def make_session_entry(plex, total_bandwidth, session, embed):
                         inline=False)
     except Exception as e:
         embed.add_field(name=f"{session.usernames[0]} on {device} ({type(e)})", value=value, inline=False)
+
+    return total_bandwidth
 
 
 def subtitle_details(content, max_subs=-1) -> list:
@@ -704,7 +733,7 @@ def get_watch_time(content, db) -> datetime.timedelta:
         if show is None:
             return datetime.timedelta(seconds=0)
         media = media_table.get_row(season_num=content.parentIndex,
-                                       ep_num=content.index, show_id=show['show_id'])
+                                    ep_num=content.index, show_id=show['show_id'])
         if media is None:
             return datetime.timedelta(seconds=0)
         result = db.get('''SELECT SUM(watch_time) FROM plex_history_events WHERE media_id = ?''', (media['media_id'],))
@@ -737,7 +766,7 @@ def get_session_count(content, db) -> int:
         if show is None:
             return 0
         media = media_table.get_row(season_num=content.parentIndex,
-                                        ep_num=content.index, show_id=show['show_id'])
+                                    ep_num=content.index, show_id=show['show_id'])
         if media is None:
             return 0
         result = db.get('''SELECT COUNT(*) FROM plex_history_events WHERE media_id = ?''', (media['media_id'],))
@@ -745,4 +774,3 @@ def get_session_count(content, db) -> int:
         raise TypeError("content must be a plexapi video object")
 
     return result[0][0]
-

@@ -4,17 +4,11 @@ import random
 import traceback
 import typing
 
-import plexapi.client
-from discord import ButtonStyle
-from discord.interactions import Interaction, InteractionResponse
-from discord.ext.commands import command, has_permissions, Cog, Context, BadArgument
-from discord.ui import Button, View
-from plexapi.server import PlexServer
+
+from discord.ext.commands import command, has_permissions, Cog, BadArgument
 import discord.errors as discord_errors
 import discord
 
-import plex_wrappers
-from plex_wrappers import DiscordAssociations
 from utils import get_all_library, session_embed, base_user_layer
 
 from loguru import logger as logging
@@ -323,7 +317,7 @@ class PlexBot(Cog):
                 plex_user = user
                 break
         if plex_user is None:
-            await ctx.send("User not found")
+            await ctx.send("Plex user not found")
             return
         if discord_user in ctx.plex.associations:
             await ctx.send("User already linked")

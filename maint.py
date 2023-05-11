@@ -272,8 +272,8 @@ class maintCog(Cog):
                 else:
                     new_res += line + '\n'
             if len(new_res) > 2000:
-                await ctx.send("```\n" + new_res[:2000] + "```")
-                await ctx.send("```\n" + new_res[2000:] + "```")
+                await ctx.send("```\n" + new_res[:1999] + "```")
+                await ctx.send("```\n" + new_res[2000:3999] + "```")
             else:
                 await ctx.send('```\n' + new_res + '```')
             await msg.edit(content="Restarting...")
