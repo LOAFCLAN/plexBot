@@ -740,10 +740,9 @@ def get_watch_time(content, db) -> datetime.timedelta:
         result = db.get('''SELECT SUM(watch_time) FROM plex_history_events WHERE media_id = ?''', (media['media_id'],))
     else:
         raise TypeError("content must be a plexapi video object")
-
-    total_watch_time = datetime.timedelta(seconds=round(result[0][0] / 1000))
-
-    return total_watch_time
+    if result[0][0] is None:
+        return datetime.timedelta(seconds=0)
+    return datetime.timedelta(seconds=round(result[0][0] / 1000))
 
 
 def get_session_count(content, db) -> int:
