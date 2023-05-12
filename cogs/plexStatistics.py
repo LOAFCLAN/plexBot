@@ -137,7 +137,7 @@ class PlexStatistics(commands.Cog):
                     AS show ON show.media_type = 'show'
                 WHERE media.media_type = 'episode' and show.media_id = media.show_id AND show.library_id = ?
                 GROUP BY show.media_id
-                ORDER BY total_watch_time / length DESC LIMIT 10""", (library.key,))
+                ORDER BY (total_watch_time * 1000 / length) DESC LIMIT 15""", (library.key,))
             else:
                 most_popular = self.bot.database.get("""
                 SELECT media.title, media.media_guid,
@@ -145,9 +145,9 @@ class PlexStatistics(commands.Cog):
                 media.media_length AS length
                 FROM plex_watched_media AS media
                 JOIN plex_history_events AS events ON events.media_id = media.media_id
-                WHERE media.media_type = 'movie', media.library_id = ?
+                WHERE media.media_type = 'movie' AND media.library_id = ?
                 GROUP BY media.media_id
-                ORDER BY total_watch_time / length DESC LIMIT 10;""", (library.key,))
+                ORDER BY (total_watch_time * 1000 / length) DESC LIMIT 15;""", (library.key,))
 
             # print(most_popular)
 
@@ -155,7 +155,7 @@ class PlexStatistics(commands.Cog):
                                value="\n".join([f"`{str(i + 1).zfill(2)}. "
                                                 f"{round(media[2] / media[3] * 100)}%` - "
                                                 f"`{datetime.timedelta(seconds=media[2])}` - "
-                                                f"`{media[0]}`"
+                                                f"`{media[0][:25]}`"
                                                 for i, media in enumerate(most_popular)]), inline=False)
             await message.edit(embed=embed)
 

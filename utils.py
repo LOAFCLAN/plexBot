@@ -724,11 +724,12 @@ def get_watch_time(content, db) -> datetime.timedelta:
     elif isinstance(content, plexapi.video.Show):
         media = media_table.get_row(title=content.title, media_year=content.year, media_type="show")
         if media is None:
+            logging.warning(f"Could not find {content.title} in the database")
             return datetime.timedelta(seconds=0)
+        print(media)
         result = db.get(
-            '''SELECT SUM(watch_time) FROM plex_history_events WHERE media_id in 
-            (SELECT media_id FROM plex_watched_media WHERE show_id = ?)''',
-            (media['show_id'],))
+            f'''SELECT SUM(watch_time) FROM plex_history_events WHERE media_id in 
+            (SELECT media_id FROM plex_watched_media WHERE show_id = {media['media_id']})''')
     elif isinstance(content, plexapi.video.Episode):
         show = media_table.get_row(title=content.grandparentTitle, media_type="show")
         if show is None:
@@ -741,6 +742,7 @@ def get_watch_time(content, db) -> datetime.timedelta:
     else:
         raise TypeError("content must be a plexapi video object")
     if result[0][0] is None:
+        logging.warning(f"Watch time for {content.title} was None")
         return datetime.timedelta(seconds=0)
     return datetime.timedelta(seconds=round(result[0][0] / 1000))
 
@@ -758,9 +760,8 @@ def get_session_count(content, db) -> int:
         if media is None:
             return 0
         result = db.get(
-            '''SELECT COUNT(*) FROM plex_history_events WHERE media_id in 
-            (SELECT media_id FROM plex_watched_media WHERE show_id = ?)''',
-            (media['show_id'],))
+            f'''SELECT COUNT(*) FROM plex_history_events WHERE media_id in 
+            (SELECT media_id FROM plex_watched_media WHERE show_id = {media['media_id']})''')
     elif isinstance(content, plexapi.video.Episode):
         show = media_table.get_row(title=content.grandparentTitle, media_type="show")
         if show is None:
