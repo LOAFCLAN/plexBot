@@ -259,8 +259,9 @@ def make_session_entry(plex, total_bandwidth, session, embed):
         media_info = "`Multiple transcode sessions detected!`"
 
     if subtitle_stream is not None:
+        name = subtitle_stream.title if subtitle_stream.title else subtitle_stream.language
         media_info += f"\n└──> `{str(subtitle_stream.codec).upper().rjust(4)}:" \
-                      f" {subtitle_stream.title if subtitle_stream.title else subtitle_stream.language}`"
+                      f" {name if name else 'Unknown language'}`"
 
     # print(session.__dict__)
     # print(session.session[0].__dict__)
