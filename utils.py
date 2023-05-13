@@ -133,7 +133,7 @@ async def session_embed(plex):
 
     for session in plex_sessions:
         try:
-            total_bandwidth += make_session_entry(plex, total_bandwidth, session, embed)
+            total_bandwidth += make_session_entry(plex, session, embed)
         except Exception as e:
             if hasattr(session, 'title') and hasattr(session, 'usernames'):
                 if len(session.usernames) > 0:
@@ -171,7 +171,7 @@ def get_stream_parts(media: plexapi.media.Media) -> typing.Tuple[plexapi.media.V
     return video_stream, audio_stream, subtitle_stream
 
 
-def make_session_entry(plex, total_bandwidth, session, embed):
+def make_session_entry(plex, session, embed):
     if not session.isFullObject:
         session.reload(checkFiles=False)
         if not session.isFullObject:
@@ -229,6 +229,7 @@ def make_session_entry(plex, total_bandwidth, session, embed):
 
     timeline = f"{current_position} / {total_duration} - {str(session.players[0].state).capitalize()}"
 
+    raw_bandwidth = 0
     if hasattr(session_instance, "location"):
         if session_instance.location.startswith("lan"):
             bandwidth = "Local session, no bandwidth reserved"
@@ -238,7 +239,7 @@ def make_session_entry(plex, total_bandwidth, session, embed):
             else:
                 bandwidth = f"Reserved `{media.bitrate} kps " \
                             f"{'[RELAY]' if player.relayed else '[DIRECT]'}`"
-                total_bandwidth += media.bitrate
+                raw_bandwidth = media.bitrate
     else:
         bandwidth = "No bandwidth attribute!"
 
@@ -292,7 +293,7 @@ def make_session_entry(plex, total_bandwidth, session, embed):
     except Exception as e:
         embed.add_field(name=f"{session.usernames[0]} on {device} ({type(e)})", value=value, inline=False)
 
-    return total_bandwidth
+    return raw_bandwidth
 
 
 def subtitle_details(content, max_subs=-1) -> list:
