@@ -239,8 +239,8 @@ class PlexHistory(commands.Cog):
             text = f"{user.mention()} watched this on an unknown device\n" \
                    f"They watched `{watched_time}` of `{duration}`\n"
         embed = discord.Embed(description=text, color=0x00ff00, timestamp=time)
-        embed.title = f"{session.title} {f'({session.year})' if session.type != 'episode' else ''}"
         if session.type == "episode":
+            embed.title = f"{session.title}"
             embed.set_author(name=f"{session.grandparentTitle} - "
                                   f"S{str(session.parentIndex).zfill(2)}E{str(session.index).zfill(2)}",
                              icon_url=user.avatar_url())
