@@ -214,6 +214,8 @@ class PlexSearch(commands.Cog):
 
         ###############################################################################################################
 
+        db_entry = self.bot.database.get_table("plex_watched_media").get_row(media_guid=content.guid)
+
         # if inter is not None:
         #     await inter.disable_components()
 
@@ -224,7 +226,8 @@ class PlexSearch(commands.Cog):
         # embed.set_footer(text=f"{content.guid}", icon_url=requester.avatar_url)
         embed.set_author(name=f"Requested by: {requester.display_name}", icon_url=requester.display_avatar.url)
 
-        embed.set_footer(text=f"Located in {content.librarySectionTitle}")
+        embed.set_footer(text=f"Located in {content.librarySectionTitle}, "
+                              f"MediaID: {db_entry['media_id'] if db_entry else 'N/A'}")
         if view:
             await edit_msg.edit(embed=embed, view=view)
         else:

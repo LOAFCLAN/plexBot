@@ -719,25 +719,20 @@ def get_watch_time(content, db) -> datetime.timedelta:
     """Get the total watch time of a piece of content from the plex_history_events table"""
     media_table = db.get_table("plex_watched_media")
     if isinstance(content, plexapi.video.Movie):
-        media = media_table.get_row(title=content.title, media_year=content.year, media_type="movie")
+        media = media_table.get_row(media_guid=content.guid, media_type="movie")
         if media is None:
             return datetime.timedelta(seconds=0)
         result = db.get('''SELECT SUM(watch_time) FROM plex_history_events WHERE media_id = ?''', (media['media_id'],))
     elif isinstance(content, plexapi.video.Show):
-        media = media_table.get_row(title=content.title, media_year=content.year, media_type="show")
+        media = media_table.get_row(media_guid=content.guid, media_type="show")
         if media is None:
             logging.warning(f"Could not find {content.title} in the database")
             return datetime.timedelta(seconds=0)
-        print(media)
         result = db.get(
             f'''SELECT SUM(watch_time) FROM plex_history_events WHERE media_id in 
             (SELECT media_id FROM plex_watched_media WHERE show_id = {media['media_id']})''')
     elif isinstance(content, plexapi.video.Episode):
-        show = media_table.get_row(title=content.grandparentTitle, media_type="show")
-        if show is None:
-            return datetime.timedelta(seconds=0)
-        media = media_table.get_row(season_num=content.parentIndex,
-                                    ep_num=content.index, show_id=show['show_id'])
+        media = media_table.get_row(media_guid=content.guid, media_type="episode")
         if media is None:
             return datetime.timedelta(seconds=0)
         result = db.get('''SELECT SUM(watch_time) FROM plex_history_events WHERE media_id = ?''', (media['media_id'],))

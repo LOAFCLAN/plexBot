@@ -503,6 +503,7 @@ class SessionChangeWatcher:
         self.server = server_object
         self.watchers = []
         self.callbacktoback = callback
+        self.failback = None
         self.channel = channel
         self.task = asyncio.get_event_loop().create_task(self.observer())
         logging.info(f"Created SessionChangeWatcher for {self.server.friendlyName}")

@@ -1,6 +1,7 @@
 import asyncio
 import datetime
 import random
+import traceback
 
 import discord
 import plexapi.video
@@ -181,9 +182,17 @@ class PlexHistory(commands.Cog):
         self.bot.session_watchers.append(SessionChangeWatcher(plex, self.on_watched, channel))
 
     async def on_watched(self, watcher, channel):
-        m_hash = hash_media_event(watcher.session)
-        if m_hash not in self.sent_hashes:
+        try:
             await self.send_history_message(channel.guild, channel, watcher, await self.bot.fetch_plex(channel.guild))
+        except Exception as e:
+            logging.error(f"Error sending history message: {e}")
+            logging.exception(e)
+            await self.send_history_error(channel, e)
+
+    async def send_history_error(self, channel, error):
+        embed = discord.Embed(title="Plex History Message Error", description=f"`{error}`", color=0xff0000)
+        embed.add_field(name="Traceback", value=f"```{traceback.format_exc()[0:1000]}```")
+        await channel.send(embed=embed)
 
     async def send_history_message(self, guild, channel, watcher: SessionWatcher, plex):
 
@@ -226,8 +235,8 @@ class PlexHistory(commands.Cog):
         text = f"{user.mention()} watched this with `{device.name}` on `{device.platform.capitalize()}`\n" \
                f"They watched `{watched_time}` of `{duration}`\n"
         embed = discord.Embed(description=text, color=0x00ff00, timestamp=time)
+        embed.title = f"{session.title} {f'({session.year})' if session.type != 'episode' else ''}"
         if session.type == "episode":
-            embed.title = f"{session.title} {f'({session.year})' if session.type != 'episode' else ''}"
             embed.set_author(name=f"{session.grandparentTitle} - "
                                   f"S{str(session.parentIndex).zfill(2)}E{str(session.index).zfill(2)}",
                              icon_url=user.avatar_url())
@@ -294,6 +303,60 @@ class PlexHistory(commands.Cog):
 
         msg_table = self.bot.database.get_table("plex_history_messages")
         msg_table.add(guild_id=msg.guild.id, message_id=msg.id, event_id=entry["event_id"])
+
+    @has_permissions(manage_messages=True)
+    @commands.command(name="manual_history", aliases=["add_event"],
+                      description="Manually add a history entry if it was missed")
+    async def manual_history(self, ctx, user_id: int, media_id):
+        history_channel_id = self.bot.database.get_table(
+            "plex_history_channel").get_row(guild_id=ctx.guild.id)["channel_id"]
+        history_channel = self.bot.get_channel(history_channel_id)
+        media = self.bot.database.get_table("plex_watched_media").get_row(media_id=media_id, guild_id=ctx.guild.id)
+        if not media:
+            await ctx.send("Could not find media with that ID")
+            return
+        user = ctx.guild.get_member(user_id)
+        if not user:
+            plex_user = ctx.plex.associations.get(user_id)
+        else:
+            plex_user = ctx.plex.associations.get(user)
+
+        media_hash = hash_media_event(media)
+        # Assume the user watched the whole thing and that the session was alive for the same amount of time
+        event_table = self.bot.database.get_table("plex_history_events")
+        message_table = self.bot.database.get_table("plex_history_messages")
+        event_table.add(event_id=media_hash, guild_id=ctx.guild.id,
+                        history_time=datetime.datetime.now().timestamp(),
+                        account_id=plex_user.id(plex_only=True), media_id=media["media_id"],
+                        pb_start_offset=0, pb_end_offset=media["media_length"] * 1000,
+                        session_duration=media["media_length"] * 1000,
+                        watch_time=media["media_length"] * 1000)
+
+        length = datetime.timedelta(seconds=media["media_length"])
+        text = f"{plex_user.mention()} watched this with `Unknown` on `Unknown`\n" \
+               f"They watched `{length}` of `{length}`"
+        embed = discord.Embed(description=text, color=discord.Color.yellow())
+        if media["media_type"] == "episode":
+            show = self.bot.database.get_table("plex_watched_media").get_row(
+                media_id=media["show_id"], guild_id=ctx.guild.id)
+            embed.set_author(name=f"{show['title']} - S{media['season_num']}E{media['ep_num']}",
+                             icon_url=plex_user.avatar_url())
+            embed.title = f"{media['title']}"
+        else:
+            embed.set_author(name=f"{media['title']} ({media['media_year']})",
+                             icon_url=plex_user.avatar_url())
+        start_position = datetime.timedelta(seconds=0)
+        current_position = datetime.timedelta(seconds=media["media_length"])
+        progress_bar = text_progress_bar_maker(media["media_length"], 0, media["media_length"])
+        embed.add_field(name=f"Progress: {start_position}->{current_position}",
+                        value=progress_bar, inline=False)
+
+        # Add the components
+        view = self.HistoryOptions()
+        embed.set_footer(text="This session was added manually")
+        msg = await history_channel.send(embed=embed, view=view)
+        message_table.add(guild_id=ctx.guild.id, message_id=msg.id, event_id=media_hash)
+        await ctx.send("Added history entry")
 
     @has_permissions(administrator=True)
     @command(name="set_history_channel", aliases=["shc"])
