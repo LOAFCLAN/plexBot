@@ -227,7 +227,8 @@ class PlexSearch(commands.Cog):
         embed.set_author(name=f"Requested by: {requester.display_name}", icon_url=requester.display_avatar.url)
 
         embed.set_footer(text=f"Located in {content.librarySectionTitle}, "
-                              f"MediaID: {db_entry['media_id'] if db_entry else 'N/A'}")
+                              f"Media ID: {db_entry['media_id'] if db_entry else 'N/A'}\n" 
+                              f"GUID: {content.guid}")
         if view:
             await edit_msg.edit(embed=embed, view=view)
         else:
