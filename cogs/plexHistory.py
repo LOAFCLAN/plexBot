@@ -232,8 +232,12 @@ class PlexHistory(commands.Cog):
         watched_time = datetime.timedelta(seconds=round(watcher.watch_time))
 
         # Calculate the amount of content that was skipped based on the start and end positions and the watched time
-        text = f"{user.mention()} watched this with `{device.name}` on `{device.platform.capitalize()}`\n" \
-               f"They watched `{watched_time}` of `{duration}`\n"
+        if device:
+            text = f"{user.mention()} watched this with `{device.name}` on `{device.platform.capitalize()}`\n" \
+                   f"They watched `{watched_time}` of `{duration}`\n"
+        else:
+            text = f"{user.mention()} watched this on an unknown device\n" \
+                   f"They watched `{watched_time}` of `{duration}`\n"
         embed = discord.Embed(description=text, color=0x00ff00, timestamp=time)
         embed.title = f"{session.title} {f'({session.year})' if session.type != 'episode' else ''}"
         if session.type == "episode":
