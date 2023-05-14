@@ -234,10 +234,16 @@ class PlexSearch(commands.Cog):
 
         embed.set_footer(text=f"Located in {content.librarySectionTitle}, "
                               f"Media ID: {db_entry['media_id'] if db_entry else 'N/A'}")
+
         if view:
             await edit_msg.edit(embed=embed, view=view)
         else:
             await edit_msg.edit(embed=embed, view=None)
+
+    async def on_timeout(self, view):
+        """Called when a button times out"""
+        # remove the view
+        await view.message.edit(view=None, embed=view.message.embeds[0])
 
     @command(name="library", aliases=["lib", "libraries"], description="List all libraries")
     async def library_list(self, ctx):

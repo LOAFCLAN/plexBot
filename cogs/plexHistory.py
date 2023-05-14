@@ -151,7 +151,10 @@ class PlexHistory(commands.Cog):
             if entry["media_type"] == "episode":
                 show_entry = client.database.get_table("plex_watched_media").get_row(media_id=entry["show_id"])
                 if show_entry:
-                    show = library.getGuid(show_entry["media_guid"])
+                    try:
+                        show = library.getGuid(show_entry["media_guid"])
+                    except plexapi.exceptions.NotFound:
+                        return None
                     media = show.episode(
                         title=entry["title"], season=int(entry["season_num"]), episode=int(entry["ep_num"]))
                 else:
