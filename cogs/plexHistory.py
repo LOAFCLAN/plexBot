@@ -53,7 +53,7 @@ class PlexHistory(commands.Cog):
                 row.set(rating=review)
                 await interaction.response.send_message("Review updated", ephemeral=True)
             else:
-                table.add_row(media_id=self.media_id, user_id=interaction.user.id, rating=review)
+                table.add(media_id=self.media_id, user_id=interaction.user.id, rating=review)
                 await interaction.response.send_message("Review added", ephemeral=True)
 
     class HistoryOptions(discord.ui.View):
