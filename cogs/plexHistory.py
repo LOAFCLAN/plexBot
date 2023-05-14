@@ -52,7 +52,7 @@ class PlexHistory(commands.Cog):
                 media = await self.media_from_entry(interaction.message.guild, interaction.client, media_entry[0])
                 if media:
                     # Get the embed
-                    embed = self.media_embed(media)
+                    embed = self.media_embed(media, interaction.client.database, media_entry[0]["media_id"])
                     # Send the embed
                     await interaction.response.send_message(embed=embed, ephemeral=True)
                 else:
@@ -115,7 +115,7 @@ class PlexHistory(commands.Cog):
             return media
 
         @staticmethod
-        def media_embed(content):
+        def media_embed(content, database, media_id):
 
             if content.isPartialObject():  # If the media is only partially loaded
                 content.reload()  # do it correctly this time
@@ -123,17 +123,20 @@ class PlexHistory(commands.Cog):
             if isinstance(content, plexapi.video.Movie):
                 embed = discord.Embed(title=f"{content.title} ({content.year})",
                                       description=f"{content.tagline}", color=0x00ff00)
-                base_info_layer(embed, content)  # Add the base info layer to the embed
+                base_info_layer(embed, content, database=database)  # Add the base info layer to the embed
 
             elif isinstance(content, plexapi.video.Episode):  # ------------------------------------------------------
                 """Format the embed being sent for an episode"""
                 embed = discord.Embed(title=f"{content.grandparentTitle}\n{content.title} "
                                             f"(S{content.parentIndex}E{content.index})",
                                       description=f"{content.summary}", color=0x00ff00)
-                base_info_layer(embed, content)
+                base_info_layer(embed, content, database=database)
 
             else:
                 embed = discord.Embed(title=f"Unknown media type", color=0x00ff00)
+
+            embed.set_footer(text=f"Located in {content.librarySectionTitle}, "
+                                  f"Media ID: {media_id if media_id else 'N/A'}")
 
             if hasattr(content, "thumb"):
                 thumb_url = cleanup_url(content.thumb)
