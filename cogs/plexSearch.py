@@ -75,6 +75,8 @@ class PlexSearch(commands.Cog):
                 custom_id=f"content_search_{ctx.message.id}",
                 placeholder="Select a result"
             )
+            # Remove any duplicates
+            labels = []
             for result in results:
                 if result.type == "movie":
                     label = f"{result.title} ({result.year})"
@@ -86,7 +88,11 @@ class PlexSearch(commands.Cog):
                     label = f"{result.grandparentTitle} - S{result.parentIndex}E{result.index} - {result.title}"
                 else:
                     label = result.title
-                select_thing.add_option(label=label, value=f"{result.title}_{result.year if result.year else ''}")
+                if label not in labels:
+                    labels.append(label)
+                    select_thing.add_option(label=label, value=f"{result.title}_{result.year if result.year else ''}")
+                else:
+                    logging.info(f"Duplicate result found: {label}")
             select_thing.callback = self.on_select
             view = View()
             view.add_item(select_thing)
@@ -227,8 +233,7 @@ class PlexSearch(commands.Cog):
         embed.set_author(name=f"Requested by: {requester.display_name}", icon_url=requester.display_avatar.url)
 
         embed.set_footer(text=f"Located in {content.librarySectionTitle}, "
-                              f"Media ID: {db_entry['media_id'] if db_entry else 'N/A'}\n" 
-                              f"GUID: {content.guid}")
+                              f"Media ID: {db_entry['media_id'] if db_entry else 'N/A'}")
         if view:
             await edit_msg.edit(embed=embed, view=view)
         else:
