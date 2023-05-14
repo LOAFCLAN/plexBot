@@ -123,6 +123,18 @@ class CombinedUser:
             return True
         return False
 
+    @property
+    def plex_id(self):
+        if self.plex_user is not None:
+            return self.plex_user.id
+        return self.__plex_id__
+
+    @property
+    def discord_id(self):
+        if self.discord_member is not None:
+            return self.discord_member.id
+        return None
+
     def display_name(self, plex_only=False, discord_only=False):
         if self.discord_id_only and not plex_only:
             return f"(ID: {self.discord_member})"

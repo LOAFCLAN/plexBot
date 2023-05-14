@@ -27,6 +27,35 @@ def hash_media_event(media) -> int:
 
 
 class PlexHistory(commands.Cog):
+
+    class ReviewModal(discord.ui.Modal):
+
+        review_value = discord.ui.TextInput(label="Score", style=discord.TextStyle.short, min_length=1, max_length=3)
+
+        def __init__(self, media_id, *, timeout=None):
+            super().__init__(title="Media Review", timeout=timeout)
+            self.media_id = media_id
+
+        async def on_submit(self, interaction: discord.Interaction):  # pylint: disable=arguments-differ
+            """Handles when a modal is submitted"""
+            review = self.review_value.value
+            if not review.isdigit():
+                await interaction.response.send_message("Score must be a number", ephemeral=True)
+                return
+            review = int(review)
+            if review < 0 or review > 100:
+                await interaction.response.send_message("Score must be between 0 and 100", ephemeral=True)
+                return
+            logging.info(f"Review: {review}")
+            table = interaction.client.database.get_table("plex_afs_ratings")
+            row = table.get_row(media_id=self.media_id, user_id=interaction.user.id)
+            if row:
+                row.set(rating=review)
+                await interaction.response.send_message("Review updated", ephemeral=True)
+            else:
+                table.add_row(media_id=self.media_id, user_id=interaction.user.id, rating=review)
+                await interaction.response.send_message("Review added", ephemeral=True)
+
     class HistoryOptions(discord.ui.View):
 
         def __init__(self, *, timeout=None):
@@ -36,17 +65,9 @@ class PlexHistory(commands.Cog):
                            emoji="📹")
         async def media_info_button(self, interaction: discord.Interaction, button: discord.ui.Button):
             # Get the message ID
-            message_id = interaction.message.id
-            # Get the event from the database
-            table = interaction.client.database.get_table("plex_history_messages")
-            message = table.get_row(message_id=message_id)
-            history_entry = message.get("plex_history_events")
-            if len(history_entry) == 0:
-                await interaction.response.send_message("No history found for this message", ephemeral=True)
-                return
-            history_entry = history_entry[0]
+            event = self.get_event(interaction)
             # Get the media from the database
-            media_entry = history_entry.get("plex_watched_media")
+            media_entry = event.get("plex_watched_media")
             # Get the media object
             if len(media_entry) == 1:
                 media = await self.media_from_entry(interaction.message.guild, interaction.client, media_entry[0])
@@ -65,19 +86,7 @@ class PlexHistory(commands.Cog):
         @discord.ui.button(label="User Info", style=ButtonStyle.green, custom_id="userinfo",
                            emoji="\N{BUSTS IN SILHOUETTE}")
         async def user_info_button(self, interaction: discord.Interaction, button: discord.ui.Button):
-            # Get the message ID
-            message_id = interaction.message.id
-            # Get the event from the database
-            table = interaction.client.database.get_table("plex_history_messages")
-            message = table.get_row(message_id=message_id)
-            if message is None:
-                await interaction.response.send_message("Unknown History Message", ephemeral=True)
-                return
-            event = message.get("plex_history_events")
-            if len(event) == 0:
-                await interaction.response.send_message("No history found for this message", ephemeral=True)
-                return
-            event = event[0]
+            event = self.get_event(interaction)
             if event:
                 # Get the user ID
                 account_id = event["account_id"]
@@ -90,10 +99,48 @@ class PlexHistory(commands.Cog):
                 await interaction.response.send_message("PlexBot was unable to find this media event in the database.",
                                                         ephemeral=True)
 
-        @discord.ui.button(label="Mobile View", style=ButtonStyle.green, custom_id="mobileview",
-                           emoji="📱")
-        async def mobile_view_button(self, button: discord.ui.Button, interaction: Interaction):
-            pass
+        @discord.ui.button(label="Add Rating", style=ButtonStyle.grey, custom_id="addrating",
+                           emoji="📝")
+        async def add_rating_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+            # Verify that the user clicking the button is the same user who watched the media
+            # Get the message ID
+            event = self.get_event(interaction)
+            if event:
+                # Get the user ID
+                account_id = event["account_id"]
+                guild = interaction.guild
+                plex = await interaction.client.fetch_plex(guild)
+                user = plex.associations.get(account_id)
+                if interaction.user.id == user.discord_id:
+                    # Get the media from the database
+                    media_entry = event.get("plex_watched_media")
+                    # Get the media object
+                    if len(media_entry) == 1:
+                        # Create a popup view
+                        await interaction.response.send_modal(PlexHistory.ReviewModal(media_entry[0]["media_id"],
+                                                                                      timeout=60))
+                    else:
+                        await interaction.response.send_message("PlexBot was able to find a watch event but"
+                                                                " was unable to find the media entry"
+                                                                " associated with it",
+                                                                ephemeral=True)
+                else:
+                    await interaction.response.send_message("You are not the user who watched this media!",
+                                                            ephemeral=True)
+
+        def get_event(self, interaction: discord.Interaction):
+            # Get the message ID
+            message_id = interaction.message.id
+            # Get the event from the database
+            table = interaction.client.database.get_table("plex_history_messages")
+            message = table.get_row(message_id=message_id)
+            if message is None:
+                return None
+            event = message.get("plex_history_events")
+            if len(event) == 0:
+                return None
+            event = event[0]
+            return event
 
         @staticmethod
         async def media_from_entry(guild, client, entry):
@@ -394,8 +441,9 @@ class PlexHistory(commands.Cog):
             if entry["message_id"] in message_cache:
                 message = message_cache[entry["message_id"]]
                 # Check if the message's buttons have the right custom_id
-                if message.components[0].children[0].custom_id == "mediainfo":
-                    continue
+                if len(message.components) > 0:
+                    if message.components[0].children[2].custom_id == "addrating":
+                        continue
                 view = self.HistoryOptions()
                 await message.edit(view=view)
                 await asyncio.sleep(7.5)

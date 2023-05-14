@@ -7,7 +7,7 @@ import sys
 import traceback
 from decimal import InvalidContext
 
-from ConcurrentDatabase.Database import Database
+from ConcurrentDatabase.Database import Database, CreateTableLink
 
 from discord.ext import commands
 from discord.utils import oauth_url
@@ -61,6 +61,12 @@ class PlexBot(commands.Bot):
                                                              "PRIMARY KEY": "(event_hash, guild_id)"})
         self.database.create_table("plex_devices", {"account_id": "INTEGER", "device_id": "STRING",
                                                     "last_seen": "INT", "PRIMARY KEY": "(account_id, device_id)"})
+        self.database.create_table("plex_afs_ratings",
+                                   {"media_id": "INTEGER", "user_id": "INTEGER", "rating": "INTEGER",
+                                    "PRIMARY KEY": "(media_id, user_id)"},
+                                   linked_tables=[
+                                       CreateTableLink(target_table="plex_watched_media", target_key="media_id",
+                                                       source_table="plex_afs_ratings", source_key="media_id")])
         logging.info("Database initialized, performing migrations")
         database_migrations.preform_migrations(self.database)
         logging.info("Migrations complete")

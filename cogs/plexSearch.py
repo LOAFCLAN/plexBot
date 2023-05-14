@@ -172,7 +172,7 @@ class PlexSearch(commands.Cog):
         elif isinstance(content, plexapi.video.Show):  # ----------------------------------------------------------
             """Format the embed being sent for a show"""
 
-            rating_string = rating_str(content)
+            rating_string = rating_str(content, database=self.bot.database)
 
             embed = discord.Embed(title=f"{safe_field(content.title)}",
                                   description=f"{content.tagline if content.tagline else 'No Tagline'}", color=0x00ff00)

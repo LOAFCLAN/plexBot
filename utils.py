@@ -426,15 +426,51 @@ def rating_formatter(rating):
     if rating is None:
         return "N/A"
     else:
-        return f"{round(rating * 10)}%"
+        return f"{str(round(rating * 10)).zfill(2)}%"
 
 
-def rating_str(content) -> str:
+def get_afs_rating(content, database):
+    if content.type == "movie" or content.type == "episode":
+        media = database.get_table("plex_watched_media").get_row(media_guid=content.guid)
+        ratings = media.get("plex_afs_ratings")
+        total = sum([rating['rating'] for rating in ratings])
+        if len(ratings) == 0:
+            return None
+        return (total / len(ratings)) / 10
+    elif content.type == "show":
+        ratings = []
+        for episode in content.episodes():
+            media = database.get_table("plex_watched_media").get_row(media_guid=episode.guid)
+            if media is not None:
+                ratings += media.get("plex_afs_ratings")
+        total = sum([rating['rating'] for rating in ratings])
+        if len(ratings) == 0:
+            return None
+        return (total / len(ratings)) / 10
+    else:
+        logging.debug(f"Content type {content.type} not supported")
+        return None
+
+
+def rating_str(content, database=None) -> str:
     """Get the rating string for a media"""
     if hasattr(content, 'audienceRating') and hasattr(content, 'rating'):
         rating_string = f"`{content.contentRating}` | " \
                         f"Audience `{rating_formatter(content.audienceRating)}`" \
                         f" | Critics `{rating_formatter(content.rating)}`"
+        if database is not None:
+            try:
+                afs_rating = get_afs_rating(content, database)
+                if afs_rating is not None:
+                    rating_string += f" | AFS `{rating_formatter(afs_rating)}`"
+                else:
+                    rating_string += " | AFS `N/A`"
+            except Exception as e:
+                logging.error(f"Error getting AFS rating for {content.title}: {e}")
+                logging.exception(e)
+                rating_string += f" | AFS `N/A`"
+        else:
+            rating_string += f" | AFS `N/A`"
     else:
         rating_string = "No ratings available"
     return rating_string
@@ -591,7 +627,7 @@ def base_info_layer(embed, content, database=None):
 
     media_info = get_media_info(content.media)
 
-    embed.add_field(name="Ratings", value=rating_str(content), inline=False)
+    embed.add_field(name="Ratings", value=rating_str(content, database), inline=False)
     rounded_duration = round(content.duration / 1000)  # Convert time to seconds and round
 
     if hasattr(content, 'genres'):
