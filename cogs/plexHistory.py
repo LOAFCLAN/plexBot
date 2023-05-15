@@ -70,19 +70,19 @@ class PlexHistory(commands.Cog):
             media_entry = event.get("plex_watched_media")
             # Get the media object
             if len(media_entry) == 1:
+                await interaction.response.defer(thinking=True, ephemeral=True)
+                original_response = await interaction.original_response()
                 media = await self.media_from_guid(interaction.message.guild, interaction.client,
                                                    media_entry[0], interaction)
                 if media:
                     # Get the embed
                     embed = self.media_embed(media, interaction.client.database, media_entry[0]["media_id"])
                     # Send the embed
-                    await interaction.response.send_message(embed=embed, ephemeral=True)
+                    await original_response.edit(embed=embed)
                 else:
-                    await interaction.response.send_message("Media not found", ephemeral=True)
+                    await original_response.edit(content="Media not found")
             else:
-                await interaction.response.send_message("PlexBot was able to find a watch event but"
-                                                        " was unable to find the media entry associated with it",
-                                                        ephemeral=True)
+                await interaction.response.send_message("Media not found", ephemeral=True)
 
         @discord.ui.button(label="User Info", style=ButtonStyle.green, custom_id="userinfo",
                            emoji="\N{BUSTS IN SILHOUETTE}")
@@ -152,6 +152,7 @@ class PlexHistory(commands.Cog):
             if entry["media_type"] == "episode":
                 show_entry = client.database.get_table("plex_watched_media").get_row(media_id=entry["show_id"])
                 if show_entry:
+                    # tell discord we are thinking
                     show = get_from_guid(library, show_entry["media_guid"])
                     if show:
                         media = show.episode(

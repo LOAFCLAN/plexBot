@@ -399,7 +399,7 @@ def get_media_info(media_list: [plexapi.media.Media]) -> list:
 
 def get_from_guid(library, guid):
     try:
-        library.getGuid(guid)
+        return library.getGuid(guid)
     except plexapi.exceptions.NotFound:
         logging.warning(f"Could not find {guid} in {library.title} using getGuid")
         library_content = library.all()

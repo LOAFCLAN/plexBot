@@ -24,7 +24,7 @@ class PlexBot(Cog):
         if len(pending) == 0:
             embed = discord.Embed(title="Add User", description="There are currently no pending invites, "
                                                                 "user was not added", color=0xFF0000)
-            embed.timestamp = datetime.datetime.utcnow()
+            embed.timestamp = datetime.datetime.now()
             await ctx.send(embed=embed)
             return
         for invite in pending:
@@ -43,12 +43,12 @@ class PlexBot(Cog):
                     if library.type == "show":
                         show_library_string += f"`{library.title}` (Size: `{library.totalSize}`)\n"
                 embed.add_field(name="Show Library's", value=show_library_string, inline=True)
-                embed.timestamp = datetime.datetime.utcnow()
+                embed.timestamp = datetime.datetime.now()
                 await ctx.send(embed=embed)
                 return ctx.plex().getUser(plex_id)
 
         embed = discord.Embed(title="Add User", description="User was not found in pending invites", color=0xFF0000)
-        embed.timestamp = datetime.datetime.utcnow()
+        embed.timestamp = datetime.datetime.now()
         await ctx.send(embed=embed)
 
     def __init__(self, bot):
