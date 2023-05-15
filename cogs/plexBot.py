@@ -60,6 +60,7 @@ class PlexBot(Cog):
 
     @Cog.listener('on_ready')
     async def on_ready(self):
+        logging.info("Cog: PlexBot is ready")
         for message_config in self.activity_messages:
             self.bot.loop.create_task(self.monitor_plex(message_config[0], message_config[1], message_config[2]))
         for alert_config in self.plex_alert_channels:

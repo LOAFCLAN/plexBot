@@ -213,7 +213,7 @@ class PlexHistory(commands.Cog):
 
     @Cog.listener('on_ready')
     async def on_ready(self):
-        logging.info("Starting PlexHistory Cog")
+        logging.info("Cog: PlexHistory is ready")
         table = self.bot.database.get_table("plex_history_channel")
         for row in table.get_all():
             self.msg_cache[row[0]] = {}

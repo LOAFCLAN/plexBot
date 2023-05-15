@@ -83,7 +83,7 @@ class maintCog(Cog):
         """Rollback the database to the last backup"""
 
         # Check if the backup file exists
-        if not os.path.isfile('plex_bot.db'):
+        if not os.path.isfile('../plex_bot.db'):
             await ctx.send('No backup file found')
             return
 
@@ -97,12 +97,12 @@ class maintCog(Cog):
         second_backup.close()
 
         # Copy the backup file to the main database file
-        os.remove('plex_bot.db')
-        os.rename('plex_bot.db.bak', 'plex_bot.db')
+        os.remove('../plex_bot.db')
+        os.rename('../plex_bot.db.bak', 'plex_bot.db')
 
         # Reopen the database connections
         self.bot.database = ConcurrentDatabase.Database('plex_bot.db')
-        self.bot.backup_database = sqlite3.connect('plex_bot.db.bak')
+        self.bot.backup_database = sqlite3.connect('../plex_bot.db.bak')
         second_backup = sqlite3.connect('plex_bot.db.bak2')
         second_backup.backup(target=self.bot.backup_database)
         second_backup.close()

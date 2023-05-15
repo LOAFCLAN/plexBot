@@ -5,7 +5,7 @@ import re
 import sqlite3
 import sys
 import traceback
-from decimal import InvalidContext
+
 
 from ConcurrentDatabase.Database import Database, CreateTableLink
 
@@ -92,9 +92,6 @@ class PlexBot(commands.Bot):
         self.database_init()
         print(self.database.table_links)
         self.session_watchers = []
-        self.cog_names = [
-            'cogs.plexBot', 'maint', 'cogs.plexSearch', 'cogs.plexHistory', 'cogs.plexStatistics'
-        ]
         # self.database.execute('''CREATE TABLE IF NOT EXISTS bot_config (token TEXT, prefix TEXT)''')
         self.database.create_table("bot_config", {"token": "TEXT", "prefix": "TEXT"})
         # self.database.commit()
@@ -119,6 +116,14 @@ class PlexBot(commands.Bot):
     async def get_context(self, message, *, cls=PlexContext):
         ctx = await super().get_context(message, cls=cls)
         return ctx
+
+    async def setup_hook(self) -> None:
+        cogs = [f"cogs.{cog[:-3]}" for cog in os.listdir("cogs") if cog.endswith(".py")]
+        for cog in cogs:
+            try:
+                await self.load_extension(cog)
+            except Exception as e:
+                logging.error(f"Failed to load cog {cog}: {e}")
 
     async def fetch_plex(self, guild: discord.Guild) -> PlexServer:
         """Allows for getting a plex instance for a guild if ctx is not available"""
@@ -148,21 +153,6 @@ class PlexBot(commands.Bot):
         self.database.backup(target=self.backup_database, progress=self.db_backup_callback)
         logging.info(f"Logged in as \"{self.user.name}\" - {self.user.id}")
         logging.info(f"Discord.py API version: {discord.__version__}")
-        for cog in self.cog_names:
-            try:
-                await self.load_extension(cog)
-            except Exception as e:
-                logging.error(f"Failed to load cog {cog}: {e}")
-
-        # Run the on_ready functions for each loaded cog
-        for cog in self.cogs.values():
-            try:
-                await cog.on_ready()
-            except AttributeError:
-                pass
-            except Exception as e:
-                logging.error(f"Failed to run on_ready for cog {cog}: {e}")
-                logging.trace(e)
 
         for guild in self.guilds:
             await guild.chunk(cache=True)
@@ -220,8 +210,6 @@ class PlexBot(commands.Bot):
             await context.send(
                 '{}, That command has exceeded the max {} concurrency limit of `{}` instance! Please try again later.'.format(
                     context.author.mention, types[exception.per], exception.number))
-        elif isinstance(exception, (commands.CommandNotFound, InvalidContext)):
-            pass  # Silent ignore
         elif isinstance(exception, commands.CheckFailure):
             await context.send('{}, {}'.format(context.author.mention, exception.args[0]))
         else:
