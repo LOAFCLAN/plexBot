@@ -113,10 +113,6 @@ class PlexBot(commands.Bot):
         for extension in self.extensions:
             self.unload_extension(extension)
 
-    async def load_cogs(self):
-        for cog in self.cog_names:
-            await self.load_extension(cog)
-
     def owner(self):
         return super().owner_id
 

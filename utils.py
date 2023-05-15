@@ -397,6 +397,19 @@ def get_media_info(media_list: [plexapi.media.Media]) -> list:
     return media_info
 
 
+def get_from_guid(library, guid):
+    try:
+        library.getGuid(guid)
+    except plexapi.exceptions.NotFound:
+        logging.warning(f"Could not find {guid} in {library.title} using getGuid")
+        library_content = library.all()
+        for content in library_content:
+            if content.guid == guid:
+                return content
+        logging.warning(f"Could not find {guid} in {library.title} using all()")
+        return None
+
+
 def get_season(plex, show_name, season_num):
     for section in plex.library.sections():
         for content in section.search(show_name):

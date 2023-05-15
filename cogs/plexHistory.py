@@ -14,7 +14,7 @@ from discord.ui import Button, View, Select
 
 from plex_wrappers import SessionChangeWatcher, SessionWatcher
 from utils import base_info_layer, get_season, get_episode, cleanup_url, text_progress_bar_maker, stringify, \
-    base_user_layer, get_series_duration
+    base_user_layer, get_series_duration, get_from_guid
 
 from loguru import logger as logging
 
@@ -70,14 +70,15 @@ class PlexHistory(commands.Cog):
             media_entry = event.get("plex_watched_media")
             # Get the media object
             if len(media_entry) == 1:
-                media = await self.media_from_entry(interaction.message.guild, interaction.client, media_entry[0])
+                media = await self.media_from_guid(interaction.message.guild, interaction.client,
+                                                   media_entry[0], interaction)
                 if media:
                     # Get the embed
                     embed = self.media_embed(media, interaction.client.database, media_entry[0]["media_id"])
                     # Send the embed
                     await interaction.response.send_message(embed=embed, ephemeral=True)
                 else:
-                    await interaction.response.send_message("Bad Plex Media GUID!", ephemeral=True)
+                    await interaction.response.send_message("Media not found", ephemeral=True)
             else:
                 await interaction.response.send_message("PlexBot was able to find a watch event but"
                                                         " was unable to find the media entry associated with it",
@@ -143,7 +144,7 @@ class PlexHistory(commands.Cog):
             return event
 
         @staticmethod
-        async def media_from_entry(guild, client, entry):
+        async def media_from_guid(guild, client, entry, interaction):
             plex = await client.fetch_plex(guild)
             if entry["library_id"] == "N/A" or entry["media_guid"] == "N/A":
                 return None
@@ -151,18 +152,27 @@ class PlexHistory(commands.Cog):
             if entry["media_type"] == "episode":
                 show_entry = client.database.get_table("plex_watched_media").get_row(media_id=entry["show_id"])
                 if show_entry:
-                    try:
-                        show = library.getGuid(show_entry["media_guid"])
-                    except plexapi.exceptions.NotFound:
+                    show = get_from_guid(library, show_entry["media_guid"])
+                    if show:
+                        media = show.episode(
+                            title=entry["title"], season=int(entry["season_num"]), episode=int(entry["ep_num"]))
+                    else:
                         return None
-                    media = show.episode(
-                        title=entry["title"], season=int(entry["season_num"]), episode=int(entry["ep_num"]))
                 else:
                     logging.warning(f"Unable to find show with ID {entry['show_id']}")
-                    return None
+                    return False
             else:
-                media = library.getGuid(entry["media_guid"])
+                media = get_from_guid(library, entry["media_guid"])
             return media
+
+        @staticmethod
+        async def media_from_title(guild, client, entry):
+            plex = await client.fetch_plex(guild)
+            if entry["library_id"] == "N/A" or entry["media_guid"] == "N/A":
+                return None
+            library = plex.library.sectionByID(int(entry["library_id"]))
+            if entry["media_type"] == "episode":
+                pass
 
         @staticmethod
         def media_embed(content, database, media_id):
