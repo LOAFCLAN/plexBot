@@ -12,7 +12,7 @@ from discord.ext.commands import Cog, command, has_permissions
 # from discord_components import DiscordComponents, Button, ButtonStyle, SelectOption, Select, Interaction, ActionRow
 from discord.ui import Button, View, Select
 
-from plex_wrappers import SessionChangeWatcher, SessionWatcher
+from wrappers_utils.SessionChangeWatchers import SessionChangeWatcher, SessionWatcher
 from utils import base_info_layer, get_season, get_episode, cleanup_url, text_progress_bar_maker, stringify, \
     base_user_layer, get_series_duration, get_from_guid
 

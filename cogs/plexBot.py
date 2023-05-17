@@ -75,7 +75,8 @@ class PlexBot(Cog):
                 total_sessions = 0
                 for guild in self.bot.guilds:
                     plex = await self.bot.fetch_plex(guild)
-                    total_sessions += len(plex.sessions())
+                    if plex is not None:
+                        total_sessions += len(plex.sessions())
                 if total_sessions == 0:
                     await self.bot.change_presence(activity=discord.Activity(type=discord.ActivityType.watching,
                                                                              name="Plex"))
@@ -131,7 +132,21 @@ class PlexBot(Cog):
             while True:
                 try:
                     # Get the current discord ratelimit bucket for this channel
-                    embed = await session_embed(plex)
+
+                    if plex is None:
+                        embed = discord.Embed(title="Plex Monitor",
+                                              description="Unable to establish a connection to the Plex server",
+                                              color=0xFF0000)
+                        embed.timestamp = datetime.datetime.now()
+                        plex = await self.bot.fetch_plex(guild)
+                    elif plex is False:
+                        embed = discord.Embed(title="Plex Monitor",
+                                              description="No Plex server has been configured",
+                                                color=0xFF0000)
+                        embed.timestamp = datetime.datetime.now()
+                        plex = await self.bot.fetch_plex(guild)
+                    else:
+                        embed = await session_embed(plex)
                     await message.edit(embed=embed, content="")
                     await asyncio.sleep(10)
                     # await log_scan()

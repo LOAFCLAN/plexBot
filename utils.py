@@ -712,7 +712,9 @@ def base_user_layer(user: CombinedUser, database):
     history_events = history_table.select(f"account_id = '{accountID}'", order_by="history_time DESC", limit=6)
     media_list = []
     for row in history_events:
-        media = row.get("plex_watched_media")[0]
+        media = row.get("plex_watched_media")[0] if len(row.get("plex_watched_media")) > 0 else None
+        if media is None:
+            continue
         timestamp = datetime.datetime.fromtimestamp(int(row['history_time']), tz=datetime.timezone.utc)
         dynamic_time = f"<t:{round(timestamp.timestamp())}:f>"
         media_duration = datetime.timedelta(seconds=round((row["watch_time"] / 1000)))

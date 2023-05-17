@@ -125,23 +125,23 @@ class PlexBot(commands.Bot):
             except Exception as e:
                 logging.error(f"Failed to load cog {cog}: {e}")
 
-    async def fetch_plex(self, guild: discord.Guild) -> PlexServer:
+    async def fetch_plex(self, guild: discord.Guild, passive=False) -> PlexServer:
         """Allows for getting a plex instance for a guild if ctx is not available"""
         guild_id = guild.id
         if guild_id not in plex_servers:
             server_entry = self.database.get_table("plex_servers").get_row(guild_id=guild_id)
             if server_entry is None:
                 logging.warning(f"No plex server found for guild {guild_id}")
-                raise ValueError("No plex server found for this guild")
+                return False
             try:
                 logging.debug(f"Connecting to plex server {server_entry['server_url']} for guild {guild_id}")
                 plex_servers[guild_id] = PlexServer(server_entry["server_url"], server_entry["server_token"],
-                                                    timeout=10)
+                                                    timeout=5)
                 plex_servers[guild_id].baseurl = server_entry["server_url"]
                 plex_servers[guild_id].token = server_entry["server_token"]
             except Exception:
                 logging.error(f"Failed to connect to plex server for guild {guild_id}")
-                raise Exception("Invalid plex server credentials, or server is offline")
+                return None
         if not hasattr(plex_servers[guild_id], "associations"):
             discord_associations.update({guild_id: DiscordAssociations(self, guild)})
             plex_servers[guild_id].associations = discord_associations[guild_id]
