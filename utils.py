@@ -16,7 +16,7 @@ __all__ = ['clean', 'is_clean', 'get_season', 'base_info_layer', 'rating_str', '
 
 from discord.ui import Select
 
-from plex_wrappers import CombinedUser
+from wrappers_utils.CombinedUser import CombinedUser
 
 from loguru import logger as logging
 
