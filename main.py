@@ -135,18 +135,14 @@ class PlexBot(commands.Bot):
                 raise PlexNotLinked()
             try:
                 logging.debug(f"Connecting to plex server {server_entry['server_url']} for guild {guild_id}")
-                plex_servers[guild_id] = PlexServer(server_entry["server_url"], server_entry["server_token"])
+                plex_servers[guild_id] = PlexServer(server_entry["server_url"], server_entry["server_token"],
+                                                    discord_associations=DiscordAssociations(self, guild),
+                                                    database=self.database)
                 plex_servers[guild_id].baseurl = server_entry["server_url"]
                 plex_servers[guild_id].token = server_entry["server_token"]
-            except Exception:
-                logging.error(f"Failed to connect to plex server for guild {guild_id}")
+            except Exception as e:
+                logging.error(f"Failed to connect to plex server for guild {guild_id}: {e}")
                 await asyncio.sleep(5)
-                raise PlexNotReachable()
-        if not hasattr(plex_servers[guild_id], "associations"):
-            discord_associations.update({guild_id: DiscordAssociations(self, guild)})
-            plex_servers[guild_id].associations = discord_associations[guild_id]
-        if not hasattr(plex_servers[guild_id], "database"):
-            plex_servers[guild_id].database = self.database
         return plex_servers[guild_id]
 
     async def on_ready(self):

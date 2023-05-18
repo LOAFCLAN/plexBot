@@ -110,10 +110,7 @@ class PlexBot(Cog):
     async def monitor_plex(self, guild_id: int, channel_id: int, message_id: int):
         channel = await self.bot.fetch_channel(channel_id)
         guild = await self.bot.fetch_guild(guild_id)
-        try:
-            plex = await self.bot.fetch_plex(guild)
-        except Exception as e:
-            plex = e
+        plex = await self.bot.fetch_plex(guild)
         try:
             logging.info(f"Starting plex monitor for guild: {guild_id}, channel: {channel_id}, message: {message_id}")
 

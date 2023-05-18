@@ -22,6 +22,7 @@ class DiscordAssociations:
         logging.info(f"Loading associations for {self.guild.name}")
         await self.bot.wait_until_ready()  # Wait until the bot is ready for API calls
         self.plex_server = await self.bot.fetch_plex(self.guild)
+        await self.plex_server.wait_until_ready()  # Wait until the plex server is ready for API calls
         # cursor = self.bot.database.execute("SELECT * FROM discord_associations WHERE guild_id = ?", (self.guild.id,))
         table = self.bot.database.get_table("discord_associations")
         for row in table.get_rows(guild_id=self.guild.id):

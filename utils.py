@@ -117,6 +117,14 @@ def translate(lang):
 
 async def session_embed(plex):
     plex_sessions = plex.sessions()
+
+    if not plex.online:
+        embed = discord.Embed(title="Server Offline",
+                              description="The target Plex Media Server is offline.",
+                              color=discord.Color.red(), timestamp=datetime.datetime.now())
+        # embed.set_footer(text=f""
+        return embed
+
     if len(plex_sessions) == 0:
         embed = discord.Embed(title="Plex Sessions",
                               description="There are currently no sessions in progress", color=0x00ff00)

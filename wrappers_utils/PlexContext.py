@@ -27,16 +27,13 @@ class PlexContext(commands.Context):
             row = self.table.get_row(guild_id=guild_id)
             if row:
                 try:
-                    plex_servers[guild_id] = PlexServer(row["server_url"], row["token"])
+                    plex_servers[guild_id] = PlexServer(row["server_url"], row["token"],
+                                                        associations=DiscordAssociations(self, self.guild),
+                                                        database=self.bot.database)
                 except Exception as e:
                     raise self.PlexOffline("Plex server is offline") from e
             else:
                 raise self.PlexNotFound("Plex server not found")
-        if not hasattr(plex_servers[guild_id], "associations"):
-            discord_associations.update({guild_id: DiscordAssociations(self.bot, self.guild)})
-            plex_servers[guild_id].associations = discord_associations[guild_id]
-        if not hasattr(plex_servers[guild_id], "database"):
-            plex_servers[guild_id].database = self.bot.database
 
         return plex_servers[guild_id]
 
