@@ -19,13 +19,13 @@ class PlexServer(plexapi.server.PlexServer):
             super().__init__(*args, timeout=1, **kwargs)
             self._online = True
         except requests.exceptions.ConnectionError:
-            self._online = False
+            self._server_offline()
 
     def _server_offline(self):
         logging.warning(f"Plex server {self.friendlyName} has gone offline")
         self._online = False
-        if self._background_thread is None:
-            self._background_thread = threading.Thread(target=self._reconnection_thread)
+        if self._background_thread is None or not self._background_thread.is_alive():
+            self._background_thread = threading.Thread(target=self._reconnection_thread, daemon=True)
             self._background_thread.start()
 
     def _reconnection_thread(self):

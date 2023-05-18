@@ -25,6 +25,7 @@ class DiscordAssociations:
         await self.plex_server.wait_until_ready()  # Wait until the plex server is ready for API calls
         # cursor = self.bot.database.execute("SELECT * FROM discord_associations WHERE guild_id = ?", (self.guild.id,))
         table = self.bot.database.get_table("discord_associations")
+        association_ids = []
         for row in table.get_rows(guild_id=self.guild.id):
             try:
                 member = await self.guild.fetch_member(row[1])
@@ -34,9 +35,22 @@ class DiscordAssociations:
                 self.associations.append(CombinedUser(plex_server=self.plex_server,
                                                       discord_member=member,
                                                       plex_id=row[2], plex_email=row[3], plex_username=row[4]))
+                association_ids.append(row[2])
             except Exception as e:
                 logging.exception(e)
+        users = self.plex_server.myPlexAccount().users()
+        for user in users:
+            if user.id not in association_ids:
+                try:
+                    self.associations.append(CombinedUser(plex_server=self.plex_server,
+                                                          plex_id=user.id, plex_email=user.email,
+                                                          plex_username=user.username))
+                except Exception as e:
+                    logging.exception(e)
+
         self.ready = True
+        logging.info(f"Loaded {len(self.associations)} associations for"
+                     f" {self.guild.name} ({self.plex_server.friendlyName})")
 
     def get_discord_association(self, discord_member: discord.Member) -> CombinedUser:
         """Returns the plex user associated with the discord member"""

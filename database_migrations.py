@@ -169,7 +169,7 @@ def preform_migrations(database):
         database.batch_transaction([
             "CREATE TABLE plex_history_events_temp (event_id INTEGER PRIMARY KEY AUTOINCREMENT, guild_id INTEGER, "
             "account_id INTEGER, history_time INTEGER, media_id INTEGER, pb_start_offset INTEGER, "
-            "pb_end_offset INTEGER, session_duration INTEGER, watch_time INTEGER, device_id INTEGER, "
+            "pb_end_offset INTEGER, session_duration INTEGER, watch_time INTEGER, device_id TEXT, "
             "CONSTRAINT fk_plex_history_events FOREIGN KEY (guild_id) REFERENCES plex_servers(guild_id), "
             "CONSTRAINT fk_plex_history_events_media FOREIGN KEY (media_id) REFERENCES plex_watched_media(media_id), "
             "CONSTRAINT fk_plex_history_events_account FOREIGN KEY (account_id) "

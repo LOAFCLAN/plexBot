@@ -74,7 +74,7 @@ class PlexHistory(commands.Cog):
                 await interaction.response.defer(thinking=True, ephemeral=True)
                 original_response = await interaction.original_response()
                 media = await self.media_from_guid(interaction.message.guild, interaction.client,
-                                                   media_entry[0], interaction)
+                                                   media_entry[0])
                 if media:
                     # Get the embed
                     embed = self.media_embed(media, interaction.client.database, media_entry[0]["media_id"])
@@ -278,7 +278,7 @@ class PlexHistory(commands.Cog):
         else:
             device = None
 
-        accountID = user.plex_system_account.accountID if user is not None else None
+        account_id = user.account_id
 
         time = watcher.start_time
 
@@ -359,10 +359,11 @@ class PlexHistory(commands.Cog):
         event_table = self.bot.database.get_table("plex_history_events")
         entry = event_table.add(event_id=m_hash, guild_id=guild.id,
                                 history_time=datetime.datetime.now().timestamp(),
-                                account_id=accountID, media_id=media_entry["media_id"],
+                                account_id=account_id, media_id=media_entry["media_id"],
                                 pb_start_offset=raw_start_position,
                                 pb_end_offset=raw_current_position,
                                 session_duration=alive_time.seconds * 1000,
+                                device_id=watcher.device_id,
                                 watch_time=round(watch_time * 1000))
 
         msg = await channel.send(embed=embed, view=view)

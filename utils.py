@@ -676,7 +676,7 @@ def base_info_layer(embed, content, database=None):
 
 
 def base_user_layer(user: CombinedUser, database):
-    accountID = user.plex_system_account.id
+    accountID = user.account_id
     embed = discord.Embed(title=f"User: {user.display_name(plex_only=True)} - {user.plex_user.id}", color=0x00ff00)
     embed.set_author(name=f"{user.display_name(discord_only=True)} ({user.full_discord_username()})",
                      icon_url=user.avatar_url(discord_only=True))

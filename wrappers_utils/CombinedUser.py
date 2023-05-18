@@ -3,6 +3,8 @@ import datetime
 import discord
 import plexapi
 
+from loguru import logger as logging
+
 
 class CombinedUser:
     class UnlinkedUserError(Exception):
@@ -21,6 +23,7 @@ class CombinedUser:
             self.discord_id_only = True
         elif not isinstance(discord_member, discord.Member) and discord_member is not None:
             raise Exception("Discord member must be discord.Member, not %s" % type(discord_member))
+        self.linked = False
         self.discord_member = discord_member
         self.plex_user = None
         self.plex_system_account = None
@@ -35,14 +38,14 @@ class CombinedUser:
             raise CombinedUser.UnlinkedUserError(
                 f"Cannot create CombinedUser from unlinked discord member {self.discord_member}")
 
-        if plex_server.myPlexAccount().id == self.__plex_id__:
+        if self.__plex_id__ == plex_server.myPlexAccount().id:
             self.__plex_id__ = 1
 
         if not self._load_sys_user():
-            raise CombinedUser.UnlinkedUserError(f"Cannot find plex system account for {self.__plex_id__}")
+            return
         if not self._load_plex_user():
-            # If for some reason we can't find the plex user then handle it
-            raise CombinedUser.UnlinkedUserError(f"Cannot find plex user for {self.__plex_id__}")
+            return
+        self.linked = True
 
     def _load_sys_user(self) -> bool:
         if self.__plex_unknown__ is not None:
@@ -87,6 +90,8 @@ class CombinedUser:
 
     @property
     def discord_id(self):
+        if not self.linked:
+            return None
         if self.discord_member is not None:
             return self.discord_member.id
         return None
@@ -131,6 +136,12 @@ class CombinedUser:
             return self.plex_user.thumb
         else:
             return ""
+
+    @property
+    def account_id(self):
+        if self.plex_user is not None:
+            return self.plex_user.id
+        return None
 
     def id(self, plex_only=False, discord_only=False):
         if self.discord_id_only and not plex_only:
@@ -210,10 +221,11 @@ class CombinedUser:
         return self.discord_member
 
     def __str__(self):
-        return_str = ""
+        return_str = "("
         return_str += f"Discord: {self.discord_member.name}; " if self.discord_member else "Discord: None; "
         return_str += f"Plex: {self.plex_user.username}; " if self.plex_user else "Plex: None; "
-        return_str += f"PlexSys: {self.plex_system_account.id}; " if self.plex_system_account else "PlexSys: None; "
+        return_str += f"PlexSys: {self.plex_system_account.id}" if self.plex_system_account else "PlexSys: None"
+        return_str += ")"
         return return_str
 
     def __repr__(self):
