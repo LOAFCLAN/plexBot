@@ -12,6 +12,7 @@ from discord.ext.commands import Cog, command, has_permissions
 # from discord_components import DiscordComponents, Button, ButtonStyle, SelectOption, Select, Interaction, ActionRow
 from discord.ui import Button, View, Select
 
+from wrappers_utils.BotExceptions import PlexNotLinked, PlexNotReachable
 from wrappers_utils.SessionChangeWatchers import SessionChangeWatcher, SessionWatcher
 from utils import base_info_layer, get_season, get_episode, cleanup_url, text_progress_bar_maker, stringify, \
     base_user_layer, get_series_duration, get_from_guid
@@ -144,7 +145,7 @@ class PlexHistory(commands.Cog):
             return event
 
         @staticmethod
-        async def media_from_guid(guild, client, entry, interaction):
+        async def media_from_guid(guild, client, entry):
             plex = await client.fetch_plex(guild)
             if entry["library_id"] == "N/A" or entry["media_guid"] == "N/A":
                 return None
@@ -165,15 +166,6 @@ class PlexHistory(commands.Cog):
             else:
                 media = get_from_guid(library, entry["media_guid"])
             return media
-
-        @staticmethod
-        async def media_from_title(guild, client, entry):
-            plex = await client.fetch_plex(guild)
-            if entry["library_id"] == "N/A" or entry["media_guid"] == "N/A":
-                return None
-            library = plex.library.sectionByID(int(entry["library_id"]))
-            if entry["media_type"] == "episode":
-                pass
 
         @staticmethod
         def media_embed(content, database, media_id):
@@ -241,8 +233,14 @@ class PlexHistory(commands.Cog):
         channel = await self.bot.fetch_channel(channel_id)
         self.history_channels.append(channel.id)
         guild = await self.bot.fetch_guild(guild_id)
-        plex = await self.bot.fetch_plex(guild)
-
+        try:
+            plex = await self.bot.fetch_plex(guild)
+        except PlexNotReachable:
+            logging.warning(f"Can't start history watcher for {guild.name} because Plex is not reachable")
+            return
+        except PlexNotLinked:
+            logging.warning(f"Can't start history watcher for {guild.name} because Plex is not linked")
+            return
         self.bot.session_watchers.append(SessionChangeWatcher(plex, self.on_watched, channel))
 
     async def on_watched(self, watcher, channel):

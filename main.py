@@ -11,11 +11,12 @@ from ConcurrentDatabase.Database import Database, CreateTableLink
 
 from discord.ext import commands
 from discord.utils import oauth_url
-from plexapi.server import PlexServer
+from wrappers_utils.PlexServer import PlexServer
 import discord
 
 import database_migrations
 import utils
+from wrappers_utils.BotExceptions import PlexNotReachable, PlexNotLinked
 from wrappers_utils.DiscordAssociations import DiscordAssociations
 from wrappers_utils.PlexContext import PlexContext, plex_servers, discord_associations
 
@@ -131,16 +132,16 @@ class PlexBot(commands.Bot):
             server_entry = self.database.get_table("plex_servers").get_row(guild_id=guild_id)
             if server_entry is None:
                 logging.warning(f"No plex server found for guild {guild_id}")
-                return False
+                raise PlexNotLinked()
             try:
                 logging.debug(f"Connecting to plex server {server_entry['server_url']} for guild {guild_id}")
-                plex_servers[guild_id] = PlexServer(server_entry["server_url"], server_entry["server_token"],
-                                                    timeout=5)
+                plex_servers[guild_id] = PlexServer(server_entry["server_url"], server_entry["server_token"])
                 plex_servers[guild_id].baseurl = server_entry["server_url"]
                 plex_servers[guild_id].token = server_entry["server_token"]
             except Exception:
                 logging.error(f"Failed to connect to plex server for guild {guild_id}")
-                return None
+                await asyncio.sleep(5)
+                raise PlexNotReachable()
         if not hasattr(plex_servers[guild_id], "associations"):
             discord_associations.update({guild_id: DiscordAssociations(self, guild)})
             plex_servers[guild_id].associations = discord_associations[guild_id]
@@ -207,15 +208,20 @@ class PlexBot(commands.Bot):
                      discord.ext.commands.BucketType.category: "`Category`",
                      discord.ext.commands.BucketType.member: "`Member`", discord.ext.commands.BucketType.user: "`User`"}
             await context.send(
-                '{}, That command has exceeded the max {} concurrency limit of `{}` instance! Please try again later.'.format(
+                '{}, That command has exceeded the max {} concurrency limit of `{}` instance! Please try again'
+                ' later.'.format(
                     context.author.mention, types[exception.per], exception.number))
         elif isinstance(exception, commands.CheckFailure):
             await context.send('{}, {}'.format(context.author.mention, exception.args[0]))
+        elif isinstance(exception, PlexContext.PlexOffline):
+            await context.send('{}, The target Plex media server is currently offline!'.format(context.author.mention))
+        elif isinstance(exception, PlexContext.PlexNotFound):
+            await context.send('{}, No Plex media server found for this guild!'.format(context.author.mention))
         else:
             await context.send(
                 '```\n%s\n```' % ''.join(traceback.format_exception_only(type(exception), exception)).strip())
             # Print traceback to console
-            print(''.join(traceback.format_exception(type(exception), exception, exception.__traceback__)).strip())
+            logging.exception(exception)
             if isinstance(context.channel, discord.TextChannel):
                 pass  # Silent ignore
             else:

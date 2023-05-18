@@ -1,7 +1,7 @@
 import traceback
 
 from discord.ext import commands
-from plexapi.server import PlexServer
+from wrappers_utils.PlexServer import PlexServer
 
 from wrappers_utils.DiscordAssociations import DiscordAssociations
 
@@ -10,6 +10,13 @@ discord_associations = {}
 
 
 class PlexContext(commands.Context):
+
+    class PlexOffline(Exception):
+        pass
+
+    class PlexNotFound(Exception):
+        pass
+
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.table = self.bot.database.get_table("plex_servers")
@@ -22,8 +29,9 @@ class PlexContext(commands.Context):
                 try:
                     plex_servers[guild_id] = PlexServer(row["server_url"], row["token"])
                 except Exception as e:
-                    raise Exception("Invalid plex server credentials, or server is offline"
-                                    "\nTraceback: %s" % traceback.format_exc()[1800:])
+                    raise self.PlexOffline("Plex server is offline") from e
+            else:
+                raise self.PlexNotFound("Plex server not found")
         if not hasattr(plex_servers[guild_id], "associations"):
             discord_associations.update({guild_id: DiscordAssociations(self.bot, self.guild)})
             plex_servers[guild_id].associations = discord_associations[guild_id]

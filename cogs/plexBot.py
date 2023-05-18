@@ -13,6 +13,8 @@ from utils import get_all_library, session_embed, base_user_layer
 
 from loguru import logger as logging
 
+from wrappers_utils.BotExceptions import PlexNotLinked, PlexNotReachable
+
 
 class PlexBot(Cog):
 
@@ -74,9 +76,13 @@ class PlexBot(Cog):
                 await asyncio.sleep(10)
                 total_sessions = 0
                 for guild in self.bot.guilds:
-                    plex = await self.bot.fetch_plex(guild)
-                    if plex is not None:
+                    try:
+                        plex = await self.bot.fetch_plex(guild)
                         total_sessions += len(plex.sessions())
+                    except PlexNotLinked:
+                        continue
+                    except PlexNotReachable:
+                        continue
                 if total_sessions == 0:
                     await self.bot.change_presence(activity=discord.Activity(type=discord.ActivityType.watching,
                                                                              name="Plex"))
@@ -102,12 +108,14 @@ class PlexBot(Cog):
         plex.startAlertListener(alert_received)
 
     async def monitor_plex(self, guild_id: int, channel_id: int, message_id: int):
+        channel = await self.bot.fetch_channel(channel_id)
+        guild = await self.bot.fetch_guild(guild_id)
+        try:
+            plex = await self.bot.fetch_plex(guild)
+        except Exception as e:
+            plex = e
         try:
             logging.info(f"Starting plex monitor for guild: {guild_id}, channel: {channel_id}, message: {message_id}")
-            channel = await self.bot.fetch_channel(channel_id)
-            guild = await self.bot.fetch_guild(guild_id)
-            plex = await self.bot.fetch_plex(guild)
-            update_rate = 0
 
             async def create_message():
                 new_message = await channel.send(f"Initializing activity monitor")
@@ -131,22 +139,7 @@ class PlexBot(Cog):
 
             while True:
                 try:
-                    # Get the current discord ratelimit bucket for this channel
-
-                    if plex is None:
-                        embed = discord.Embed(title="Plex Monitor",
-                                              description="Unable to establish a connection to the Plex server",
-                                              color=0xFF0000)
-                        embed.timestamp = datetime.datetime.now()
-                        plex = await self.bot.fetch_plex(guild)
-                    elif plex is False:
-                        embed = discord.Embed(title="Plex Monitor",
-                                              description="No Plex server has been configured",
-                                                color=0xFF0000)
-                        embed.timestamp = datetime.datetime.now()
-                        plex = await self.bot.fetch_plex(guild)
-                    else:
-                        embed = await session_embed(plex)
+                    embed = await session_embed(plex)
                     await message.edit(embed=embed, content="")
                     await asyncio.sleep(10)
                     # await log_scan()
@@ -163,7 +156,7 @@ class PlexBot(Cog):
                 except Exception as e:
                     print(e)
                     traceback.print_exc()
-                    embed = discord.Embed(title="Plex Monitor",
+                    embed = discord.Embed(title="Plex Session Monitor",
                                           description=f"{self.bot.user.name} has encountered an error", color=0xFF0000)
                     embed.add_field(name="Error", value=f"{e}", inline=False)
                     embed.add_field(name="Traceback", value=traceback.format_exc()[:1024], inline=False)
