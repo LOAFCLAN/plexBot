@@ -131,66 +131,66 @@ def preform_migrations(database):
     #     table_version.set(version=1)
 
     # Setup foreign key links for discord_associations plex_devices to plex_servers
-    table_version = database.table_version_table.get_row(table_name="discord_associations")
-    if table_version["version"] == 0:
-        database.batch_transaction([
-            "CREATE TABLE discord_associations_temp (guild_id INTEGER, discord_user_id INTEGER, plex_id INTEGER, "
-            "plex_email TEXT, plex_username TEXT, PRIMARY KEY (guild_id, discord_user_id), "
-            "CONSTRAINT fk_plex_associations FOREIGN KEY (guild_id) REFERENCES plex_servers(guild_id))",
-            "INSERT INTO discord_associations_temp SELECT * FROM discord_associations",
-            "DROP TABLE discord_associations",
-            "ALTER TABLE discord_associations_temp RENAME TO discord_associations"])
-        table_version.set(version=1)
-
-    table_version = database.table_version_table.get_row(table_name="plex_devices")
-    if table_version["version"] == 0:
-        database.batch_transaction([
-            "CREATE TABLE plex_devices_temp (account_id INTEGER, device_id TEXT, last_seen INTEGER, "
-            "PRIMARY KEY (account_id, device_id), "
-            "CONSTRAINT fk_plex_devices FOREIGN KEY (account_id) REFERENCES discord_associations(plex_id))",
-            "INSERT INTO plex_devices_temp SELECT * FROM plex_devices",
-            "DROP TABLE plex_devices",
-            "ALTER TABLE plex_devices_temp RENAME TO plex_devices"])
-        table_version.set(version=1)
-
-    table_version = database.table_version_table.get_row(table_name="plex_history_channel")
-    if table_version["version"] == 0:
-        database.batch_transaction([
-            "CREATE TABLE plex_history_channel_temp (guild_id INTEGER, channel_id INTEGER, "
-            "PRIMARY KEY (guild_id), "
-            "CONSTRAINT fk_plex_history_channel FOREIGN KEY (guild_id) REFERENCES plex_servers(guild_id));",
-            "INSERT INTO plex_history_channel_temp SELECT * FROM plex_history_channel",
-            "DROP TABLE plex_history_channel",
-            "ALTER TABLE plex_history_channel_temp RENAME TO plex_history_channel"])
-        table_version.set(version=1)
-
-    table_version = database.table_version_table.get_row(table_name="plex_history_events")
-    if table_version["version"] == 0:
-        database.batch_transaction([
-            "CREATE TABLE plex_history_events_temp (event_id INTEGER PRIMARY KEY AUTOINCREMENT, guild_id INTEGER, "
-            "account_id INTEGER, history_time INTEGER, media_id INTEGER, pb_start_offset INTEGER, "
-            "pb_end_offset INTEGER, session_duration INTEGER, watch_time INTEGER, device_id TEXT, "
-            "CONSTRAINT fk_plex_history_events FOREIGN KEY (guild_id) REFERENCES plex_servers(guild_id), "
-            "CONSTRAINT fk_plex_history_events_media FOREIGN KEY (media_id) REFERENCES plex_watched_media(media_id), "
-            "CONSTRAINT fk_plex_history_events_account FOREIGN KEY (account_id) "
-            "REFERENCES discord_associations(plex_id), "
-            "CONSTRAINT fk_plex_history_events_device FOREIGN KEY (device_id) REFERENCES plex_devices(device_id));",
-            "INSERT INTO plex_history_events_temp SELECT *, null FROM plex_history_events",
-            "DROP TABLE plex_history_events",
-            "ALTER TABLE plex_history_events_temp RENAME TO plex_history_events"])
-        database.get_table("plex_history_events").update_schema()
-        table_version.set(version=1)
-
-    table_version = database.table_version_table.get_row(table_name="plex_afs_ratings")
-    if table_version["version"] == 0:
-        database.batch_transaction([
-            "CREATE TABLE plex_afs_ratings_temp (media_id INTEGER, rating TEXT, account_id INTEGER, "
-            "PRIMARY KEY (account_id, media_id), "
-            "CONSTRAINT fk_plex_afs_ratings FOREIGN KEY (media_id) REFERENCES plex_watched_media(media_id), "
-            "CONSTRAINT fk_plex_afs_ratings_account FOREIGN KEY (account_id)"
-            " REFERENCES discord_associations(plex_id));",
-            "INSERT INTO plex_afs_ratings_temp SELECT * FROM plex_afs_ratings",
-            "DROP TABLE plex_afs_ratings",
-            "ALTER TABLE plex_afs_ratings_temp RENAME TO plex_afs_ratings"])
-        database.get_table("plex_afs_ratings").update_schema()
-        table_version.set(version=1)
+    # table_version = database.table_version_table.get_row(table_name="discord_associations")
+    # if table_version["version"] == 0:
+    #     database.batch_transaction([
+    #         "CREATE TABLE discord_associations_temp (guild_id INTEGER, discord_user_id INTEGER, plex_id INTEGER, "
+    #         "plex_email TEXT, plex_username TEXT, PRIMARY KEY (guild_id, discord_user_id), "
+    #         "CONSTRAINT fk_plex_associations FOREIGN KEY (guild_id) REFERENCES plex_servers(guild_id))",
+    #         "INSERT INTO discord_associations_temp SELECT * FROM discord_associations",
+    #         "DROP TABLE discord_associations",
+    #         "ALTER TABLE discord_associations_temp RENAME TO discord_associations"])
+    #     table_version.set(version=1)
+    #
+    # table_version = database.table_version_table.get_row(table_name="plex_devices")
+    # if table_version["version"] == 0:
+    #     database.batch_transaction([
+    #         "CREATE TABLE plex_devices_temp (account_id INTEGER, device_id TEXT, last_seen INTEGER, "
+    #         "PRIMARY KEY (account_id, device_id), "
+    #         "CONSTRAINT fk_plex_devices FOREIGN KEY (account_id) REFERENCES discord_associations(plex_id))",
+    #         "INSERT INTO plex_devices_temp SELECT * FROM plex_devices",
+    #         "DROP TABLE plex_devices",
+    #         "ALTER TABLE plex_devices_temp RENAME TO plex_devices"])
+    #     table_version.set(version=1)
+    #
+    # table_version = database.table_version_table.get_row(table_name="plex_history_channel")
+    # if table_version["version"] == 0:
+    #     database.batch_transaction([
+    #         "CREATE TABLE plex_history_channel_temp (guild_id INTEGER, channel_id INTEGER, "
+    #         "PRIMARY KEY (guild_id), "
+    #         "CONSTRAINT fk_plex_history_channel FOREIGN KEY (guild_id) REFERENCES plex_servers(guild_id));",
+    #         "INSERT INTO plex_history_channel_temp SELECT * FROM plex_history_channel",
+    #         "DROP TABLE plex_history_channel",
+    #         "ALTER TABLE plex_history_channel_temp RENAME TO plex_history_channel"])
+    #     table_version.set(version=1)
+    #
+    # table_version = database.table_version_table.get_row(table_name="plex_history_events")
+    # if table_version["version"] == 0:
+    #     database.batch_transaction([
+    #         "CREATE TABLE plex_history_events_temp (event_id INTEGER PRIMARY KEY AUTOINCREMENT, guild_id INTEGER, "
+    #         "account_id INTEGER, history_time INTEGER, media_id INTEGER, pb_start_offset INTEGER, "
+    #         "pb_end_offset INTEGER, session_duration INTEGER, watch_time INTEGER, device_id TEXT, "
+    #         "CONSTRAINT fk_plex_history_events FOREIGN KEY (guild_id) REFERENCES plex_servers(guild_id), "
+    #         "CONSTRAINT fk_plex_history_events_media FOREIGN KEY (media_id) REFERENCES plex_watched_media(media_id), "
+    #         "CONSTRAINT fk_plex_history_events_account FOREIGN KEY (account_id) "
+    #         "REFERENCES discord_associations(plex_id), "
+    #         "CONSTRAINT fk_plex_history_events_device FOREIGN KEY (device_id) REFERENCES plex_devices(device_id));",
+    #         "INSERT INTO plex_history_events_temp SELECT *, null FROM plex_history_events",
+    #         "DROP TABLE plex_history_events",
+    #         "ALTER TABLE plex_history_events_temp RENAME TO plex_history_events"])
+    #     database.get_table("plex_history_events").update_schema()
+    #     table_version.set(version=1)
+    #
+    # table_version = database.table_version_table.get_row(table_name="plex_afs_ratings")
+    # if table_version["version"] == 0:
+    #     database.batch_transaction([
+    #         "CREATE TABLE plex_afs_ratings_temp (media_id INTEGER, rating TEXT, account_id INTEGER, "
+    #         "PRIMARY KEY (account_id, media_id), "
+    #         "CONSTRAINT fk_plex_afs_ratings FOREIGN KEY (media_id) REFERENCES plex_watched_media(media_id), "
+    #         "CONSTRAINT fk_plex_afs_ratings_account FOREIGN KEY (account_id)"
+    #         " REFERENCES discord_associations(plex_id));",
+    #         "INSERT INTO plex_afs_ratings_temp SELECT * FROM plex_afs_ratings",
+    #         "DROP TABLE plex_afs_ratings",
+    #         "ALTER TABLE plex_afs_ratings_temp RENAME TO plex_afs_ratings"])
+    #     database.get_table("plex_afs_ratings").update_schema()
+    #     table_version.set(version=1)
