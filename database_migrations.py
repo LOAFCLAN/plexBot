@@ -117,18 +117,18 @@ def preform_migrations(database):
         # Reload the table schema
         database.get_table("plex_history_messages").update_schema()
 
-    table_version = database.table_version_table.get_row(table_name="plex_watched_media")
-    if table_version["version"] == 0:  # Set the guild_id from plex_watched_media to be a foreign key to plex_servers
-        database.batch_transaction([
-            "CREATE TABLE plex_watched_media_temp (media_id INTEGER PRIMARY KEY AUTOINCREMENT,"
-            "guild_id INTEGER NOT NULL, title TEXT NOT NULL, media_type TEXT NOT NULL, media_length INTEGER,"
-            "show_id INTEGER, season_num INTEGER, ep_num INTEGER, media_year TEXT, library_id TEXT NOT NULL,"
-            "media_guid TEXT NOT NULL, "
-            "CONSTRAINT fk_plex_server_link FOREIGN KEY (guild_id) REFERENCES plex_servers(guild_id));",
-            "INSERT INTO plex_watched_media_temp SELECT * FROM plex_watched_media;",
-            "DROP TABLE plex_watched_media;",
-            "ALTER TABLE plex_watched_media_temp RENAME TO plex_watched_media;"])
-        table_version.set(version=1)
+    # table_version = database.table_version_table.get_row(table_name="plex_watched_media")
+    # if table_version["version"] == 0:  # Set the guild_id from plex_watched_media to be a foreign key to plex_servers
+    #     database.batch_transaction([
+    #         "CREATE TABLE plex_watched_media_temp (media_id INTEGER PRIMARY KEY AUTOINCREMENT,"
+    #         "guild_id INTEGER NOT NULL, title TEXT NOT NULL, media_type TEXT NOT NULL, media_length INTEGER,"
+    #         "show_id INTEGER, season_num INTEGER, ep_num INTEGER, media_year TEXT, library_id TEXT NOT NULL,"
+    #         "media_guid TEXT NOT NULL, "
+    #         "CONSTRAINT fk_plex_server_link FOREIGN KEY (guild_id) REFERENCES plex_servers(guild_id));",
+    #         "INSERT INTO plex_watched_media_temp SELECT * FROM plex_watched_media;",
+    #         "DROP TABLE plex_watched_media;",
+    #         "ALTER TABLE plex_watched_media_temp RENAME TO plex_watched_media;"])
+    #     table_version.set(version=1)
 
     # Setup foreign key links for discord_associations plex_devices to plex_servers
     table_version = database.table_version_table.get_row(table_name="discord_associations")
@@ -184,7 +184,8 @@ def preform_migrations(database):
     table_version = database.table_version_table.get_row(table_name="plex_afs_ratings")
     if table_version["version"] == 0:
         database.batch_transaction([
-            "CREATE TABLE plex_afs_ratings_temp (media_id INTEGER PRIMARY KEY, rating TEXT, account_id INTEGER, "
+            "CREATE TABLE plex_afs_ratings_temp (media_id INTEGER, rating TEXT, account_id INTEGER, "
+            "PRIMARY KEY (account_id, media_id), "
             "CONSTRAINT fk_plex_afs_ratings FOREIGN KEY (media_id) REFERENCES plex_watched_media(media_id), "
             "CONSTRAINT fk_plex_afs_ratings_account FOREIGN KEY (account_id)"
             " REFERENCES discord_associations(plex_id));",
