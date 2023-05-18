@@ -363,7 +363,7 @@ class PlexHistory(commands.Cog):
                                 pb_start_offset=raw_start_position,
                                 pb_end_offset=raw_current_position,
                                 session_duration=alive_time.seconds * 1000,
-                                device_id=watcher.device_id,
+                                # device_id=watcher.device_id,
                                 watch_time=round(watch_time * 1000))
 
         msg = await channel.send(embed=embed, view=view)
