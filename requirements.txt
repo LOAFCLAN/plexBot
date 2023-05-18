@@ -1,7 +1,7 @@
 discord==2.2.3
 langcodes~=3.3.0
 language_data~=1.1.0
-PlexAPI==4.12.1
+PlexAPI==4.13.4
 humanize==4.6.0
 loguru~=0.7.0
 ConcurrentDatabase==0.0.8

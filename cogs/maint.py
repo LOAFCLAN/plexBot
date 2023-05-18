@@ -126,7 +126,7 @@ class maintCog(Cog):
         try:
             cursor = self.bot.database.execute(code)
             ret = cursor.fetchall()
-            e.title = 'SQL Evaluation - Success'
+            e.title = 'SQL Execution - Success'
             e.color = 0x00FF00
             if len(ret) == 0:
                 e.add_field(name='Output', value='```\nNone\n```')
@@ -136,7 +136,7 @@ class maintCog(Cog):
             else:
                 e.add_field(name='Output', value='```\n%s\n```' % repr(ret), inline=False)
         except Exception as err:
-            e.title = 'SQL Evaluation - Error'
+            e.title = 'SQL Execution - Error'
             e.color = 0xFF0000
             e.add_field(name='Error', value='```\n%s\n```' % repr(err))
 

@@ -453,11 +453,13 @@ def rating_formatter(rating):
 def get_afs_rating(content, database):
     if content.type == "movie" or content.type == "episode":
         media = database.get_table("plex_watched_media").get_row(media_guid=content.guid)
-        ratings = media.get("plex_afs_ratings")
-        total = sum([rating['rating'] for rating in ratings])
-        if len(ratings) == 0:
-            return None
-        return (total / len(ratings)) / 10
+        if media is not None:
+            ratings = media.get("plex_afs_ratings")
+            total = sum([rating['rating'] for rating in ratings])
+            if len(ratings) == 0:
+                return None
+            return (total / len(ratings)) / 10
+        return None
     elif content.type == "show":
         ratings = []
         for episode in content.episodes():

@@ -163,6 +163,8 @@ class PlexHistory(commands.Cog):
                 else:
                     logging.warning(f"Unable to find show with ID {entry['show_id']}")
                     return False
+            elif entry["media_type"] == "clip":
+                return None  # Find a way to get clips
             else:
                 media = get_from_guid(library, entry["media_guid"])
             return media
@@ -341,7 +343,7 @@ class PlexHistory(commands.Cog):
             media_table.add(guild_id=guild.id, media_guid=session.guid,
                             title=session.title, media_year=session.year,
                             media_length=round(session.duration / 1000),
-                            media_type=session.type, library_id=session.librarySectionID)
+                            media_type=session.type, library_id=session.librarySectionID or -1)
             media_entry = media_table.get_row(media_guid=session.guid, guild_id=guild.id)
 
         if session.type == "episode":
