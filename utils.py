@@ -457,19 +457,34 @@ def get_afs_rating(content, database):
             ratings = media.get("plex_afs_ratings")
             total = sum([rating['rating'] for rating in ratings])
             if len(ratings) == 0:
-                return None
-            return (total / len(ratings)) / 10
-        return None
+                return "AFS: `N/A`"
+            return f"AFS :`{round(total / len(ratings))}%`"
+        return "AFS: `N/A`"
     elif content.type == "show":
+        strings = []
+        media = database.get_table("plex_watched_media").get_row(media_guid=content.guid)
+        if media is not None:
+            ratings = media.get("plex_afs_ratings")
+            total = sum([rating['rating'] for rating in ratings])
+            if len(ratings) != 0:
+                strings.append(f"ASS: `{round(total / len(ratings))}%`")
+            else:
+                strings.append(f"ASS: `N/A`")
+        else:
+            strings.append("ASS: `N/A`")
+        # If there is no rating for the show, get the average rating of all the episodes
         ratings = []
         for episode in content.episodes():
             media = database.get_table("plex_watched_media").get_row(media_guid=episode.guid)
             if media is not None:
                 ratings += media.get("plex_afs_ratings")
         total = sum([rating['rating'] for rating in ratings])
-        if len(ratings) == 0:
-            return None
-        return (total / len(ratings)) / 10
+        if len(ratings) != 0:
+            strings.append(f"AES: `{round(total / len(ratings))}%`")
+        else:
+            strings.append("AES: `N/A`")
+
+        return " | ".join(strings)
     else:
         logging.debug(f"Content type {content.type} not supported")
         return None
@@ -477,26 +492,16 @@ def get_afs_rating(content, database):
 
 def rating_str(content, database=None) -> str:
     """Get the rating string for a media"""
-    if hasattr(content, 'audienceRating') and hasattr(content, 'rating'):
-        rating_string = f"`{content.contentRating}` | " \
-                        f"Audience `{rating_formatter(content.audienceRating)}`" \
-                        f" | Critics `{rating_formatter(content.rating)}`"
-        if database is not None:
-            try:
-                afs_rating = get_afs_rating(content, database)
-                if afs_rating is not None:
-                    rating_string += f" | AFS `{rating_formatter(afs_rating)}`"
-                else:
-                    rating_string += " | AFS `N/A`"
-            except Exception as e:
-                logging.error(f"Error getting AFS rating for {content.title}: {e}")
-                logging.exception(e)
-                rating_string += f" | AFS `N/A`"
-        else:
-            rating_string += f" | AFS `N/A`"
-    else:
-        rating_string = "No ratings available"
-    return rating_string
+
+    rating_strings = [f"`{content.contentRating}`" if hasattr(content, 'contentRating') else "`N/A`"]
+    if hasattr(content, 'audienceRating'):
+        rating_strings.append(f"Audience `{rating_formatter(content.audienceRating)}`")
+    if hasattr(content, 'rating'):
+        rating_strings.append(f"Critics  `{rating_formatter(content.rating)}`")
+    if database is not None:
+        rating_strings.append(get_afs_rating(content, database))
+
+    return " | ".join(rating_strings)
 
 
 def stringify(objects: [], separator: str = ", ", max_length: int = -1) -> str:
