@@ -550,7 +550,7 @@ class PlexBot(Cog):
                     if media.isPartialObject():  # For some reason plex likes to not give everything we asked for
                         media.reload()
                     if isinstance(media, plexapi.video.Movie):
-                        embed.title = safe_field(media.title)
+                        embed.title = safe_field(f"{media.title} ({media.year})")
                     elif isinstance(media, plexapi.video.Episode):
                         embed.title = f"{media.grandparentTitle}\n{media.title} " \
                                       f"(S{media.parentIndex}E{media.index})"
