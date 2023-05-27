@@ -5,13 +5,7 @@ import random
 import discord
 import humanize
 import plexapi.video
-from ConcurrentDatabase.DynamicEntry import DynamicEntry
-from discord import Interaction, ButtonStyle, ActionRow
 from discord.ext import commands
-from discord.ext.commands import Cog, command, has_permissions
-# import custom_dpy_overrides
-# from discord_components import DiscordComponents, Button, ButtonStyle, SelectOption, Select, Interaction, ActionRow
-from discord.ui import Button, View, Select
 
 from wrappers_utils.SessionChangeWatchers import SessionWatcher, SessionChangeWatcher
 from utils import base_info_layer, get_season, get_episode, cleanup_url, text_progress_bar_maker, stringify, \
@@ -116,30 +110,29 @@ class PlexStatistics(commands.Cog):
         pass
 
     @user_stats.command(name="watch_percentage", aliases=["watch_percent", "watch_percentages"])
-    async def watch_percentage(self, ctx, *, user_name):
+    async def watch_percentage(self, ctx, *, user_info):
         """
         Gets the media the user has watched sorted by percentage of total watch time.
         """
         # Send a typing indicator
         async with ctx.typing():
             # Get the user
-            user = ctx.plex.associations.get(user_name)
+            user = ctx.plex.associations.get(user_info)
             if user is None:
                 await ctx.send("Could not find user with that name.")
                 return
-
+            print(user)
             # Get the user's watch history
-            watch_history = self.bot.database.get("""
+            print(user.account_id)
+            watch_history = self.bot.database.get(f"""
             SELECT media.title, media.media_guid,
             SUM(events.watch_time) / 1000 AS total_watch_time,
             media.media_length AS length
             FROM plex_watched_media AS media
             JOIN plex_history_events AS events ON events.media_id = media.media_id
-            WHERE events.account_id = ?
-            GROUP BY media.media_id
-            """, (user.id,))
+            WHERE events.account_id = ? 
+            GROUP BY media.media_id ORDER BY (total_watch_time * 1000 / length) DESC LIMIT 15;""", (user.account_id,))
             print(watch_history)
-
 
     @commands.hybrid_command(name="who_watched", aliases=["watched_by", "watched", "ww", "wb"])
     async def who_watched(self, ctx, *, media_name):

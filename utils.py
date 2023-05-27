@@ -350,12 +350,18 @@ def get_media_info(media_list: [plexapi.media.Media]) -> list:
                 #                  f"┕──> `Insufficient deep analysis data, L:{part.deepAnalysisVersion}`"
                 #
                 # else:
-                video_stream = part.videoStreams()[0]
-                duration = datetime.timedelta(seconds=round(media.duration / 1000))
-                bitrate = humanize.naturalsize(video_stream.bitrate * 1000)
-                bitrate = f"{bitrate.split(' ')[0]} {bitrate.split(' ')[1].capitalize()}"
-                this_media = f"`File#{media_index}`: `{media.videoCodec}:{video_stream.width}x" \
-                             f"{video_stream.height}@{video_stream.frameRate} Bitrate: {bitrate}/s`\n"
+                if len(part.videoStreams()) == 0:
+                    this_media = f"`File#{media_index}`: `{media.videoCodec}:{media.width}x" \
+                                 f"{media.height}@{media.videoFrameRate} " \
+                                 f"| {media.audioCodec}: {media.audioChannels}ch`\n" \
+                                 f"┕──> `No video streams found!`"
+                else:
+                    video_stream = part.videoStreams()[0]
+                    duration = datetime.timedelta(seconds=round(media.duration / 1000))
+                    bitrate = humanize.naturalsize(video_stream.bitrate * 1000)
+                    bitrate = f"{bitrate.split(' ')[0]} {bitrate.split(' ')[1].capitalize()}"
+                    this_media = f"`File#{media_index}`: `{media.videoCodec}:{video_stream.width}x" \
+                                 f"{video_stream.height}@{video_stream.frameRate} Bitrate: {bitrate}/s`\n"
                 audio_streams = []
                 stream_num = 1
                 streams = part.audioStreams()
@@ -415,6 +421,23 @@ def get_from_guid(library, guid):
             if content.guid == guid:
                 return content
         logging.warning(f"Could not find {guid} in {library.title} using all()")
+        return None
+
+
+def get_from_media_index(library, media_index):
+    try:
+        all_content = library.all()
+        for content in all_content:
+            if isinstance(content, plexapi.video.Movie):
+                if content.ratingKey == int(media_index):
+                    return content
+            elif isinstance(content, plexapi.video.Show):
+                for episode in content.episodes():
+                    if episode.ratingKey == int(media_index):
+                        return episode
+        return None
+    except plexapi.exceptions.NotFound:
+        logging.warning(f"Could not find {media_index} in {library.title} using all()")
         return None
 
 
@@ -679,7 +702,7 @@ def base_info_layer(embed, content, database=None):
     embed.add_field(name="Writers", value=stringify(content.writers, max_length=4), inline=True)
     embed.add_field(name="Media", value=safe_field("\n\n".join(media_info)), inline=False)
     embed.add_field(name="Subtitles",
-                    value=safe_field("\n\n".join(subtitle_details(content, max_subs=6))), inline=False)
+                    value=safe_field("\n".join(subtitle_details(content, max_subs=6))), inline=False)
 
 
 def base_user_layer(user: CombinedUser, database):

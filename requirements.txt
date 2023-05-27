@@ -5,3 +5,4 @@ PlexAPI==4.13.4
 humanize==4.6.0
 loguru~=0.7.0
 ConcurrentDatabase==0.0.8
+websocket-client==1.5.2

@@ -141,7 +141,7 @@ class CombinedUser:
     def account_id(self):
         if self.plex_user is not None:
             return self.plex_user.id
-        return None
+        return self.__plex_id__
 
     def id(self, plex_only=False, discord_only=False):
         if self.discord_id_only and not plex_only:

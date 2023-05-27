@@ -23,6 +23,12 @@ class DiscordAssociations:
         await self.bot.wait_until_ready()  # Wait until the bot is ready for API calls
         self.plex_server = await self.bot.fetch_plex(self.guild)
         await self.plex_server.wait_until_ready()  # Wait until the plex server is ready for API calls
+
+        # Chunk all users from all guilds into the bot's cache
+        for guild in self.bot.guilds:
+            await guild.chunk(cache=True)
+        logging.info(f"Loaded {len(self.bot.users)} users into cache")
+
         # cursor = self.bot.database.execute("SELECT * FROM discord_associations WHERE guild_id = ?", (self.guild.id,))
         table = self.bot.database.get_table("discord_associations")
         association_ids = []
@@ -52,27 +58,34 @@ class DiscordAssociations:
         logging.info(f"Loaded {len(self.associations)} associations for"
                      f" {self.guild.name} ({self.plex_server.friendlyName})")
 
-    def get_discord_association(self, discord_member: discord.Member) -> CombinedUser:
+    def get_discord_association(self, discord_member: discord.Member, no_create=False) -> CombinedUser or None:
         """Returns the plex user associated with the discord member"""
         for association in self.associations:
             if association.discord_member == discord_member:
                 return association
+        if no_create:
+            return None
         return CombinedUser(plex_server=self.plex_server, discord_member=discord_member)
 
-    def get_plex_association(self, plex_user: str) -> CombinedUser:
+    def get_plex_association(self, plex_user: str, no_create=False) -> CombinedUser or None:
         """Returns the discord member associated with the plex user"""
         for association in self.associations:
             if association == plex_user:
                 return association
+        if no_create:
+            return None
         return CombinedUser(plex_server=self.plex_server, plex_unknown=plex_user)
 
     def get(self, search: typing.Union[discord.Member, str, int]) -> CombinedUser:
         if isinstance(search, discord.Member):
             return self.get_discord_association(search)
-        elif isinstance(search, str):
-            return self.get_plex_association(search)
-        elif isinstance(search, int):
-            return self.get_plex_association(str(search))
+        elif isinstance(search, str) or isinstance(search, int):
+            if result := self.get_plex_association(str(search), no_create=True):
+                return result
+            discord_user = self.guild.get_member(int(search))
+            if discord_user is not None:
+                return self.get_discord_association(discord_user, no_create=True)
+            return None
         else:
             raise Exception(f"Invalid type for search, must be discord.Member or str not {type(search)}")
 
