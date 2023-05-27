@@ -214,10 +214,9 @@ class PlexBot(commands.Bot):
         elif isinstance(exception, PlexContext.PlexNotFound):
             await context.send('{}, No Plex media server found for this guild!'.format(context.author.mention))
         else:
+            logging.exception(exception)
             await context.send(
                 '```\n%s\n```' % ''.join(traceback.format_exception_only(type(exception), exception)).strip())
-            # Print traceback to console
-            logging.exception(exception)
             if isinstance(context.channel, discord.TextChannel):
                 pass  # Silent ignore
             else:

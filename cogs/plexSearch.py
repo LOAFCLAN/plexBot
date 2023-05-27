@@ -140,7 +140,7 @@ class PlexSearch(commands.Cog):
         results = [r for r in results if r.type == "episode"]
         await self.search(ctx, results, query)
 
-    @command(name="content_search", aliases=["cs"])
+    @commands.hybrid_command(name="content_search", aliases=["cs"])
     async def content_search(self, ctx, *, query: str):
         """
         Searches Plex for a specific content.

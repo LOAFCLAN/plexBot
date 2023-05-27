@@ -26,56 +26,7 @@ class PlexStatistics(commands.Cog):
         self.bot = bot
         self.history_table = self.bot.database.get_table("plex_history_messages")
 
-    @commands.command(name="global_stats")
-    async def global_stats(self, ctx):
-        """Gets global watch statistics for the server, such as total watch time, total number of episodes watched,
-           most popular movie, show etc."""
-        total_watch_time = self.bot.database.get("SELECT SUM(watch_time) FROM plex_history_events")[0][0]
-        total_sessions = self.bot.database.get("SELECT COUNT(*) FROM plex_history_events")[0][0]
-
-        # The information we need to determine the media elements with the highest watch percentage are
-        # split across two tables, so we need use a subquery to get the information we need.
-
-        def calc_watch_percentage(media_id):
-            result = self.bot.database.execute(
-                f"SELECT media_length FROM plex_watched_media WHERE media_id = {media_id}")
-            media_duration = result.fetchone()[0]
-            result = self.bot.database.execute(
-                f"SELECT SUM(watch_time) FROM plex_history_events WHERE media_id = {media_id}")
-            media_watch_time = result.fetchone()[0]
-            if media_duration == 0 or media_duration is None or media_watch_time is None:
-                return 0
-            else:
-                return (media_watch_time / 1000) / media_duration
-
-        self.bot.database.create_function("calc_watch_percentage", 1, calc_watch_percentage)
-
-        most_popular_movies = self.bot.database.get(
-            "SELECT media_id, title, calc_watch_percentage(media_id) "
-            "FROM plex_watched_media WHERE media_type = 'movie' ORDER BY calc_watch_percentage(media_id) DESC LIMIT 9")
-
-        # Format the data into a nice embed
-        embed = discord.Embed(title="Global Plex Statistics",
-                              description=f"Globally, `{total_sessions}` sessions have been logged,"
-                                          f" totalling `{datetime.timedelta(seconds=round(total_watch_time / 1000))}`"
-                                          f" of watch time.",
-                              color=0x00ff00)
-        embed.add_field(name="Most Popular Movies by Watch Percentage",
-                        value="\n".join([f"`{i + 1}`. `{movie[1]}` - {round(movie[2] * 100)}%"
-                                         for i, movie in enumerate(most_popular_movies)]), inline=False)
-
-        # embed.add_field(name="Most Popular Shows by Watch Percentage",
-        #                 value="\n".join([f"`{i + 1}`. `{show[0]}` - {datetime.timedelta(seconds=round(show[1]))}"
-        #                                  for i, show in enumerate(most_popular_shows)]), inline=False)
-        #
-        # embed.add_field(name="Most Popular Episodes by Watch Percentage",
-        #                 value="\n".join([f"`{i + 1}`. `{episode[0]} - S{episode[1]}E{episode[2]}` - "
-        #                                  f"{datetime.timedelta(seconds=round(episode[3]))}"
-        #                                  for i, episode in enumerate(most_popular_episodes)]), inline=False)
-
-        await ctx.send(embed=embed)
-
-    @commands.command(name="library_stats")
+    @commands.hybrid_command(name="library_stats")
     async def library_stats(self, ctx, *, library_name):
         """
         Gets library watch statistics for the server, such as total watch time, total number of episodes watched,
@@ -114,17 +65,18 @@ class PlexStatistics(commands.Cog):
                                                   f"(SELECT media_id FROM plex_watched_media WHERE"
                                                   f" library_id = {library.key})")[0][0]
 
+            if watch_time is None:
+                watch_time = 0
+
             embed = discord.Embed(title=f"Library Statistics for {library.title}",
-                                  description=f"Total Media Length: "
+                                  description=f"Media Length: "
                                               f"`{datetime.timedelta(seconds=total_media_length)}`\n"
-                                              f"Total Media Watch Time: `"
+                                              f"Media Watch Time: `"
                                               f"{datetime.timedelta(seconds=round(watch_time / 1000))}`\n"
-                                              f"Total Session Count: `{session_count}`\n"
-                                              f"Total Media Count: `{total_media_count} | {top_level_media_count}`\n"
-                                              f"Total Media Size: `{humanize.naturalsize(total_media_size)}`",
+                                              f"Session Count: `{session_count}`\n"
+                                              f"Media Count: `{total_media_count} | {top_level_media_count}`\n"
+                                              f"Media Size: `{humanize.naturalsize(total_media_size)}`",
                                   color=0x00ff00)
-            embed.add_field(name="Top Media Elements", value="Loading...", inline=False)
-            message = await ctx.send(embed=embed)
             if library.type == "show":
                 most_popular = self.bot.database.get("""
                 SELECT show.title, show.media_guid,
@@ -151,15 +103,45 @@ class PlexStatistics(commands.Cog):
 
             # print(most_popular)
 
-            embed.set_field_at(0, name="Top Media Elements",
-                               value="\n".join([f"`{str(i + 1).zfill(2)}. "
-                                                f"{round(media[2] / media[3] * 100)}%` - "
-                                                f"`{datetime.timedelta(seconds=media[2])}` - "
-                                                f"`{media[0][:25]}`"
-                                                for i, media in enumerate(most_popular)]), inline=False)
-            await message.edit(embed=embed)
+            embed.add_field(name="Top Media Elements",
+                            value="\n".join([f"`{str(i + 1).zfill(2)}. "
+                                             f"{round(media[2] / media[3] * 100)}%` - "
+                                             f"`{datetime.timedelta(seconds=media[2])}` - "
+                                             f"`{media[0][:25]}`"
+                                             for i, media in enumerate(most_popular)]), inline=False)
+            await ctx.send(embed=embed)
 
-    @commands.command(name="who_watched", aliases=["watched_by", "watched", "ww", "wb"])
+    @commands.hybrid_group(name="user_stats", aliases=["user_statistics", "us"], invoke_without_command=True)
+    async def user_stats(self, ctx):
+        pass
+
+    @user_stats.command(name="watch_percentage", aliases=["watch_percent", "watch_percentages"])
+    async def watch_percentage(self, ctx, *, user_name):
+        """
+        Gets the media the user has watched sorted by percentage of total watch time.
+        """
+        # Send a typing indicator
+        async with ctx.typing():
+            # Get the user
+            user = ctx.plex.associations.get(user_name)
+            if user is None:
+                await ctx.send("Could not find user with that name.")
+                return
+
+            # Get the user's watch history
+            watch_history = self.bot.database.get("""
+            SELECT media.title, media.media_guid,
+            SUM(events.watch_time) / 1000 AS total_watch_time,
+            media.media_length AS length
+            FROM plex_watched_media AS media
+            JOIN plex_history_events AS events ON events.media_id = media.media_id
+            WHERE events.account_id = ?
+            GROUP BY media.media_id
+            """, (user.id,))
+            print(watch_history)
+
+
+    @commands.hybrid_command(name="who_watched", aliases=["watched_by", "watched", "ww", "wb"])
     async def who_watched(self, ctx, *, media_name):
         # Preform a search for the media
         async with ctx.typing():
