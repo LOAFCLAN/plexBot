@@ -68,7 +68,7 @@ class PlexBot(Cog):
         for message_config in self.activity_messages:
             self.bot.loop.create_task(self.monitor_plex(message_config[0], message_config[1], message_config[2]))
         for alert_config in self.plex_alert_channels:
-            self.bot.loop.create_task(self.plex_alerts(alert_config[0], alert_config[1]))
+            self.bot.loop.create_task(self.start_event_listener(alert_config[0], alert_config[1]))
         self.bot.loop.create_task(self.status_update())
 
     async def status_update(self):
@@ -98,16 +98,28 @@ class PlexBot(Cog):
                 logging.error(e)
                 logging.exception(e)
 
-    async def plex_alerts(self, guild_id: int, channel_id: int):
-        """Handles plex alerts"""
-        channel = await self.bot.fetch_channel(channel_id)
-        guild = await self.bot.fetch_guild(guild_id)
+    async def start_event_listener(self, guild_id, channel_id):
+        """Starts the event listener"""
+
+        channel = self.bot.get_channel(channel_id)
+        guild = self.bot.get_guild(guild_id)
         plex = await self.bot.fetch_plex(guild)
 
-        def alert_received(alert):
-            print(f"Alert received: {alert}")
+        event_queue = asyncio.Queue()
 
-        plex.startAlertListener(alert_received)
+        def event_callback(data):
+            if data['type'] == 'timeline':
+                entry = data['TimelineEntry'][0]
+                if entry['identifier'] == 'com.plexapp.plugins.library':
+                    event_queue.put_nowait(entry)
+
+        listener = plexapi.alert.AlertListener(plex, event_callback, self.event_error)
+        listener.start()
+        self.bot.loop.create_task(self.event_message_loop(plex, event_queue, channel))
+        logging.info("Started event listener")
+        while listener.is_alive():
+            await asyncio.sleep(1)
+        logging.info("Event listener stopped")
 
     async def monitor_plex(self, guild_id: int, channel_id: int, message_id: int):
         channel = await self.bot.fetch_channel(channel_id)
@@ -469,6 +481,8 @@ class PlexBot(Cog):
                 event = await queue.get()
                 if event is None:
                     break
+                if int(event['sectionID']) == -1:
+                    continue
                 print(event)
                 await lock.acquire()  # Ensure only one event is processed at a time
                 await self.send_event_message(plex, channel, event)
@@ -497,8 +511,7 @@ class PlexBot(Cog):
 
     async def send_event_message(self, plex, channel, event):
         embed = discord.Embed()
-        if int(event['sectionID']) == -1:
-            return
+
         # only include messages with an ID of 0, 5, 9
         if event['state'] == 0:
             embed.title = "New Media Added"
@@ -566,24 +579,13 @@ class PlexBot(Cog):
             await channel.send(embed=embed)
 
     @has_permissions(manage_guild=True)
-    @command(name="start_event_listener", aliases=["sel"])
-    async def start_event_listener(self, ctx):
-        """Starts the event listener"""
-        event_queue = asyncio.Queue()
-
-        def event_callback(data):
-            if data['type'] == 'timeline':
-                entry = data['TimelineEntry'][0]
-                if entry['identifier'] == 'com.plexapp.plugins.library':
-                    event_queue.put_nowait(entry)
-
-        listener = plexapi.alert.AlertListener(ctx.plex, event_callback, self.event_error)
-        listener.start()
-        self.bot.loop.create_task(self.event_message_loop(ctx.plex, event_queue, ctx.channel))
-        logging.info("Started event listener")
-        while listener.is_alive():
-            await asyncio.sleep(1)
-        logging.info("Event listener stopped")
+    @command(name="config_event_listener", aliases=["sel"])
+    async def config_event_listener(self, ctx, channel: discord.TextChannel = None):
+        table = self.bot.database.get_table("plex_alert_channel")
+        table.update_or_add(guild_id=ctx.guild.id, channel_id=channel.id)
+        await ctx.send("Started event listener")
+        # actually start the event listener
+        self.bot.loop.create_task(self.start_event_listener(ctx.guild.id, channel.id))
 
 
 async def setup(bot):
