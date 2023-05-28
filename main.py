@@ -61,6 +61,7 @@ class PlexBot(commands.Bot):
                                                              "PRIMARY KEY": "(event_hash, guild_id)"})
         self.database.create_table("plex_devices", {"account_id": "INTEGER", "device_id": "STRING",
                                                     "last_seen": "INT", "PRIMARY KEY": "(account_id, device_id)"})
+        database_migrations.preform_migrations(self.database)
         self.database.create_table("plex_afs_ratings",
                                    {"media_id": "INTEGER", "user_id": "INTEGER", "rating": "INTEGER",
                                     "PRIMARY KEY": "(media_id, user_id)"},
@@ -68,7 +69,6 @@ class PlexBot(commands.Bot):
                                        CreateTableLink(target_table="plex_watched_media", target_key="media_id",
                                                        source_table="plex_afs_ratings", source_key="media_id")])
         logging.info("Database initialized, performing migrations")
-        database_migrations.preform_migrations(self.database)
         logging.info("Migrations complete")
 
     @staticmethod
