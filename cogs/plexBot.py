@@ -344,7 +344,7 @@ class PlexBot(Cog):
     @command(name='ping')
     async def ping(self, ctx):
         ping_responses = ["Pong!", "What's up", "I'm here!", "I'm here, I'm here!",
-                          "I'm here, I'm here, I'm here!"]
+                          "I'm here, I'm here, I'm here!", "What if... I'm NOT here...?"]
         await ctx.send(random.choice(ping_responses))
 
     @command(name='signup', aliases=['register'])

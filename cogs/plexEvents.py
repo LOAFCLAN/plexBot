@@ -1,5 +1,7 @@
 import asyncio
 import datetime
+import requests
+import os
 
 import discord
 import plexapi
@@ -171,14 +173,38 @@ class PlexEvents(Cog):
         return embed
 
     async def apply_media_info(self, channel, event_obj, library):
+        """Applies the media info to the message"""
 
         embed = discord.Embed()
         media = await self.safe_mediaID_search(library, event_obj.itemID)
         if media is not None:
+            await self.download_thumbnails(channel, media)
             embed = await self.media_details(media)
 
         await event_obj.message.edit(content="Media Added", embed=embed)
         self.event_tracker[channel.guild.id].remove(event_obj)
+
+    async def download_thumbnails(self, channel, media):
+        """Downloads thumbnails for media into the webserver path"""
+        server_info = self.bot.database.get_table("plex_servers").get_row(guild_id=channel.guild.id)
+        if not server_info['webserver_path']:
+            return
+        urls, paths = [], []
+        if media.posterUrl:
+            urls.append(media.posterUrl)
+        if media.artUrl:
+            urls.append(media.artUrl)
+        if media.thumbUrl:
+            urls.append(media.thumbUrl)
+        plex_url = server_info['server_url']
+        paths = [os.path.join(server_info['webserver_path'], url[len(plex_url) + 1:url.find('?')] + ".jpg")
+                 for url in urls]
+        for i in range(len(urls)):
+            if not os.path.exists(paths[i]):
+                os.makedirs(paths[i][:paths[i].rfind('/')], exist_ok=True)
+                r = requests.get(urls[i], timeout=5)
+                with open(paths[i], 'wb') as f:
+                    f.write(r.content)
 
     async def send_event_message(self, plex, channel, event):
         embed = discord.Embed()
