@@ -426,15 +426,21 @@ def get_from_guid(library, guid):
 
 def get_from_media_index(library, media_index):
     try:
+        print(f"Getting media from index {media_index}")
         all_content = library.all()
         for content in all_content:
             if isinstance(content, plexapi.video.Movie):
                 if content.ratingKey == int(media_index):
                     return content
             elif isinstance(content, plexapi.video.Show):
-                for episode in content.episodes():
-                    if episode.ratingKey == int(media_index):
-                        return episode
+                if content.ratingKey == int(media_index):
+                    return content
+                for season in content.seasons():
+                    if season.ratingKey == int(media_index):
+                        return season
+                    for episode in season.episodes():
+                        if episode.ratingKey == int(media_index):
+                            return episode
         return None
     except plexapi.exceptions.NotFound:
         logging.warning(f"Could not find {media_index} in {library.title} using all()")
@@ -673,7 +679,7 @@ def make_season_selector(show, callback) -> typing.Union[typing.List[Select], Bu
     return view
 
 
-def base_info_layer(embed, content, database=None):
+def base_info_layer(embed, content, database=None, full=True):
     """Make the base info layer for a media"""
 
     media_info = get_media_info(content.media)
@@ -702,7 +708,7 @@ def base_info_layer(embed, content, database=None):
     embed.add_field(name="Writers", value=stringify(content.writers, max_length=4), inline=True)
     embed.add_field(name="Media", value=safe_field("\n\n".join(media_info)), inline=False)
     embed.add_field(name="Subtitles",
-                    value=safe_field("\n".join(subtitle_details(content, max_subs=6))), inline=False)
+                    value=safe_field("\n".join(subtitle_details(content, max_subs=6 if full else 2))), inline=False)
 
 
 def base_user_layer(user: CombinedUser, database):
