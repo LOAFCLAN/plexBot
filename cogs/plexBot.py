@@ -406,7 +406,7 @@ class PlexBot(Cog):
             raise BadArgument("Invalid plex url, must be http://<ip>:<port>")
         # Update the plex server in the database with the new values if it exists or create a new entry if it doesn't
         table = self.bot.database.get_table("plex_servers")
-        table.update_or_add(guild_id=ctx.guild.id, plex_url=plex_url, plex_token=plex_token)
+        table.update_or_add(guild_id=ctx.guild.id, server_url=plex_url, server_token=plex_token)
         embed = discord.Embed(title="Set Plex Server", description=f"Set plex server to {plex_url}",
                               color=0x00ff00)
         embed.timestamp = datetime.datetime.now()
