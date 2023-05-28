@@ -176,6 +176,7 @@ class PlexBot(commands.Bot):
         super().run(self.token)
 
     async def on_command_error(self, context, exception):
+        logging.exception(exception)
         if isinstance(exception, commands.NoPrivateMessage):
             await context.send('{}, This command cannot be used in DMs.'.format(context.author.mention))
         elif isinstance(exception, commands.UserInputError):
@@ -214,7 +215,6 @@ class PlexBot(commands.Bot):
         elif isinstance(exception, PlexContext.PlexNotFound):
             await context.send('{}, No Plex media server found for this guild!'.format(context.author.mention))
         else:
-            logging.exception(exception)
             await context.send(
                 '```\n%s\n```' % ''.join(traceback.format_exception_only(type(exception), exception)).strip())
             if isinstance(context.channel, discord.TextChannel):
