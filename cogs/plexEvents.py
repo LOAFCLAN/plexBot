@@ -5,7 +5,7 @@ import os
 
 import discord
 import plexapi
-from discord.ext.commands import command, has_permissions, Cog, BadArgument
+from discord.ext.commands import command, has_permissions, Cog, BadArgument, is_owner
 from loguru import logger as logging
 
 from utils import get_from_media_index, safe_field, base_info_layer, rating_str, stringify, get_series_duration, \
@@ -334,6 +334,13 @@ class PlexEvents(Cog):
             else:
                 await ctx.send("Event listener is configured for channel "
                                f"<#{config['channel_id']}> and is running")
+
+    @is_owner()
+    @command(name="set_webserver_path")
+    async def set_webserver_path(self, ctx, path):
+        table = self.bot.database.get_table("plex_servers")
+        table.update_or_add(guild_id=ctx.guild.id, webserver_path=path)
+        await ctx.send("Updated webserver path")
 
 
 async def setup(bot):
