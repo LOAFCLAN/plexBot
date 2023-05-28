@@ -178,7 +178,11 @@ class PlexEvents(Cog):
         embed = discord.Embed()
         media = await self.safe_mediaID_search(library, event_obj.itemID)
         if media is not None:
-            await self.download_thumbnails(channel, media)
+            try:
+                await self.download_thumbnails(channel, media)
+            except Exception as e:
+                logging.error(e)
+                logging.exception(e)
             embed = await self.media_details(media)
 
         await event_obj.message.edit(content="Media Added", embed=embed)
