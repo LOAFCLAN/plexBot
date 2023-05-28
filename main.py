@@ -40,6 +40,7 @@ class PlexBot(commands.Bot):
     def database_init(self):
         self.database.create_table("plex_servers", {"guild_id": "INTEGER PRIMARY KEY", "server_url": "TEXT",
                                                     "server_token": "TEXT"})
+        self.database.update_table("plex_servers", 1, ["""ALTER TABLE plex_servers ADD COLUMN webserver_path TEXT"""])
         self.database.create_table("discord_associations", {"guild_id": "INTEGER", "discord_user_id": "INTEGER",
                                                             "plex_id": "INTEGER", "plex_email": "TEXT",
                                                             "plex_username": "TEXT",
