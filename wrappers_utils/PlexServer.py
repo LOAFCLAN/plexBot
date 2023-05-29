@@ -7,6 +7,8 @@ import threading
 
 from loguru import logger as logging
 
+from wrappers_utils.EventDecorator import event_manager
+
 
 class PlexServer(plexapi.server.PlexServer):
 
@@ -14,16 +16,19 @@ class PlexServer(plexapi.server.PlexServer):
         self.associations = kwargs.pop("discord_associations", None)
         self.database = kwargs.pop("database", None)
         self.friendlyName = "Unknown"
+        self.host_guild = kwargs.pop("host_guild", None)
         self._background_thread = None
         try:
             super().__init__(*args, timeout=1, **kwargs)
             self._online = True
+            event_manager.trigger_event("plex_connect", plex=self)
         except requests.exceptions.ConnectionError:
             self._server_offline()
 
     def _server_offline(self):
         logging.warning(f"Plex server {self.friendlyName} has gone offline")
         self._online = False
+        event_manager.trigger_event("plex_disconnect", plex=self)
         if self._background_thread is None or not self._background_thread.is_alive():
             self._background_thread = threading.Thread(target=self._reconnection_thread, daemon=True)
             self._background_thread.start()
@@ -34,6 +39,7 @@ class PlexServer(plexapi.server.PlexServer):
             try:
                 super().__init__(self._baseurl, self._token, timeout=1)
                 self._online = True
+                event_manager.trigger_event("plex_connect", plex=self)
                 logging.info(f"Plex server {self.friendlyName} has come back online")
             except requests.exceptions.ConnectTimeout:
                 pass

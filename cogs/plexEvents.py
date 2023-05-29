@@ -10,6 +10,8 @@ from loguru import logger as logging
 
 from utils import get_from_media_index, safe_field, base_info_layer, rating_str, stringify, get_series_duration, \
     get_watch_time, get_session_count, cleanup_url
+from wrappers_utils import EventDecorator
+from wrappers_utils.EventDecorator import EventManager, event_manager
 
 
 class PlexEvents(Cog):
@@ -32,6 +34,7 @@ class PlexEvents(Cog):
         self.bot = bot
         table = self.bot.database.get_table("plex_alert_channel")
         self.plex_alert_channels = table.get_all()
+        event_manager.add_instance(self)
 
         self.event_tracker = {}
         self.listener_tasks = {}
@@ -39,8 +42,30 @@ class PlexEvents(Cog):
     @Cog.listener()
     async def on_ready(self):
         logging.info("PlexEvents is ready")
-        for entry in self.plex_alert_channels:
-            self.bot.loop.create_task(self.start_event_listener(entry[0], entry[1]))
+        # for entry in self.plex_alert_channels:
+        #     self.bot.loop.create_task(self.start_event_listener(entry[0], entry[1]))
+
+    @EventDecorator.on_event('plex_connect')
+    async def on_plex_connect(self, plex):
+        """Called when the bot establishes a connection a plex server"""
+        # Used to start the event listener
+        guild = plex.host_guild
+        table = self.bot.database.get_table("plex_alert_channel")
+        if table.get_row(guild_id=guild.id) is None:
+            return
+        channel_id = table.get_row(guild_id=guild.id)['channel_id']
+        logging.debug(f"Starting event listener for {guild.name} ({plex.friendlyName})")
+        self.bot.loop.create_task(self.start_event_listener(guild.id, channel_id))
+
+    @EventDecorator.on_event('plex_disconnect')
+    async def on_plex_disconnect(self, plex):
+        """Called when the bot disconnects from a plex server"""
+        guild = plex.host_guild
+        if guild.id in self.listener_tasks:
+            task = self.listener_tasks[guild.id]
+            task.cancel()
+            del self.listener_tasks[guild.id]
+            logging.info(f"Stopped event listener for {guild.name}")
 
     async def start_event_listener(self, guild_id, channel_id):
         """Starts the event listener"""
@@ -108,9 +133,9 @@ class PlexEvents(Cog):
             """Format the embed being sent for a movie"""
             embed = discord.Embed(title=f"{content.title} ({content.year})",
                                   description=f"{content.tagline if content.tagline else 'No Tagline'}", color=0x00ff00)
-            embed.add_field(name="Summary", value=content.summary, inline=False)
+            # embed.add_field(name="Summary", value=content.summary, inline=False)
 
-            base_info_layer(embed, content, database=self.bot.database)
+            base_info_layer(embed, content, database=self.bot.database, full=False)
 
         elif isinstance(content, plexapi.video.Show):  # ----------------------------------------------------------
             """Format the embed being sent for a show"""
@@ -119,7 +144,7 @@ class PlexEvents(Cog):
 
             embed = discord.Embed(title=f"{safe_field(content.title)}",
                                   description=f"{content.tagline if content.tagline else 'No Tagline'}", color=0x00ff00)
-            embed.add_field(name="Summary", value=safe_field(content.summary), inline=False)
+            # embed.add_field(name="Summary", value=safe_field(content.summary), inline=False)
             embed.add_field(name="Rating", value=rating_string, inline=False)
             embed.add_field(name="Genres", value=stringify(content.genres), inline=False)
 
@@ -154,7 +179,7 @@ class PlexEvents(Cog):
             embed = discord.Embed(title=f"{content.grandparentTitle}\n{content.title} "
                                         f"(S{content.parentIndex}E{content.index})",
                                   description=f"{content.summary}", color=0x00ff00)
-            base_info_layer(embed, content, database=self.bot.database)
+            base_info_layer(embed, content, database=self.bot.database, full=False)
         else:
             embed = discord.Embed(title="Unknown content type", color=0x00ff00)
 
@@ -211,102 +236,100 @@ class PlexEvents(Cog):
                     f.write(r.content)
 
     async def send_event_message(self, plex, channel, event):
-        embed = discord.Embed()
 
         # only include messages with an ID of 0, 5, 9
-        if event['state'] == 0:
-            embed.title = "New Media Added"
-            embed.color = 0x00ff00
-            library = plex.library.sectionByID(int(event['sectionID']))
-            embed.description = f"New media file added to {library.title}"
-            embed.set_footer(text=f"Waiting for item matching to complete")
-            msg = await channel.send(embed=embed)
-            await asyncio.sleep(1)
-            self.event_tracker[channel.guild.id].append(self.PlexMediaEvent(event['itemID'], msg))
-        elif event['state'] == 1:  # Matching item
-            if event in self.event_tracker[channel.guild.id]:
-                event_obj = self.get_media_event(channel.guild.id, event['itemID'])
-                if event_obj.last_state != 0:
+        match event['state']:
+            case 0:
+                library = plex.library.sectionByID(int(event['sectionID']))
+                embed = discord.Embed(title="New Media Added", color=0x00FFFF,
+                                      description=f"New media file added to `{library.title}`")
+                embed.set_footer(text=f"Waiting for item matching to complete")
+                msg = await channel.send(embed=embed)
+                await asyncio.sleep(1)
+                self.event_tracker[channel.guild.id].append(self.PlexMediaEvent(event['itemID'], msg))
+            case 1:
+                if event in self.event_tracker[channel.guild.id]:
+                    event_obj = self.get_media_event(channel.guild.id, event['itemID'])
+                    if event_obj.last_state == 1:
+                        return
+                    event_obj.title = event['title']
+                    library = plex.library.sectionByID(int(event['sectionID']))
+                    embed = discord.Embed(title="New Media Added", color=0x00FFFF,
+                                          description=f"Media `{event['title']}` added to `{library.title}`")
+                    embed.set_footer(text=f"Waiting for metadata download to start, media ID: {event['itemID']}")
+                    await event_obj.message.edit(embed=embed)
+                    await asyncio.sleep(1)
+                    event_obj.last_state = 1
+            case 3:
+                if event in self.event_tracker[channel.guild.id]:
+                    event_obj = self.get_media_event(channel.guild.id, event['itemID'], event['title'])
+                    if event_obj.last_state == 3:
+                        return
+                    event_obj.itemID = event['itemID']
+                    library = plex.library.sectionByID(int(event['sectionID']))
+                    embed = discord.Embed(title="New Media Added", color=0x00FFFF,
+                                          description=f"Media `{event['title']}` added to `{library.title}`")
+                    embed.set_footer(text=f"Waiting for metadata download to finish, media ID: {event['itemID']}")
+                    msg = self.get_media_event(channel.guild.id, event['itemID']).message
+                    await msg.edit(embed=embed)
+                    await asyncio.sleep(1)
+                    event_obj.last_state = 3
+            case 4:
+                if event in self.event_tracker[channel.guild.id]:
+                    event_obj = self.get_media_event(channel.guild.id, event['itemID'], event['title'])
+                    if event_obj.last_state == 4:
+                        return
+                    event_obj.itemID = event['itemID']
+                    library = plex.library.sectionByID(int(event['sectionID']))
+                    embed = discord.Embed(title="New Media Added", color=0x00FFFF,
+                                          description=f"Media `{event['title']}` added to `{library.title}`")
+                    embed.set_footer(text=f"Processing media metadata, media ID: {event['itemID']}")
+                    msg = self.get_media_event(channel.guild.id, event['itemID']).message
+                    await msg.edit(embed=embed)
+                    await asyncio.sleep(1)
+                    event_obj.last_state = 4
+            case 5:
+                if event in self.event_tracker[channel.guild.id]:
+                    library = plex.library.sectionByID(int(event['sectionID']))
+                    event_obj = self.get_media_event(channel.guild.id, event['itemID'])
+                    if event_obj.last_state == 5:
+                        return
+                    embed = discord.Embed(title="New Media Added", color=0x00FFFF,
+                                          description=f"Searching for media `{event['title']}` in `{library.title}`")
+                    embed.set_footer(text=f"Metadata download complete searching for media ID: {event['itemID']}")
+                    await event_obj.message.edit(embed=embed)
+                    # Start a new task to search for the media
+                    asyncio.ensure_future(self.apply_media_info(channel, event_obj, library))
+                    event_obj.last_state = 5
+                    await asyncio.sleep(1)
+            case 9:
+                if event in self.event_tracker[channel.guild.id]:
+                    msg = self.get_media_event(channel.guild.id, event['itemID']).message
+                    title = self.get_media_event(channel.guild.id, event['itemID']).title
+                    library = plex.library.sectionByID(int(event['sectionID']))
+                    embed = discord.Embed(title="New Media Added", color=0x00FFFF,
+                                          description=f"Merging media `{title}` in `{library.title}`")
+                    embed.set_footer(text=f"Media ID: {event['itemID']}")
+                    await msg.edit(embed=embed)
+                    await asyncio.sleep(1)
                     return
-                event_obj.title = event['title']
-                embed.title = "New Media Added"
-                embed.color = 0x00ff00
-                library = plex.library.sectionByID(int(event['sectionID']))
-                embed.description = f"Media `{event['title']}` added to `{library.title}`"
-                embed.set_footer(text=f"Waiting for metadata download to start, media ID: {event['itemID']}")
-                await event_obj.message.edit(embed=embed)
-                await asyncio.sleep(1)
-                event_obj.last_state = 1
-        elif event['state'] == 3:  # metadata download started
-            if event in self.event_tracker[channel.guild.id]:
-                event_obj = self.get_media_event(channel.guild.id, event['itemID'], event['title'])
-                if event_obj.last_state != 1:
-                    return
-                event_obj.itemID = event['itemID']
-                embed.title = "New Media Added"
-                embed.color = 0x00ff00
-                library = plex.library.sectionByID(int(event['sectionID']))
-                embed.description = f"Media `{event['title']}` added to `{library.title}`"
-                embed.set_footer(text=f"Waiting for metadata download to finish, media ID: {event['itemID']}")
-                msg = self.get_media_event(channel.guild.id, event['itemID']).message
-                await msg.edit(embed=embed)
-                await asyncio.sleep(1)
-                event_obj.last_state = 3
-        elif event['state'] == 4:  # metadata download finished
-            if event in self.event_tracker[channel.guild.id]:
-                event_obj = self.get_media_event(channel.guild.id, event['itemID'], event['title'])
-                if event_obj.last_state != 3 and event_obj.last_state != 1:
-                    return
-                event_obj.itemID = event['itemID']
-                embed.title = "New Media Added"
-                embed.color = 0x00ff00
-                library = plex.library.sectionByID(int(event['sectionID']))
-                embed.description = f"Media `{event['title']}` added to `{library.title}`"
-                embed.set_footer(text=f"Processing media metadata, media ID: {event['itemID']}")
-                msg = self.get_media_event(channel.guild.id, event['itemID']).message
-                await msg.edit(embed=embed)
-                await asyncio.sleep(1)
-                event_obj.last_state = 4
-        elif event['state'] == 5:
-            if event in self.event_tracker[channel.guild.id]:
-                library = plex.library.sectionByID(int(event['sectionID']))
-                event_obj = self.get_media_event(channel.guild.id, event['itemID'])
-                if event_obj.last_state != 4:
-                    return
-                embed.title = "New Media Added"
-                embed.description = f"Searching for `{event['title']}` in `{library.title}`"
-                embed.set_footer(text=f"Metadata download complete searching for media ID: {event['itemID']}")
-                await event_obj.message.edit(embed=embed)
-                # Start a new task to search for the media
-                asyncio.ensure_future(self.apply_media_info(channel, event_obj, library))
-                event_obj.last_state = 5
-                await asyncio.sleep(1)
-        elif event['state'] == 9:  # Media deleted
-            if event in self.event_tracker[channel.guild.id]:
-                msg = self.get_media_event(channel.guild.id, event['itemID']).message
-                title = self.get_media_event(channel.guild.id, event['itemID']).title
-                embed.title = "New Media Added"
-                embed.color = 0x00ff00
-                library = plex.library.sectionByID(int(event['sectionID']))
-                embed.description = f"Media `{title}` deleted from `{library.title}`"
-                embed.set_footer(text=f"Media is being merged into another item, media ID: {event['itemID']}")
-                await msg.edit(embed=embed)
-                await asyncio.sleep(1)
-                return
 
-            library = plex.library.sectionByID(int(event['sectionID']))
-            embed.title = "Media Deleted"
-            embed.color = 0xff0000
-            embed.description = f"Media {event['title']} deleted from {library.title}"
-            embed.set_footer(text=f"Media deleted")
-            await channel.send(embed=embed)
-            await asyncio.sleep(1)
+                library = plex.library.sectionByID(int(event['sectionID']))
+                embed = discord.Embed(title="Media Deleted", color=0xff0000,
+                                      description=f"Media `{event['title']}` deleted from `{library.title}`")
+                embed.set_footer(text=f"Media ID: {event['itemID']}")
+                await channel.send(embed=embed)
+                await asyncio.sleep(1)
 
     @has_permissions(manage_guild=True)
     @command(name="config_event_listener", aliases=["sel"])
     async def config_event_listener(self, ctx, channel: discord.TextChannel = None):
         table = self.bot.database.get_table("plex_alert_channel")
         table.update_or_add(guild_id=ctx.guild.id, channel_id=channel.id)
+        # Stop any existing event listeners
+        if ctx.guild.id in self.listener_tasks:
+            self.listener_tasks[ctx.guild.id].cancel()
+            await ctx.send("Stopped existing event listener")
         await ctx.send("Started event listener")
         # actually start the event listener
         task = self.bot.loop.create_task(self.start_event_listener(ctx.guild.id, channel.id))

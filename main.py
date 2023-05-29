@@ -139,7 +139,7 @@ class PlexBot(commands.Bot):
                 logging.debug(f"Connecting to plex server {server_entry['server_url']} for guild {guild_id}")
                 plex_servers[guild_id] = PlexServer(server_entry["server_url"], server_entry["server_token"],
                                                     discord_associations=DiscordAssociations(self, guild),
-                                                    database=self.database)
+                                                    database=self.database, host_guild=guild)
                 plex_servers[guild_id].baseurl = server_entry["server_url"]
                 plex_servers[guild_id].token = server_entry["server_token"]
             except Exception as e:

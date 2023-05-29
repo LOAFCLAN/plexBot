@@ -701,7 +701,7 @@ def base_info_layer(embed, content, database=None, full=True):
     elif len(actors) <= 3:
         embed.add_field(name="Starring", value=stringify(actors, max_length=3), inline=False)
     else:
-        embed.add_field(name="Cast", value=stringify(actors, max_length=10), inline=False)
+        embed.add_field(name="Cast", value=stringify(actors, max_length=10 if full else 5), inline=False)
 
     embed.add_field(name="Producers", value=stringify(content.producers, max_length=4), inline=True)
     embed.add_field(name="Directors", value=stringify(content.directors, max_length=4), inline=True)

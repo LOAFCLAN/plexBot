@@ -29,7 +29,8 @@ class PlexContext(commands.Context):
                 try:
                     plex_servers[guild_id] = PlexServer(row["server_url"], row["token"],
                                                         associations=DiscordAssociations(self, self.guild),
-                                                        database=self.bot.database)
+                                                        database=self.bot.database,
+                                                        host_guild=self.guild)
                 except Exception as e:
                     raise self.PlexOffline("Plex server is offline") from e
             else:
