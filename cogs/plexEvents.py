@@ -12,6 +12,7 @@ from utils import get_from_media_index, safe_field, base_info_layer, rating_str,
     get_watch_time, get_session_count, cleanup_url
 from wrappers_utils import EventDecorator
 from wrappers_utils.EventDecorator import EventManager, event_manager
+from wrappers_utils.MediaEmbedifier import media_details
 
 
 class PlexEvents(Cog):
@@ -124,79 +125,6 @@ class PlexEvents(Cog):
         # Use get_from_media_index(library, mediaID)
         return await self.bot.loop.run_in_executor(None, get_from_media_index, library, mediaID)
 
-    async def media_details(self, content) -> discord.Embed:
-        """Gets the details of the media"""
-        if content.isPartialObject():  # For some reason plex likes to not give everything we asked for
-            content.reload()  # So if plex is being a jerk, we'll reload the content
-
-        if isinstance(content, plexapi.video.Movie):
-            """Format the embed being sent for a movie"""
-            embed = discord.Embed(title=f"{content.title} ({content.year})",
-                                  description=f"{content.tagline if content.tagline else 'No Tagline'}", color=0x00ff00)
-            # embed.add_field(name="Summary", value=content.summary, inline=False)
-
-            base_info_layer(embed, content, database=self.bot.database, full=False)
-
-        elif isinstance(content, plexapi.video.Show):  # ----------------------------------------------------------
-            """Format the embed being sent for a show"""
-
-            rating_string = rating_str(content, database=self.bot.database)
-
-            embed = discord.Embed(title=f"{safe_field(content.title)}",
-                                  description=f"{content.tagline if content.tagline else 'No Tagline'}", color=0x00ff00)
-            # embed.add_field(name="Summary", value=safe_field(content.summary), inline=False)
-            embed.add_field(name="Rating", value=rating_string, inline=False)
-            embed.add_field(name="Genres", value=stringify(content.genres), inline=False)
-
-            embed.add_field(name="Studio", value=content.studio, inline=True)
-            embed.add_field(name="Network", value=content.network, inline=True)
-            embed.add_field(name="Originally Aired", value=content.originallyAvailableAt.strftime("%B %d, %Y"),
-                            inline=True)
-
-            embed.add_field(name="Average Episode Runtime",
-                            value=f"{datetime.timedelta(milliseconds=content.duration)}", inline=True)
-            embed.add_field(name="Total Duration",
-                            value=f"{datetime.timedelta(seconds=round(get_series_duration(content) / 1000))}",
-                            inline=True)
-            embed.add_field(name="Watch Time", value=f"{get_watch_time(content, self.bot.database)}", inline=True)
-            embed.add_field(name="Total Season", value=content.childCount, inline=True)
-            embed.add_field(name="Total Episodes", value=f"{len(content.episodes())}", inline=True)
-            embed.add_field(name="Total Sessions", value=f"{get_session_count(content, self.bot.database)}",
-                            inline=True)
-
-        elif isinstance(content, plexapi.video.Season):  # ------------------------------------------------------
-            """Format the embed being sent for a season"""
-            embed = discord.Embed(title=f"{content.parentTitle}",
-                                  description=f"Season {content.index}", color=0x00ff00)
-            embed.add_field(name=f"Episodes: {len(content.episodes())}",
-                            value=stringify(content.episodes(), separator="\n")[:1024], inline=False)
-            embed.add_field(name="Total Duration",
-                            value=f"{datetime.timedelta(seconds=round(get_series_duration(content) / 1000))}",
-                            inline=True)
-
-        elif isinstance(content, plexapi.video.Episode):  # ------------------------------------------------------
-            """Format the embed being sent for an episode"""
-            embed = discord.Embed(title=f"{content.grandparentTitle}\n{content.title} "
-                                        f"(S{content.parentIndex}E{content.index})",
-                                  description=f"{content.summary}", color=0x00ff00)
-            base_info_layer(embed, content, database=self.bot.database, full=False)
-        else:
-            embed = discord.Embed(title="Unknown content type", color=0x00ff00)
-
-        db_entry = self.bot.database.get_table("plex_watched_media").get_row(media_guid=content.guid)
-
-        # if inter is not None:
-        #     await inter.disable_components()
-
-        if hasattr(content, "thumb"):
-            thumb_url = cleanup_url(content.thumb)
-            embed.set_thumbnail(url=thumb_url)
-
-        embed.set_footer(text=f"Located in {content.librarySectionTitle}, "
-                              f"Media ID: {db_entry['media_id'] if db_entry else 'N/A'}, Plex ID: {content.ratingKey}")
-
-        return embed
-
     async def apply_media_info(self, channel, event_obj, library):
         """Applies the media info to the message"""
 
@@ -208,7 +136,7 @@ class PlexEvents(Cog):
             except Exception as e:
                 logging.error(e)
                 logging.exception(e)
-            embed = await self.media_details(media)
+            embed, view = await media_details(media, self)
 
         await event_obj.message.edit(content="Media Added", embed=embed)
         self.event_tracker[channel.guild.id].remove(event_obj)
