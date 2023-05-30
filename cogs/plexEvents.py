@@ -136,7 +136,7 @@ class PlexEvents(Cog):
             except Exception as e:
                 logging.error(e)
                 logging.exception(e)
-            embed, view = await media_details(media, self)
+            embed, view = await media_details(media, self, full=False)
 
         await event_obj.message.edit(content="Media Added", embed=embed)
         self.event_tracker[channel.guild.id].remove(event_obj)
