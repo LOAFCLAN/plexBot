@@ -107,7 +107,7 @@ class PlexSearchView(View):
         self.add_item(select_thing)
 
 
-async def media_details(content, self=None, requester=None, full=False):
+async def media_details(content, self=None, requester=None, full=True):
     """Show details about a content"""
     view = None
 
