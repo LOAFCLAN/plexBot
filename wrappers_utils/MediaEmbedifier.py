@@ -74,7 +74,8 @@ class PlexSearchView(View):
         else:
             await interaction.response.defer()
             await interaction.message.edit(content="Searching...", embed=None, view=None)
-            embed, view = await media_details(self.results[int(interaction.data["values"][0])],
+            embed, view = await media_details(content=self.results[int(interaction.data["values"][0])],
+                                              self=self.plex_search,
                                               requester=interaction.user)
             # Set the target message to the new message
             msg = await interaction.message.edit(content=None, embed=embed, view=view)
