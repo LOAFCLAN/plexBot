@@ -768,7 +768,7 @@ def base_user_layer(user: CombinedUser, database):
         if media['media_type'] == "episode":
             show = media_table.get_row(media_id=media['show_id'])
             if show is None:
-                logging.warning(f"Could not find show with id {media['show_id']}")
+                logging.warning(f"Could not find show with id {media['show_id']} for media {media}")
                 continue
             media_list.append(f"`{show['title']} (S{str(media['season_num']).zfill(2)}E"
                               f"{str(media['ep_num']).zfill(2)})` `[{media_duration}]`\n"
