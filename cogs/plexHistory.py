@@ -163,7 +163,8 @@ class PlexHistory(commands.Cog):
                 embed = discord.Embed(title=f"Unknown media type", color=0x00ff00)
 
             embed.set_footer(text=f"Located in {content.librarySectionTitle}, "
-                                  f"Media ID: {media_id if media_id else 'N/A'}")
+                                  f"Media ID: {media_id if media_id else 'N/A'}, "
+                                  f"Plex ID: {content.ratingKey}")
 
             if hasattr(content, "thumb"):
                 thumb_url = cleanup_url(content.thumb)
