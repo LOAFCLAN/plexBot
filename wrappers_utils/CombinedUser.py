@@ -126,7 +126,7 @@ class CombinedUser:
     def full_discord_username(self):
         if self.discord_member is not None and not self.discord_id_only:
             if self.discord_member.discriminator == "0":
-                return self.discord_member.name
+                return f"{self.discord_member.global_name} | {self.discord_member.name}"
             else:
                 return f"{self.discord_member.name}#{self.discord_member.discriminator}"
         else:
