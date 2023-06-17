@@ -16,7 +16,7 @@ from wrappers_utils.BotExceptions import PlexNotLinked, PlexNotReachable
 from wrappers_utils.Modals import ReviewModal
 from wrappers_utils.SessionChangeWatchers import SessionChangeWatcher, SessionWatcher
 from utils import base_info_layer, get_season, get_episode, cleanup_url, text_progress_bar_maker, stringify, \
-    base_user_layer, get_series_duration, get_from_guid
+    base_user_layer, get_series_duration, get_from_guid, get_from_media_index, get_show
 
 from loguru import logger as logging
 
@@ -176,6 +176,7 @@ class PlexHistory(commands.Cog):
         self.bot = bot
         self.msg_cache = {}
         self.cached_history = {}
+        self.history_tasks = {}
         self.sent_hashes = []
         self.history_channels = []
 
@@ -184,8 +185,10 @@ class PlexHistory(commands.Cog):
         logging.info("Cog: PlexHistory is ready")
         table = self.bot.database.get_table("plex_history_channel")
         for row in table.get_all():
-            self.msg_cache[row[0]] = {}
-            asyncio.get_event_loop().create_task(self.history_watcher(row[0], row[1]))
+            # Validate that there is not already a task for this channel
+            if row["channel_id"] not in self.history_tasks:
+                task = asyncio.get_event_loop().create_task(self.history_watcher(row[0], row[1]))
+                self.history_tasks[row[0]] = task
         logging.info("PlexHistory startup complete")
 
     @Cog.listener('on_raw_message_delete')
@@ -436,6 +439,32 @@ class PlexHistory(commands.Cog):
                 await message.edit(view=view)
                 await asyncio.sleep(7.5)
         await ctx.send("All messages updated to new component format")
+
+    @has_permissions(administrator=True)
+    @command(name="refresh_metadata", aliases=["refresh"])
+    async def refresh_metadata(self, ctx):
+        """
+        Refreshes the media length attribute on entries in the plex_watched_media table
+        """
+        table = self.bot.database.get_table("plex_watched_media")
+
+        def refresh():
+            for entry in table.select(where="media_type= 'show'"):
+                try:
+                    library = ctx.plex.library.sectionByID(int(entry["library_id"]))
+                    show = library.getGuid(entry["media_guid"])
+                    entry.set(media_length=round(get_series_duration(show) / 1000))
+                except plexapi.exceptions.NotFound:
+                    library = ctx.plex.library.sectionByID(int(entry["library_id"]))
+                    show = get_show(library, entry["title"])
+                    if show is None:
+                        continue
+                    entry.set(media_length=round(get_series_duration(show) / 1000))
+
+        async with ctx.typing():
+            await self.bot.loop.run_in_executor(None, refresh)
+
+        await ctx.send("Refreshed metadata")
 
     @has_permissions(administrator=True)
     @command(name="clean_history", aliases=["ch"])

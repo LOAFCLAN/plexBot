@@ -446,6 +446,17 @@ def get_from_media_index(library, media_index):
         logging.warning(f"Could not find {media_index} in {library.title} using all()")
         return None
 
+def get_show(library, show_name):
+    try:
+        return library.get(show_name)
+    except plexapi.exceptions.NotFound:
+        logging.warning(f"Could not find {show_name} in {library.title} using get")
+        library_content = library.all()
+        for content in library_content:
+            if content.title == show_name:
+                return content
+        logging.warning(f"Could not find {show_name} in {library.title} using all()")
+        return None
 
 def get_season(plex, show_name, season_num):
     for section in plex.library.sections():
