@@ -38,18 +38,23 @@ class PlexStatistics(commands.Cog):
                 await ctx.send("Could not find library with that name.")
                 return
 
-            library_content = library.all()
-            total_media_length = round(library.totalDuration / 1000)
-            top_level_media_count = library.totalSize
-            # Because TV shows only count as one item, we need to get the total number of episodes for
-            # the total number of episodes
-            total_media_count = 0
-            for item in library_content:
-                if isinstance(item, plexapi.video.Show):
-                    total_media_count += len(item.episodes())
-                else:
-                    total_media_count += 1
-            total_media_size = library.totalStorage
+            def get_library():
+                content = library.all()
+                media_length = round(library.totalDuration / 1000)
+                top_media_count = library.totalSize
+                # Because TV shows only count as one item, we need to get the total number of episodes for
+                # the total number of episodes
+                media_count = 0
+                for item in content:
+                    if isinstance(item, plexapi.video.Show):
+                        media_count += len(item.episodes())
+                    else:
+                        media_count += 1
+                media_size = library.totalStorage
+                return content, media_length, top_media_count, media_count, media_size
+
+            library_content, total_media_length, top_level_media_count, total_media_count, total_media_size \
+                = await self.bot.loop.run_in_executor(None, get_library)  # Run in executor to prevent blocking
 
             # Get the total watch time for the library
             watch_time = self.bot.database.get("SELECT SUM(watch_time) FROM plex_history_events WHERE media_id IN "
@@ -99,7 +104,7 @@ class PlexStatistics(commands.Cog):
 
             embed.add_field(name="Top Media Elements",
                             value="\n".join([f"`{str(i + 1).zfill(2)}. "
-                                             f"{round(media[2] / media[3] * 100)}%` - "
+                                             f"{str(round(media[2] / media[3] * 100)).zfill(3)}%` - "
                                              f"`{datetime.timedelta(seconds=media[2])}` - "
                                              f"`{media[0][:25]}`"
                                              for i, media in enumerate(most_popular)]), inline=False)
@@ -116,23 +121,73 @@ class PlexStatistics(commands.Cog):
         """
         # Send a typing indicator
         async with ctx.typing():
+            # Check if user_info is a user mention
+            if ctx.message.mentions:
+                user_info = ctx.message.mentions[0]
             # Get the user
-            user = ctx.plex.associations.get(user_info)
+            user = ctx.plex.associations.get(user_info)  # type: wrappers_utils.CombinedUser
             if user is None:
-                await ctx.send("Could not find user with that name.")
+                await ctx.send("Could not find a CombinedUser matching that name.")
                 return
             print(user)
             # Get the user's watch history
             print(user.account_id)
-            watch_history = self.bot.database.get(f"""
+            watch_history_movies = self.bot.database.get(f"""
             SELECT media.title, media.media_guid,
             SUM(events.watch_time) / 1000 AS total_watch_time,
             media.media_length AS length
             FROM plex_watched_media AS media
             JOIN plex_history_events AS events ON events.media_id = media.media_id
-            WHERE events.account_id = ? 
+            WHERE events.account_id = ? AND media.media_type = 'movie'
             GROUP BY media.media_id ORDER BY (total_watch_time * 1000 / length) DESC LIMIT 15;""", (user.account_id,))
+
+            watch_history_shows = self.bot.database.get(f"""
+            SELECT show.title, show.media_guid,
+            SUM(DISTINCT events.watch_time) / 1000 AS total_watch_time, 
+            show.media_length AS length,
+            COUNT(DISTINCT media.title) AS total_episodes
+            FROM plex_watched_media AS media
+            JOIN plex_history_events AS events ON events.media_id = media.media_id
+            JOIN plex_watched_media
+                AS show ON show.media_type = 'show'
+            WHERE events.account_id = ? AND media.media_type = 'episode' and show.media_id = media.show_id
+            GROUP BY show.media_id
+            ORDER BY (total_watch_time * 1000 / length) DESC LIMIT 15;""", (user.account_id,))
+
+            watch_history = watch_history_movies + watch_history_shows
+            # Resorted by percentage of total watch time
+            watch_history.sort(key=lambda x: x[2] / x[3], reverse=True)
             print(watch_history)
+            watch_history = watch_history[:15]
+
+            server_sessions = self.bot.database.get("""SELECT COUNT(*) FROM plex_history_events""")[0][0]
+            session_percentage = round((len(user.sessions) / server_sessions) * 100, 2)
+
+            server_watch_time = self.bot.database.get("""SELECT SUM(watch_time) FROM plex_history_events""")[0][0]
+            user_watch_time = self.bot.database.get(
+                """SELECT SUM(watch_time) FROM plex_history_events WHERE account_id = ?""", (user.account_id,))[0][0]
+            watch_time_percentage = round((user_watch_time / server_watch_time) * 100, 2)
+
+            embed = discord.Embed(title=f"Watch Percentages for {user.display_name()}",
+                                  description=f"Total Watch Time: "
+                                              f"`{datetime.timedelta(seconds=round(user.total_watch_time / 1000))} | "
+                                              f"{watch_time_percentage}%`\n"
+                                              f"Session Count: `{len(user.sessions)} | {session_percentage}%`\n"
+                                              f"Media Count: `{user.unique_media_count}`", color=0x00ff00)
+
+            embed.add_field(name="Top Media Elements",
+                            value="\n".join([f"`{str(i + 1).zfill(2)}. "
+                                             f"{str(round(media[2] / media[3] * 100)).zfill(3)}%` - "
+                                             f"`{datetime.timedelta(seconds=media[2])}` - "
+                                             f"`{media[0][:25]}`"
+                                             for i, media in enumerate(watch_history)]), inline=False)
+
+            # Make sure each field is under 1024 characters
+            for field in embed.fields:
+                if len(field.value) > 1024:
+                    embed.set_field_at(embed.fields.index(field), name=field.name, value=field.value[:1024])
+
+            await ctx.send(embed=embed)
 
     @commands.hybrid_command(name="who_watched", aliases=["watched_by", "watched", "ww", "wb"])
     async def who_watched(self, ctx, *, media_name):

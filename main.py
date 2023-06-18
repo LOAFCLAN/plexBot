@@ -178,7 +178,7 @@ class PlexBot(commands.Bot):
         super().run(self.token)
 
     async def on_command_error(self, context, exception):
-
+        # exception = getattr(error, "original", error)
         if isinstance(exception, commands.NoPrivateMessage):
             await context.send('{}, This command cannot be used in DMs.'.format(context.author.mention))
         elif isinstance(exception, commands.UserInputError):
@@ -219,7 +219,9 @@ class PlexBot(commands.Bot):
         elif isinstance(exception, commands.CommandNotFound):
             pass  # Silent ignore
         else:
-            logging.exception(exception)
+            # logging.exception(exception)
+            print(traceback.print_exception(type(exception), exception, exception.__traceback__))
+            # print(traceback.format_exc())
             await context.send(
                 '```\n%s\n```' % ''.join(traceback.format_exception_only(type(exception), exception)).strip())
             if isinstance(context.channel, discord.TextChannel):

@@ -1,5 +1,6 @@
 import datetime
 
+import ConcurrentDatabase
 import discord
 import plexapi
 
@@ -123,6 +124,7 @@ class CombinedUser:
         else:
             return "Unknown"
 
+    @property
     def full_discord_username(self):
         if self.discord_member is not None and not self.discord_id_only:
             if self.discord_member.discriminator == "0":
@@ -139,6 +141,14 @@ class CombinedUser:
             return self.plex_user.thumb
         else:
             return ""
+
+    @property
+    def is_linked(self):
+        return self.linked
+
+    @property
+    def discord_account(self):
+        return self.discord_member
 
     @property
     def account_id(self):
@@ -164,12 +174,11 @@ class CombinedUser:
         if self.plex_user is None:
             return []
         else:
-            cursor = self.plex_server.database.execute("SELECT * FROM plex_devices "
-                                                       "WHERE account_id = ? AND last_seen < ? ORDER BY last_seen",
-                                                       (self.plex_system_account.id, datetime.datetime.now()
-                                                        - datetime.timedelta(days=7)))
+            rows = self.plex_server.database.get("SELECT * FROM plex_devices "
+                                                 "WHERE account_id = ? AND last_seen < ? ORDER BY last_seen",
+                                                 (self.plex_user.id, datetime.datetime.now()
+                                                  - datetime.timedelta(days=7)))
             all_devices = self.plex_server.systemDevices()
-            rows = cursor.fetchall()
             ids = [row[1] for row in rows]
             devices = [device for device in all_devices if device.clientIdentifier in ids]
             # Add a last seen attribute to the devices
@@ -180,6 +189,23 @@ class CombinedUser:
             # Sort the devices by last seen
             devices.sort(key=lambda x: x.last_seen, reverse=True)
             return devices
+
+    @property
+    def sessions(self) -> list[ConcurrentDatabase.DynamicEntry]:
+        table = self.plex_server.database.get_table("plex_history_events")
+        sessions = table.get_rows(account_id=self.plex_user.id)
+        return sessions
+
+    @property
+    def total_watch_time(self) -> int:
+        return self.plex_server.database.get("SELECT SUM(watch_time) FROM plex_history_events WHERE account_id = ?",
+                                             (self.plex_user.id,))[0][0]
+
+    @property
+    def unique_media_count(self) -> int:
+        return self.plex_server.database.get("SELECT COUNT(DISTINCT media_id) FROM plex_history_events "
+                                                  "WHERE account_id = ?",
+                                                  (self.plex_user.id,))[0][0]
 
     def _compare_plex_info(self, other: str):
         if self.plex_user is not None:
@@ -227,6 +253,7 @@ class CombinedUser:
         return_str = "("
         return_str += f"Discord: {self.discord_member.name}; " if self.discord_member else "Discord: None; "
         return_str += f"Plex: {self.plex_user.username}; " if self.plex_user else "Plex: None; "
+        return_str += f"PlexID: {self.plex_user.id}; " if self.plex_user else "PlexID: None; "
         return_str += f"PlexSys: {self.plex_system_account.id}" if self.plex_system_account else "PlexSys: None"
         return_str += ")"
         return return_str

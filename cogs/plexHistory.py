@@ -29,7 +29,6 @@ def hash_media_event(media) -> int:
 
 
 class PlexHistory(commands.Cog):
-
     class HistoryOptions(discord.ui.View):
 
         def __init__(self, *, timeout=None):
@@ -464,7 +463,14 @@ class PlexHistory(commands.Cog):
         async with ctx.typing():
             await self.bot.loop.run_in_executor(None, refresh)
 
-        await ctx.send("Refreshed metadata")
+        await ctx.send("Refreshed metadata, fixing host account ids")
+        table = self.bot.database.get_table("plex_history_events")
+        host = ctx.plex.associations.get(1)
+        for entry in table.get_all():
+            # For each event if the account_id is 1 replace it with the host account id
+            if entry["account_id"] == 1:
+                entry.set(account_id=host.account_id)
+        await ctx.send("Fixed host account ids")
 
     @has_permissions(administrator=True)
     @command(name="clean_history", aliases=["ch"])
