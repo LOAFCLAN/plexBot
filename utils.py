@@ -725,7 +725,7 @@ def base_info_layer(embed, content, database=None, full=True):
 def base_user_layer(user: CombinedUser, database):
     accountID = user.account_id
     embed = discord.Embed(title=f"User: {user.display_name(plex_only=True)} - {user.plex_user.id}", color=0x00ff00)
-    embed.set_author(name=f"{user.display_name(discord_only=True)} ({user.full_discord_username()})",
+    embed.set_author(name=f"{user.display_name(discord_only=True)} ({user.full_discord_username})",
                      icon_url=user.avatar_url(discord_only=True))
     embed.set_thumbnail(url=user.avatar_url(plex_only=True))
     # The description of a user will contain the following:
