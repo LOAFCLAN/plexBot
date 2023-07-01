@@ -69,6 +69,7 @@ class PlexServer(plexapi.server.PlexServer):
             self._server_offline()
             return None
         except requests.exceptions.ConnectionError:
+            self._server_offline()
             return None
 
     def fetchItems(self, ekey, cls=None, container_start=None, container_size=None, **kwargs):
@@ -80,4 +81,5 @@ class PlexServer(plexapi.server.PlexServer):
             self._server_offline()
             return []
         except requests.exceptions.ConnectionError:
+            self._server_offline()
             return []

@@ -70,7 +70,7 @@ class PlexSearch(commands.Cog):
             await ctx.send("No results found.")
             return
         elif len(results) == 1:
-            msg = await ctx.send("Found 1 result. Showing details...")
+            msg = await ctx.send("Found 1 result. Loading details...")
             embed, view = await media_details(results[0], self=self, requester=ctx.author)
             await msg.edit(content=None, embed=embed, view=view)
             view.set_message(msg)

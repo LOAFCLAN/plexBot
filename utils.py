@@ -592,6 +592,19 @@ def get_series_duration(content: typing.Union[plexapi.video.Show, plexapi.video.
     return total_duration
 
 
+def get_series_size(content: typing.Union[plexapi.video.Show, plexapi.video.Season]) -> int:
+    """Get the total size of a series"""
+    total_size = 0
+    for episode in content.episodes():
+        try:
+            for media in episode.media:
+                for part in media.parts:
+                    total_size += part.size
+        except TypeError:
+            logging.debug(f"Episode {episode.title} has no size")
+    return total_size
+
+
 def make_episode_selector(season, callback) -> typing.Union[typing.List[Select], Button] or None:
     """Make an episode selector for a show"""
     if len(season.episodes()) == 0:

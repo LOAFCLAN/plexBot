@@ -2,12 +2,13 @@ import datetime
 import typing
 
 import discord
+import humanize
 import plexapi
 from discord import ButtonStyle, Interaction
 from discord.ui import View, Button, Select
 
 from utils import stringify, get_series_duration, base_info_layer, get_watch_time, get_session_count, safe_field, \
-    rating_str, cleanup_url
+    rating_str, cleanup_url, get_series_size
 from loguru import logger as logging
 
 from wrappers_utils.Modals import ReviewModal
@@ -73,7 +74,8 @@ class PlexSearchView(View):
                 await interaction.response.send_message("This media has not been watched yet", ephemeral=True)
         else:
             await interaction.response.defer()
-            await interaction.message.edit(content="Searching...", embed=None, view=None)
+            await interaction.message.edit(content=f"Loading... `{self.results[int(interaction.data['values'][0])]}`",
+                                           embed=None, view=None)
             embed, view = await media_details(content=self.results[int(interaction.data["values"][0])],
                                               self=self.plex_search,
                                               requester=interaction.user)
@@ -138,7 +140,8 @@ async def media_details(content, self=None, requester=None, full=True):
         embed.add_field(name="Genres", value=stringify(content.genres), inline=False)
 
         embed.add_field(name="Studio", value=content.studio, inline=True)
-        embed.add_field(name="Network", value=content.network, inline=True)
+        size = await self.bot.loop.run_in_executor(None, get_series_size, content)
+        embed.add_field(name="Size", value=humanize.naturalsize(size), inline=True)
         embed.add_field(name="Originally Aired", value=content.originallyAvailableAt.strftime("%B %d, %Y"),
                         inline=True)
 
@@ -148,7 +151,7 @@ async def media_details(content, self=None, requester=None, full=True):
                         value=f"{datetime.timedelta(seconds=round(get_series_duration(content) / 1000))}",
                         inline=True)
         embed.add_field(name="Watch Time", value=f"{get_watch_time(content, self.bot.database)}", inline=True)
-        embed.add_field(name="Total Season", value=content.childCount, inline=True)
+        embed.add_field(name="Total Seasons", value=content.childCount, inline=True)
         embed.add_field(name="Total Episodes", value=f"{len(content.episodes())}", inline=True)
         embed.add_field(name="Total Sessions", value=f"{get_session_count(content, self.bot.database)}",
                         inline=True)
