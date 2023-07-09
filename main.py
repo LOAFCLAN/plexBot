@@ -63,6 +63,10 @@ class PlexBot(commands.Bot):
                                                              "PRIMARY KEY": "(event_hash, guild_id)"})
         self.database.create_table("plex_devices", {"account_id": "INTEGER", "device_id": "STRING",
                                                     "last_seen": "INT", "PRIMARY KEY": "(account_id, device_id)"})
+        self.database.create_table("plex_media_event_messages", {"plex_media_id": "INTEGER", "guild_id": "INTEGER",
+                                                                  "channel_id": "INTEGER", "message_id": "INTEGER",
+                                                                  "deleted": "BOOLEAN",
+                                                                  "PRIMARY KEY": "(plex_media_id, guild_id)"})
         database_migrations.preform_migrations(self.database)
         self.database.create_table("plex_afs_ratings",
                                    {"media_id": "INTEGER", "user_id": "INTEGER", "rating": "INTEGER",

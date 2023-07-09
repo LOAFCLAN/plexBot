@@ -35,6 +35,7 @@ class PlexEvents(Cog):
         self.bot = bot
         table = self.bot.database.get_table("plex_alert_channel")
         self.plex_alert_channels = table.get_all()
+        self.event_message_table = self.bot.database.get_table("plex_media_event_messages")
         event_manager.add_instance(self)
 
         self.event_tracker = {}
@@ -125,12 +126,42 @@ class PlexEvents(Cog):
         # Use get_from_media_index(library, mediaID)
         return await self.bot.loop.run_in_executor(None, get_from_media_index, library, mediaID)
 
-    async def apply_media_info(self, channel, event_obj, library):
-        """Applies the media info to the message"""
+    async def get_message_from_plex_id(self, plex_media_id):
+        """Searches the database for a message with the given itemID"""
+        table = self.bot.database.get_table("plex_media_event_messages")
+        row = table.get_row(plex_media_id=plex_media_id)
+        if row is None:
+            return None
+        channel = self.bot.get_channel(row['channel_id'])
+        message = await channel.fetch_message(row['message_id'])
+        return message
 
+    async def apply_media_info(self, channel, event_obj=None, library=None, edit=False, media_obj=None, msg=None):
+        """Applies the media info to the message"""
         embed = discord.Embed()
-        media = await self.safe_mediaID_search(library, event_obj.itemID)
+        if media_obj is None:
+            media = await self.safe_mediaID_search(library, event_obj.itemID)
+        else:
+            media = media_obj
         if media is not None:
+            # If media is an episode update the series and season embeds that were sent previously
+            if media.type == 'episode':
+                series_message = await self.get_message_from_plex_id(media.grandparentRatingKey)
+                if series_message is not None:
+                    await self.apply_media_info(channel, library=library, edit=True, media_obj=media.show(),
+                                                msg=series_message)
+                else:
+                    logging.warning(f"Could not find series message for {media.grandparentTitle}")
+                season_message = await self.get_message_from_plex_id(media.parentRatingKey)
+                if season_message is not None:
+                    await self.apply_media_info(channel, library=library, edit=True, media_obj=media.season(),
+                                                msg=season_message)
+                else:
+                    logging.warning(f"Could not find season message for {media.parentTitle}")
+            # Save the message info for the season
+            self.event_message_table.update_or_add(plex_media_id=media.ratingKey, guild_id=channel.guild.id,
+                                                   channel_id=channel.id,
+                                                   message_id=event_obj.message.id if event_obj is not None else msg.id)
             try:
                 await self.download_thumbnails(channel, media)
             except Exception as e:
@@ -138,8 +169,11 @@ class PlexEvents(Cog):
                 logging.exception(e)
             embed, view = await media_details(media, self, full=False)
 
-        await event_obj.message.edit(content="Media Added", embed=embed)
-        self.event_tracker[channel.guild.id].remove(event_obj)
+        if not edit:
+            await event_obj.message.edit(content="Media Added", embed=embed)
+            self.event_tracker[channel.guild.id].remove(event_obj)
+        else:
+            await msg.edit(embed=embed)
 
     async def download_thumbnails(self, channel, media):
         """Downloads thumbnails for media into the webserver path"""
@@ -242,11 +276,18 @@ class PlexEvents(Cog):
                     await asyncio.sleep(1)
                     return
 
+                # Find the original media message if it exists
+                message = await self.get_message_from_plex_id(event['itemID'])
                 library = plex.library.sectionByID(int(event['sectionID']))
                 embed = discord.Embed(title="Media Deleted", color=0xff0000,
                                       description=f"Media `{event['title']}` deleted from `{library.title}`")
                 embed.set_footer(text=f"Media ID: {event['itemID']}")
-                await channel.send(embed=embed)
+                if message:
+                    await channel.send(embed=embed, reference=message)
+                    # Edit the text of the original message indicate the media was deleted but leave the embed intact
+                    await message.edit(content="`This media has been deleted`", embed=message.embeds[0])
+                else:
+                    await channel.send(embed=embed)
                 await asyncio.sleep(1)
 
     @has_permissions(manage_guild=True)
