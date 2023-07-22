@@ -215,6 +215,35 @@ class PlexSelfService(Cog):
 
             await ctx.send(embed=embed, view=view)
 
+    @command(name="set_qbittorrent", aliases=["set_qb", "set_qbittorrent_url"], brief="Set the qbittorrent URL",
+                description="Set the URL for the qbittorrent server", hidden=True)
+    @has_permissions(administrator=True)
+    async def set_qbittorrent_url(self, ctx, url, username, password):
+        try:
+            # Set the database entry for the guild
+            table = self.bot.database.get_table("qbittorrent_servers")
+            table.update_or_add(guild_id=ctx.guild.id, host=url,
+                                port=443, username=username, password=password)
+            await ctx.send("qbittorrent URL set")
+        except Exception as e:
+            logging.exception(e)
+            await ctx.send(f"PlexBot encountered an error setting the qbittorrent URL: `{e}`")
+        finally:
+            await ctx.message.delete()
+
+    @command(name="set_library", aliases=["set_lib"], brief="Set the Plex library",
+                description="Set the Plex library to add content to")
+    @has_permissions(administrator=True)
+    async def set_library(self, ctx, default_movie, default_tv):
+        try:
+            # Set the database entry for the guild
+            table = self.bot.database.get_table("qbittorrent_servers")
+            table.update_or_add(guild_id=ctx.guild.id, default_movie_library=default_movie,
+                                default_tv_library=default_tv)
+        except Exception as e:
+            logging.exception(e)
+            await ctx.send(f"PlexBot encountered an error setting the Plex library: `{e}`")
+
 
 async def setup(bot):
     await bot.add_cog(PlexSelfService(bot))
