@@ -35,6 +35,8 @@ class SessionWatcher:
             # Get the hardware ID of the device that is playing the video
             self.device_id = session.player.machineIdentifier
             self.account_id = session.player.userID
+            if self.account_id == 1:  # Btw nick, I still hate you for this
+                self.account_id = self.server.myPlexAccount().id
             table = self.server.database.get_table("plex_devices")
             table.update_or_add(device_id=self.device_id, account_id=self.account_id,
                                 last_seen=datetime.datetime.now().timestamp())

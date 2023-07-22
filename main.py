@@ -151,6 +151,14 @@ class PlexBot(commands.Bot):
                 await asyncio.sleep(5)
         return plex_servers[guild_id]
 
+    # Create on member join event listener
+    @commands.Cog.listener()
+    async def on_member_join(self, member: discord.Member):
+        # Update the discord associations for that guild
+        guild = member.guild
+        plex_server = await self.fetch_plex(guild)
+        await plex_server.associations.on_member_join(member)
+
     async def on_ready(self):
         self.database.backup(target=self.backup_database, progress=self.db_backup_callback)
         logging.info(f"Logged in as \"{self.user.name}\" - {self.user.id}")

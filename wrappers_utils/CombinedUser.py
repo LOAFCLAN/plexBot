@@ -19,7 +19,7 @@ class CombinedUser:
         self.plex_server = plex_server
         self.discord_id_only = False
         if isinstance(discord_member, int):
-            # If we are passed a discord ID this means that there is a linked
+            # If we are passed a discord ID this means that there is a linked discord user
             # but the user could not be found, we will then display the discord ID instead
             self.discord_id_only = True
         elif not isinstance(discord_member, discord.Member) and discord_member is not None:
