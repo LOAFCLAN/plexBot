@@ -36,7 +36,6 @@ class DiscordAssociations:
         # Copy all users from the bot's cache into the discord_users dict
         for member in self.guild.members:
             self.discord_users[member.id] = member
-        return
         # cursor = self.bot.database.execute("SELECT * FROM discord_associations WHERE guild_id = ?", (self.guild.id,))
         table = self.bot.database.get_table("discord_associations")
         association_ids = []
