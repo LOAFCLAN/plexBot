@@ -290,21 +290,6 @@ class PlexSelfService(Cog):
             logging.exception(e)
             await ctx.send(f"PlexBot encountered an error getting the CSS database info: `{e}`")
 
-    @command(name="manual_add", aliases=["manual_css"], brief="Manually add a torrent",
-                description="Manually add a torrent to the Plex library")
-    @has_permissions(administrator=True)
-    async def manual_add(self, ctx, magnet, library):
-        qbittorrent = self.get_qbittorrent(ctx.guild.id)
-        try:
-            library = ctx.plex.library.section(library)
-            result = qbittorrent.torrents_add(urls=magnet, download_path=library.locations[0])
-            if result == "Ok.":
-                await ctx.send(f"Torrent added successfully to `{library.title}`")
-            else:
-                await ctx.send(f"Error adding torrent: `{result}`")
-        except Exception as e:
-            logging.exception(e)
-            await ctx.send(f"PlexBot encountered an error adding the torrent: `{e}`")
 
 async def setup(bot):
     await bot.add_cog(PlexSelfService(bot))
