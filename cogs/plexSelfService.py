@@ -14,6 +14,10 @@ import qbittorrentapi
 from discord.ui import View, Button, Select
 
 
+def make_magnet(torrent_entry):
+    return f"magnet:?xt=urn:btih:{torrent_entry['hash']}&dn={torrent_entry['title']}"
+
+
 class PlexSelfService(Cog):
 
     def __init__(self, bot):
@@ -31,22 +35,23 @@ class PlexSelfService(Cog):
             # Remove empty lines
             self.trackers = [x for x in self.trackers if x != ""]
 
-    def make_magnet(self, torrent_entry):
-        return f"magnet:?xt=urn:btih:{torrent_entry['hash']}&dn={torrent_entry['title']}"
-
     def get_qbittorrent(self, guild_id):
         table = self.bot.database.get_table("qbittorrent_servers")
         qbittorrent = table.get_row(guild_id=guild_id)
         if qbittorrent is None:
             return None
-        return qbittorrentapi.Client(host=qbittorrent["host"], port=qbittorrent["port"],
-                                     username=qbittorrent["username"], password=qbittorrent["password"])
+        try:
+            return qbittorrentapi.Client(host=qbittorrent["host"], port=qbittorrent["port"],
+                                         username=qbittorrent["username"], password=qbittorrent["password"])
+        except Exception as e:
+            logging.exception(e)
+            raise ConnectionError("Unable to connect to qbittorrent")
 
     async def add_torrent(self, interaction, torrent_id, guild_id):
         guild = self.bot.get_guild(guild_id)
         plex = await self.bot.fetch_plex(guild)
         torrent_entry = self.rargb_database.get_table("items").get_row(id=torrent_id)
-        magnet = self.make_magnet(torrent_entry)
+        magnet = make_magnet(torrent_entry)
         # Determine save path based on category
         category = torrent_entry["cat"]
         if "movies" in category:
@@ -87,9 +92,12 @@ class PlexSelfService(Cog):
         # Send the message
         await interaction.response.edit_message(embed=embed, view=view)
 
-    async def callback(self, interaction):
+    async def select_callback(self, interaction):
         # Get the torrent_id from the value of the selected option
         try:
+            # Validate that the respondent is the same as the original user
+            if interaction.user.id != interaction.message.embeds[0].footer.text:
+                return await interaction.response.send_message("You are not this message's author", ephemeral=True)
             torrent_id = interaction.data["values"][0]
             await self.add_torrent(interaction, torrent_id, interaction.guild_id)
             # await interaction.response.send_message(f"Added torrent `{torrent_id}` to qbittorrent")
@@ -100,6 +108,9 @@ class PlexSelfService(Cog):
 
     async def confirmation_callback(self, interaction):
         try:
+            # Validate that the respondent is the same as the original user
+            if interaction.user.id != interaction.message.embeds[0].footer.text:
+                return await interaction.response.send_message("You are not this message's author", ephemeral=True)
             logging.info(interaction.data)
             guild = self.bot.get_guild(interaction.guild_id)
             plex = await self.bot.fetch_plex(guild)
@@ -114,7 +125,7 @@ class PlexSelfService(Cog):
             # Get the library from the Plex server
             library = plex.library.section(library_name)
             torrent_entry = self.rargb_database.get_table("items").get_row(id=torrent_id)
-            magnet = self.make_magnet(torrent_entry)
+            magnet = make_magnet(torrent_entry)
             # Get the path to the library
             path = library.locations[0]
             logging.info(f"Adding torrent `{torrent_entry['title']}` to `{library_name}` path `{path}`")
@@ -136,6 +147,7 @@ class PlexSelfService(Cog):
                 embed = discord.Embed(title="Unexpected qbittorrent Response",
                                         description=f"Unexpected response from qbittorrent: `{result}`",
                                             color=discord.Color.yellow())
+            embed.set_author(name=interaction.user.display_name, icon_url=interaction.user.avatar_url)
             await interaction.response.edit_message(embed=embed, view=None)
         except Exception as e:
             logging.exception(e)
@@ -164,6 +176,7 @@ class PlexSelfService(Cog):
             valid_resolutions = ["1080p", "2160p"]
             valid_releasers = ["RARBG", "YTS"]
             filtered_results = []
+            embed = discord.Embed(title="Search Results for {}".format(search_string), color=discord.Color.blue())
             for result in results:
                 # Make sure the title contains a valid encoding
                 if not any(encoding in result[2] for encoding in valid_encodings):
@@ -176,8 +189,15 @@ class PlexSelfService(Cog):
                     continue
                 filtered_results.append(result)
             if len(filtered_results) == 0:
-                await ctx.send("No valid torrents found")
-                return
+                # Check if the user is an admin
+                if ctx.author.guild_permissions.administrator:
+                    # If the user is an admin then allow them to bypass the filter
+                    filtered_results = results
+                    embed.colour = discord.Color.yellow()
+                else:
+                    embed.description = "No valid torrents found"
+                    embed.colour = discord.Color.red()
+                    return await ctx.send(embed=embed)
             # Check if those torrents are already in qbittorrent
             qbittorrent = self.get_qbittorrent(ctx.guild.id)
             # Look up the torrents in qbittorrent
@@ -192,10 +212,7 @@ class PlexSelfService(Cog):
                     pass
             # Sort the results by if they have been added or not and then alphabetically
             filtered_results.sort(key=lambda x: x[2])
-            embed = discord.Embed(title="Rarbg Search Results",
-                                  description=f"Searched for `{search_string}`, "
-                                              f"found `{len(filtered_results)}` results",
-                                  color=discord.Color.blue())
+            embed.description = f"Found {len(filtered_results)} results, {len(already_added)} already added"
             for result in filtered_results if len(filtered_results) < 10 else filtered_results[:10]:
                 # Check if the torrent is already in qbittorrent if so then add a checkmark to the title
                 embed.add_field(name=f"{result[2]} {'✅' if result in already_added else ''}",
@@ -211,8 +228,8 @@ class PlexSelfService(Cog):
                 select.add_option(label=result[2][:100], value=result[0], description=f"Hash: {result[1]}")
             view.add_item(select)
             # Attach the callback to the selection menu
-            select.callback = self.callback
-
+            select.callback = self.select_callback
+            embed.set_author(name=ctx.author.display_name, icon_url=ctx.author.display_avatar.url)
             await ctx.send(embed=embed, view=view)
 
     @command(name="set_qbittorrent", aliases=["set_qb", "set_qbittorrent_url"], brief="Set the qbittorrent URL",
@@ -240,10 +257,54 @@ class PlexSelfService(Cog):
             table = self.bot.database.get_table("qbittorrent_servers")
             table.update_or_add(guild_id=ctx.guild.id, default_movie_library=default_movie,
                                 default_tv_library=default_tv)
+            await ctx.send("Plex library set")
         except Exception as e:
             logging.exception(e)
             await ctx.send(f"PlexBot encountered an error setting the Plex library: `{e}`")
 
+    @command(name="css_info", brief="Get info about the CSS database",
+                description="Get info about the CSS database")
+    async def css_info(self, ctx):
+        try:
+            database_size = os.path.getsize("rarbg_db/rarbg_db.sqlite")
+            total_entries = self.rargb_database.get("SELECT COUNT(*) FROM items")[0][0]
+            default_movie_library = self.bot.database.get_table("qbittorrent_servers").get_row(
+                guild_id=ctx.guild.id)["default_movie_library"]
+            default_tv_library = self.bot.database.get_table("qbittorrent_servers").get_row(
+                guild_id=ctx.guild.id)["default_tv_library"]
+
+            try:
+                qbittorrent_status = self.get_qbittorrent(ctx.guild.id).app_version()
+                qbittorrent_status = f"Online - {qbittorrent_status}"
+            except Exception as e:
+                qbittorrent_status = f"Offline - {e}"
+
+            embed = discord.Embed(title="CSS Database Info", color=discord.Color.blue())
+            embed.description = f"Database Size: `{humanize.naturalsize(database_size)}`\n" \
+                                f"Total Entries: `{humanize.intcomma(total_entries)}`\n" \
+                                f"Default Movie Library: `{default_movie_library}`\n" \
+                                f"Default Show Library:  `{default_tv_library}`\n" \
+                                f"qbittorrent Status: `{qbittorrent_status}`\n"
+            await ctx.send(embed=embed)
+        except Exception as e:
+            logging.exception(e)
+            await ctx.send(f"PlexBot encountered an error getting the CSS database info: `{e}`")
+
+    @command(name="manual_add", aliases=["manual_css"], brief="Manually add a torrent",
+                description="Manually add a torrent to the Plex library")
+    @has_permissions(administrator=True)
+    async def manual_add(self, ctx, magnet, library):
+        qbittorrent = self.get_qbittorrent(ctx.guild.id)
+        try:
+            library = ctx.plex.library.section(library)
+            result = qbittorrent.torrents_add(urls=magnet, download_path=library.locations[0])
+            if result == "Ok.":
+                await ctx.send(f"Torrent added successfully to `{library.title}`")
+            else:
+                await ctx.send(f"Error adding torrent: `{result}`")
+        except Exception as e:
+            logging.exception(e)
+            await ctx.send(f"PlexBot encountered an error adding the torrent: `{e}`")
 
 async def setup(bot):
     await bot.add_cog(PlexSelfService(bot))

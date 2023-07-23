@@ -636,7 +636,7 @@ def make_episode_selector(season, callback) -> typing.Union[typing.List[Select],
     view = View(timeout=60)
     if isinstance(select_things, list):
         for select in select_things:
-            select.callback = callback
+            select.select_callback = callback
             view.add_item(select)
     else:
         select_things.callback = callback
@@ -694,7 +694,7 @@ def make_season_selector(show, callback) -> typing.Union[typing.List[Select], Bu
     if isinstance(select_things, list):
         for select in select_things:
             view.add_item(select)
-            select.callback = callback
+            select.select_callback = callback
     else:
         view.add_item(select_things)
         select_things.callback = callback
