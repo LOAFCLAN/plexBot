@@ -48,6 +48,7 @@ class PlexSelfService(Cog):
             raise ConnectionError("Unable to connect to qbittorrent")
 
     async def add_torrent(self, interaction, torrent_id, guild_id):
+
         guild = self.bot.get_guild(guild_id)
         plex = await self.bot.fetch_plex(guild)
         torrent_entry = self.rargb_database.get_table("items").get_row(id=torrent_id)
@@ -147,7 +148,7 @@ class PlexSelfService(Cog):
                 embed = discord.Embed(title="Unexpected qbittorrent Response",
                                         description=f"Unexpected response from qbittorrent: `{result}`",
                                             color=discord.Color.yellow())
-            embed.set_author(name=interaction.user.display_name, icon_url=interaction.user.avatar_url)
+            embed.set_author(name=interaction.user.display_name, icon_url=interaction.user.display_avatar.url)
             await interaction.response.edit_message(embed=embed, view=None)
         except Exception as e:
             logging.exception(e)
