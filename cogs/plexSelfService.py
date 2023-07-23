@@ -96,8 +96,8 @@ class PlexSelfService(Cog):
         # Get the torrent_id from the value of the selected option
         try:
             # Validate that the respondent is the same as the original user
-            if interaction.user.id != interaction.message.embeds[0].footer.text:
-                return await interaction.response.send_message("You are not this message's author", ephemeral=True)
+            # if interaction.user.id != interaction.message.embeds[0].footer.text:
+            #     return await interaction.response.send_message("You are not this message's author", ephemeral=True)
             torrent_id = interaction.data["values"][0]
             await self.add_torrent(interaction, torrent_id, interaction.guild_id)
             # await interaction.response.send_message(f"Added torrent `{torrent_id}` to qbittorrent")
@@ -109,8 +109,8 @@ class PlexSelfService(Cog):
     async def confirmation_callback(self, interaction):
         try:
             # Validate that the respondent is the same as the original user
-            if interaction.user.id != interaction.message.embeds[0].footer.text:
-                return await interaction.response.send_message("You are not this message's author", ephemeral=True)
+            # if interaction.user.id != interaction.message.embeds[0].footer.text:
+            #     return await interaction.response.send_message("You are not this message's author", ephemeral=True)
             logging.info(interaction.data)
             guild = self.bot.get_guild(interaction.guild_id)
             plex = await self.bot.fetch_plex(guild)
