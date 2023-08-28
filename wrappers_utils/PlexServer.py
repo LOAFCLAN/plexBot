@@ -15,7 +15,7 @@ class PlexServer(plexapi.server.PlexServer):
     def __init__(self, *args, **kwargs):
         self.associations = kwargs.pop("discord_associations", None)
         self.database = kwargs.pop("database", None)
-        self.friendlyName = "Unknown"
+        self.friendlyName = "name_not_loaded"
         self.host_guild = kwargs.pop("host_guild", None)
         self._background_thread = None
         try:

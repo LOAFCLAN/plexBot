@@ -71,23 +71,34 @@ class PlexBot(Cog):
             try:
                 await asyncio.sleep(10)
                 total_sessions = 0
+                total_servers = 0
                 for guild in self.bot.guilds:
                     try:
                         plex = await self.bot.fetch_plex(guild)
+                        if not plex.online:
+                            continue
                         total_sessions += len(plex.sessions())
+                        total_servers += 1
                     except PlexNotLinked:
                         continue
                     except PlexNotReachable:
                         continue
-                if total_sessions == 0:
+                if total_servers == 0:
                     await self.bot.change_presence(activity=discord.Activity(type=discord.ActivityType.watching,
-                                                                             name="Plex"))
+                                                                             name="No Servers Online"),
+                                                    status=discord.Status.dnd)
+                elif total_sessions == 0:
+                    await self.bot.change_presence(activity=discord.Activity(type=discord.ActivityType.watching,
+                                                                             name="Plex"),
+                                                    status=discord.Status.online)
                 elif total_sessions == 1:
                     await self.bot.change_presence(activity=discord.Activity(type=discord.ActivityType.watching,
-                                                                             name=f"{total_sessions} session"))
+                                                                             name=f"{total_sessions} session"),
+                                                    status=discord.Status.online)
                 else:
                     await self.bot.change_presence(activity=discord.Activity(type=discord.ActivityType.watching,
-                                                                             name=f"{total_sessions} sessions"))
+                                                                             name=f"{total_sessions} sessions"),
+                                                    status=discord.Status.online)
             except Exception as e:
                 logging.error(e)
                 logging.exception(e)
@@ -288,6 +299,14 @@ class PlexBot(Cog):
 
     @command(name='user', aliases=['u'])
     async def user(self, ctx, user: typing.Union[discord.Member, str]):
+        if not ctx.plex.online:
+            embed = discord.Embed(title="Unable to fulfill request",
+                                    description=f"Target server `{ctx.plex.friendlyName}` is offline",
+                                    color=0xFF0000)
+
+            embed.timestamp = datetime.datetime.now()
+            await ctx.send(embed=embed)
+            return
         user = ctx.plex.associations.get(user)
         embed = base_user_layer(user, self.bot.database)
         await ctx.send(embed=embed)

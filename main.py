@@ -167,7 +167,7 @@ class PlexBot(commands.Bot):
         for guild in self.guilds:
             await guild.chunk(cache=True)
 
-        await self.change_presence(activity=discord.Game(name="PlexBot Startup"))
+        await self.change_presence(activity=discord.Game(name="PlexBot Startup"), status=discord.Status.idle)
 
         # Establish a connection to the plex server for each guild
 
