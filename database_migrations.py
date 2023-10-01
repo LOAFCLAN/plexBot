@@ -117,6 +117,17 @@ def preform_migrations(database):
         # Reload the table schema
         database.get_table("plex_history_messages").update_schema()
 
+    table_version = database.table_version_table.get_row(table_name="plex_history_events")
+    if table_version["version"] == 0:
+        # Add a device_id column to plex_history_events defaulting to null
+        # Link the device_id column to the plex_devices table using the device_name column
+        database.batch_transaction([
+            "ALTER TABLE plex_history_events ADD COLUMN device_id TEXT DEFAULT NULL;"
+
+        ])
+        table_version.set(version=1)
+
+
     # table_version = database.table_version_table.get_row(table_name="plex_watched_media")
     # if table_version["version"] == 0:  # Set the guild_id from plex_watched_media to be a foreign key to plex_servers
     #     database.batch_transaction([
