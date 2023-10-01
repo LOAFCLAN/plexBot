@@ -1,6 +1,7 @@
 import asyncio
 import datetime
 
+import aiohttp
 import humanize
 import requests
 import os
@@ -30,10 +31,27 @@ class PlexSelfService(Cog):
                                                                "username": "TEXT", "password": "TEXT",
                                                                "default_movie_library": "TEXT",
                                                                "default_tv_library": "TEXT"})
+        self.valid_sites = []
+        self.allowed_uploaders = ["flux", "infinity", "qxr", "successfulcrab", "rarbg"]
+        self.banned_sites = ["yts", "torrentfunk", "nyaasi", "ybt"]
+        self.bot.loop.create_task(self.get_valid_sites())
         with open("rarbg_db/trackers.txt", "r") as f:
             self.trackers = f.read().splitlines()
             # Remove empty lines
             self.trackers = [x for x in self.trackers if x != ""]
+
+    async def get_valid_sites(self):
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.get("http://localhost:8009/api/v1/sites") as response:
+                    response = await response.json()
+                    self.valid_sites = response["supported_sites"]
+                    # Remove banned sites
+                    self.valid_sites = [x for x in self.valid_sites if x not in self.banned_sites]
+                    logging.info(f"Loaded {len(self.valid_sites)} valid sites")
+        except Exception as e:
+            logging.exception(e)
+            raise Exception("Unable to connect to torrent scrapper API")
 
     def get_qbittorrent(self, guild_id):
         table = self.bot.database.get_table("qbittorrent_servers")
@@ -131,23 +149,27 @@ class PlexSelfService(Cog):
             path = library.locations[0]
             logging.info(f"Adding torrent `{torrent_entry['title']}` to `{library_name}` path `{path}`")
             # Add the torrent to qbittorrent
-            result = qbittorrent.torrents_add(urls=magnet, save_path=path, content_layout="Subfolder")
-            # Add trackers to the torrent
-            qbittorrent.torrents_add_trackers(hash=torrent_entry["hash"], urls=self.trackers)
+            try:
+                result = qbittorrent.torrents_add(urls=magnet, save_path=path, content_layout="Subfolder")
+                # Add trackers to the torrent
+                qbittorrent.torrents_add_trackers(hash=torrent_entry["hash"], urls=self.trackers)
+            except Exception as e:
+                logging.exception(e)
+                return await interaction.response.send_message(f"Unable to add torrent to qbittorrent:```{e}```")
             if result == "Ok.":
                 embed = discord.Embed(title="Torrent Added",
                                       description=f"Added `{torrent_entry['title']}` to `{library_name}`",
-                                        color=discord.Color.green())
+                                      color=discord.Color.green())
                 embed.set_footer(
                     text="When this media finishes downloading a message will be sent in the new content channel")
             elif result == "Fails.":
                 embed = discord.Embed(title="Torrent Add Failed",
                                       description=f"Failed to add `{torrent_entry['title']}` to `{library_name}`",
-                                        color=discord.Color.red())
+                                      color=discord.Color.red())
             else:
                 embed = discord.Embed(title="Unexpected qbittorrent Response",
-                                        description=f"Unexpected response from qbittorrent: `{result}`",
-                                            color=discord.Color.yellow())
+                                      description=f"Unexpected response from qbittorrent: `{result}`",
+                                      color=discord.Color.yellow())
             embed.set_author(name=interaction.user.display_name, icon_url=interaction.user.display_avatar.url)
             await interaction.response.edit_message(embed=embed, view=None)
         except Exception as e:
@@ -211,6 +233,8 @@ class PlexSelfService(Cog):
                     already_added.append(result)
                 except qbittorrentapi.exceptions.NotFound404Error:
                     pass
+                except qbittorrentapi.exceptions.InvalidRequest400Error:
+                    break
             # Sort the results by if they have been added or not and then alphabetically
             filtered_results.sort(key=lambda x: x[2])
             embed.description = f"Found {len(filtered_results)} results, {len(already_added)} already added"
@@ -234,7 +258,7 @@ class PlexSelfService(Cog):
             await ctx.send(embed=embed, view=view)
 
     @command(name="set_qbittorrent", aliases=["set_qb", "set_qbittorrent_url"], brief="Set the qbittorrent URL",
-                description="Set the URL for the qbittorrent server", hidden=True)
+             description="Set the URL for the qbittorrent server", hidden=True)
     @has_permissions(administrator=True)
     async def set_qbittorrent_url(self, ctx, url, username, password):
         try:
@@ -250,7 +274,7 @@ class PlexSelfService(Cog):
             await ctx.message.delete()
 
     @command(name="set_library", aliases=["set_lib"], brief="Set the Plex library",
-                description="Set the Plex library to add content to")
+             description="Set the Plex library to add content to")
     @has_permissions(administrator=True)
     async def set_library(self, ctx, default_movie, default_tv):
         try:
@@ -264,9 +288,10 @@ class PlexSelfService(Cog):
             await ctx.send(f"PlexBot encountered an error setting the Plex library: `{e}`")
 
     @command(name="css_info", brief="Get info about the CSS database",
-                description="Get info about the CSS database")
+             description="Get info about the CSS database")
     async def css_info(self, ctx):
         try:
+            logging.info("Getting CSS info")
             database_size = os.path.getsize("rarbg_db/rarbg_db.sqlite")
             total_entries = self.rargb_database.get("SELECT COUNT(*) FROM items")[0][0]
             default_movie_library = self.bot.database.get_table("qbittorrent_servers").get_row(
@@ -290,6 +315,46 @@ class PlexSelfService(Cog):
         except Exception as e:
             logging.exception(e)
             await ctx.send(f"PlexBot encountered an error getting the CSS database info: `{e}`")
+
+    def api_result_filter(self, query, data) -> list:
+        # Filter out results that don't have a valid uploader
+        filtered_results = [result for result in data if result["uploader"] != "unknown"]
+        # Filter out results that don't have an allowed uploader
+        filtered_results = [result for result in filtered_results
+                            if str(result["uploader"]).lower() in self.allowed_uploaders]
+        # Sort results by seeders
+        filtered_results.sort(key=lambda x: x["seeders"], reverse=True)
+        return filtered_results
+
+    @command(name="css_find", aliases=["cssfind"])
+    async def css_find(self, ctx, site, *, query):
+        # Use the torrent site search to find torrents
+        if site not in self.valid_sites:
+            if len(self.valid_sites) == 0:
+                await ctx.send(f"Invalid site `{site}`, valid sites are `NOT LOADED`")
+            else:
+                await ctx.send(f"Invalid site `{site}`, valid sites are `{', '.join(self.valid_sites)}`")
+            return
+        async with ctx.typing():
+            async with aiohttp.ClientSession() as session:
+                results = await session.get(f"http://localhost:8009/api/v1/search?site={site}&query={query}&limit=255")
+                results = await results.json()
+                print(results)
+                embed = discord.Embed(title="Search Results", color=discord.Color.blue(),
+                                      description=f"Search results for `{query}` on `{site}`")
+                if 'error' in results:
+                    embed.description = f"Error: `{results['error']}`"
+                    await ctx.send(embed=embed)
+                    return
+                filtered_results = self.api_result_filter(query, results['data'])
+
+                for result in filtered_results:
+                    embed.add_field(name=f"{result['name']}",
+                                    value=f"Size: `{result['size']}`,"
+                                          f" Category: `{result['category']}`, Uploader: `{result['uploader']}`,"
+                                          f" Seeders: `{result['seeders']}`, Leechers: `{result['leechers']}`",
+                                    inline=False)
+                await ctx.send(embed=embed)
 
 
 async def setup(bot):
