@@ -807,8 +807,17 @@ def base_user_layer(user: CombinedUser, database):
     device_list = []
 
     for device in last_devices:
+        # For each device calculate the total duration the user has watched on that device
         dynamic_time = f"<t:{round(device.last_seen)}:f>"
-        device_list.append(f"`{device.name}[{device.platform.capitalize()}]`\n└─>{dynamic_time}")
+        device_duration = database.get("""
+        SELECT SUM(watch_time) FROM plex_history_events WHERE account_id = ? AND device_id = ?
+        """, (accountID, device.clientIdentifier))[0][0]
+        if device_duration is None:
+            duration_string = "Unknown"
+        else:
+            duration_string = datetime.timedelta(seconds=round(device_duration / 1000))
+        device_list.append(f"`{device.name}[{device.platform.capitalize()}] - {duration_string}"
+                           f"`\n└─>{dynamic_time}")
     embed.add_field(name="Last 6 devices", value=stringify(device_list, separator='\n'), inline=False)
     return embed
 
