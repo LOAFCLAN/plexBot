@@ -4,3 +4,7 @@ class PlexNotLinked(Exception):
 
 class PlexNotReachable(Exception):
     pass
+
+
+class PlexOffline(Exception):
+    pass

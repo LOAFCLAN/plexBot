@@ -3,6 +3,7 @@ import typing
 import discord
 from loguru import logger as logging
 
+from wrappers_utils import BotExceptions
 from wrappers_utils.CombinedUser import CombinedUser
 
 
@@ -136,6 +137,8 @@ class DiscordAssociations:
         return self.create_combined_user(plex_unknown=plex_user)
 
     def get(self, search: typing.Union[discord.Member, str, int], no_create=False) -> CombinedUser:
+        if not self.plex_server.online:
+            raise BotExceptions.PlexOffline
         if isinstance(search, discord.Member):
             return self.get_discord_association(search)
         elif isinstance(search, str) or isinstance(search, int):

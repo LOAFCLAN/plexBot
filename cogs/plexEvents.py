@@ -94,7 +94,8 @@ class PlexEvents(Cog):
         logging.warning(f"Event listener for {guild.name} has stopped")
 
     def event_error(self, error):
-        print(error)
+        logging.error(error)
+        logging.exception(error)
 
     async def event_message_loop(self, plex, queue, channel):
         self.event_tracker[channel.guild.id] = []

@@ -1,6 +1,7 @@
 import asyncio
 import datetime
 import random
+import re
 import traceback
 
 import discord
@@ -340,7 +341,7 @@ class PlexHistory(commands.Cog):
                                 pb_start_offset=raw_start_position,
                                 pb_end_offset=raw_current_position,
                                 session_duration=alive_time.seconds * 1000,
-                                # device_id=watcher.device_id,
+                                device_id=watcher.device_id,
                                 watch_time=round(watch_time * 1000))
 
         msg = await channel.send(embed=embed, view=view)
@@ -348,10 +349,88 @@ class PlexHistory(commands.Cog):
         msg_table = self.bot.database.get_table("plex_history_messages")
         msg_table.add(guild_id=msg.guild.id, message_id=msg.id, event_id=entry["event_id"])
 
+    @commands.command(name="watched_together", aliases=["wt"])
+    async def watched_together(self, ctx, message_id: int):
+        """
+        Add a manual event for if someone watched something on the same device with someone else
+        This event will have the same data as the original event, except for the account_id and event_id
+        """
+        try:
+            msg_table = self.bot.database.get_table("plex_history_messages")
+            event_table = self.bot.database.get_table("plex_history_events")
+            msg_entry = msg_table.get_row(message_id=message_id)
+            # The watcher is the person who sent the message
+            watch_user = ctx.plex.associations.get(ctx.author.id)
+            if not msg_entry:
+                return await ctx.send("Could not find a message with that ID")
+            event_entry = event_table.get_row(event_id=msg_entry["event_id"])
+            if not event_entry:
+                return await ctx.send("Could not find an event with that ID")
+            if not watch_user:
+                return await ctx.send("You are not associated with a Plex account")
+            origin_user = ctx.plex.associations.get(event_entry["account_id"])
+            try:
+                new_entry = event_table.add(event_id=event_entry["event_id"] + watch_user.account_id,
+                                            guild_id=ctx.guild.id,
+                                            history_time=event_entry["history_time"] + 1,
+                                            account_id=watch_user.account_id, media_id=event_entry["media_id"],
+                                            pb_start_offset=event_entry["pb_start_offset"],
+                                            pb_end_offset=event_entry["pb_end_offset"],
+                                            session_duration=event_entry["session_duration"],
+                                            device_id=event_entry["device_id"],
+                                            watch_time=event_entry["watch_time"])
+            except ValueError:
+                return await ctx.send("You have already created a watched together event for this message")
+            # Create a new message with the same data
+            history_channel_id = self.bot.database.get_table(
+                "plex_history_channel").get_row(guild_id=ctx.guild.id)["channel_id"]
+            history_channel = self.bot.get_channel(history_channel_id)
+            if not history_channel:
+                return await ctx.send("Could not find the history channel")
+            original_msg = await history_channel.fetch_message(message_id)
+            devices = ctx.plex.systemDevices()
+            watcher = [device for device in devices if device.clientIdentifier == event_entry["device_id"]][0]
+            media = self.bot.database.get_table("plex_watched_media").get_row(media_id=event_entry["media_id"])
+            length = datetime.timedelta(seconds=media["media_length"])
+
+            text = f"{watch_user.mention()} watched this with {origin_user.mention()} on `{watcher.name}`\n" \
+                   f"They watched `{length}` of `{length}`"
+            embed = discord.Embed(description=text, color=discord.Color.blue())
+            if media["media_type"] == "episode":
+                show = self.bot.database.get_table("plex_watched_media").get_row(
+                    media_id=media["show_id"], guild_id=ctx.guild.id)
+                embed.set_author(name=f"{show['title']} - S{media['season_num']}E{media['ep_num']}",
+                                 icon_url=watch_user.avatar_url())
+                embed.title = f"{media['title']}"
+            else:
+                embed.set_author(name=f"{media['title']} ({media['media_year']})",
+                                 icon_url=watch_user.avatar_url())
+            start_position = datetime.timedelta(seconds=event_entry["pb_start_offset"] / 1000)
+            current_position = datetime.timedelta(seconds=event_entry['pb_end_offset'] / 1000)
+            progress_bar = text_progress_bar_maker(duration=media["media_length"],
+                                                   end=event_entry["pb_end_offset"] / 1000,
+                                                   start=event_entry["pb_start_offset"] / 1000, length=50)
+            embed.add_field(name=f"Progress: {start_position}->{current_position}",
+                            value=progress_bar, inline=False)
+            embed.set_footer(text=f"This session was alive for "
+                                  f"{datetime.timedelta(seconds=event_entry['session_duration'] / 1000)}, Started ")
+            embed.timestamp = datetime.datetime.fromtimestamp(event_entry["history_time"], tz=datetime.timezone.utc)
+            # Add the components
+            view = self.HistoryOptions()
+            # embed.set_footer(text="This session was added manually")
+            msg = await history_channel.send(embed=embed, view=view, reference=original_msg.to_reference())
+            msg_table.add(guild_id=ctx.guild.id, message_id=msg.id,
+                          event_id=event_entry["event_id"] + watch_user.account_id)
+
+        except Exception as e:
+            logging.exception(e)
+            logging.error("Error adding history entry")
+            await ctx.send("Error adding history entry, check logs for more info")
+
     @has_permissions(manage_messages=True)
     @commands.command(name="manual_history", aliases=["add_event"],
                       description="Manually add a history entry if it was missed")
-    async def manual_history(self, ctx, user_id: int, media_id):
+    async def manual_history(self, ctx, user_id: int, media_id, device_name=None):
         history_channel_id = self.bot.database.get_table(
             "plex_history_channel").get_row(guild_id=ctx.guild.id)["channel_id"]
         history_channel = self.bot.get_channel(history_channel_id)
@@ -567,6 +646,60 @@ class PlexHistory(commands.Cog):
         embed.colour = discord.Color.green()
         await msg.edit(embed=embed)
         logging.info(f"Updated {updated} rows with content GUID, library ID and media length")
+
+    @has_permissions(administrator=True)
+    @command(name="update_devices", aliases=["ud"])
+    async def update_devices(self, ctx):
+        # Add which device each session was watched on now that its been added to the database
+        # Use the device name value in the embed to get the device ID and add it to the database
+        try:
+            # Bulk load all the messages from the history channel into memory
+            history_channel_id = self.bot.database.get_table("plex_history_channel").get_row(guild_id=ctx.guild.id)
+            if not history_channel_id:
+                await ctx.send("No history channel set")
+                return
+            history_channel = await self.bot.fetch_channel(history_channel_id["channel_id"])
+            message_cache = {}
+            await ctx.send("Loading messages from history channel")
+            async for message in history_channel.history(limit=None):
+                if message.author == self.bot.user:
+                    message_cache[message.id] = message
+            logging.info(f"Checking {len(message_cache)} messages")
+            history_messages = self.bot.database.get_table("plex_history_messages").get_rows(guild_id=ctx.guild.id)
+            # Filter out messages from the cache that aren't known history messages
+            message_cache = {k: v for k, v in message_cache.items() if k in [m["message_id"] for m in history_messages]}
+            logging.info(f"Found {len(message_cache)} history messages in the history channel")
+            # Get all devices from plex
+            devices = ctx.plex.systemDevices()
+            # Read the description from the embed and find the "...watched this with `{`device name`}`..." string
+            # Use the device name to find the device ID and add it to the database
+            updated, failed = 0, 0
+            # The regex should only return the string between the first set of backticks
+            regex = re.compile(r"watched this with `(.+?)`")
+            await ctx.send(f"Processing {len(message_cache)} messages with {len(devices)} devices")
+            for message_id, message in message_cache.items():
+                match = regex.search(message.embeds[0].description)
+                if not match:
+                    logging.warning(f"Failed to find device name in message {message_id}")
+                    failed += 1
+                    continue
+                device_name = match.group(1)
+                device = [d for d in devices if d.name == device_name]
+                if not device:
+                    logging.warning(f"Failed to find device [{device_name}]")
+                    failed += 1
+                    continue
+                device_id = device[0].clientIdentifier
+                # Get the history event for this message
+                event_id = [m["event_id"] for m in history_messages if m["message_id"] == message_id][0]
+                event_entry = self.bot.database.get_table("plex_history_events").get_row(event_id=event_id)
+                event_entry.set(device_id=device_id)
+                updated += 1
+            await ctx.send(f"Updated {updated} rows with device IDs [Failed: {failed}]")
+        except Exception as e:
+            logging.error("Failed to update devices")
+            logging.exception(e)
+            await ctx.send("Failed to update devices, check the logs for more info")
 
 
 async def setup(bot):
