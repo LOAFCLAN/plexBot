@@ -92,6 +92,14 @@ class PlexEvents(Cog):
         while listener.is_alive():
             await asyncio.sleep(1)
         logging.warning(f"Event listener for {guild.name} has stopped")
+        embed = discord.Embed(title="Plex Event Listener Failure",
+                                description=f"The event listener for {guild.name} has stopped. "
+                                            f"Attempting to restart the event listener",
+                                color=discord.Color.red())
+        await channel.send(embed=embed)
+        # Start the event listener again
+        task.cancel()
+        await self.start_event_listener(guild_id, channel_id)
 
     def event_error(self, error):
         logging.error(error)
