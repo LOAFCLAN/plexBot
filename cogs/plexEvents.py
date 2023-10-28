@@ -81,10 +81,12 @@ class PlexEvents(Cog):
 
         event_queue = asyncio.Queue()
         last_event = time.time()
+        sent_event_trigger = False
 
         def event_callback(data):
             nonlocal last_event
             last_event = time.time()
+            print(data)
             if data['type'] == 'timeline':
                 entry = data['TimelineEntry'][0]
                 if entry['identifier'] == 'com.plexapp.plugins.library':
@@ -95,10 +97,19 @@ class PlexEvents(Cog):
         task = self.bot.loop.create_task(self.event_message_loop(plex, event_queue, channel))
         self.listener_tasks[guild_id] = task
         logging.info(f"Started event listener for {guild.name}")
+        # print([task.name for task in plex.butlerTasks()])
         while listener.is_alive():
             # Check when the last event was received
-            if time.time() - last_event > 300:
-                logging.info(f"Event listener for {guild.name} has been inactive for 5 minutes, restarting")
+            if time.time() - last_event > 300 and not sent_event_trigger:
+                logging.info(f"Event listener for {guild.name} has been inactive for 5 minutes, sending trigger")
+                # Send an action to the plex server that will trigger an event
+                plex.runButlerTask('LoudnessAnalysis')
+                sent_event_trigger = True
+            elif time.time() - last_event < 300 and sent_event_trigger:
+                logging.info(f"Event trigger for {guild.name} was successful, resuming normal operation")
+                sent_event_trigger = False
+            elif time.time() - last_event > 500:
+                logging.info(f"Event listener for {guild.name} has been inactive for 5 minutes, terminating")
                 listener.stop()
                 break
             await asyncio.sleep(1)
