@@ -86,7 +86,7 @@ class PlexEvents(Cog):
         def event_callback(data):
             nonlocal last_event
             last_event = time.time()
-            print(data)
+            # print(data)
             if data['type'] == 'timeline':
                 entry = data['TimelineEntry'][0]
                 if entry['identifier'] == 'com.plexapp.plugins.library':
