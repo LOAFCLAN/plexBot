@@ -1,5 +1,7 @@
 import asyncio
 import datetime
+import time
+
 import requests
 import os
 
@@ -51,6 +53,7 @@ class PlexEvents(Cog):
     async def on_plex_connect(self, plex):
         """Called when the bot establishes a connection a plex server"""
         # Used to start the event listener
+        logging.info(f"Connection established with {plex.friendlyName}, starting event listener")
         guild = plex.host_guild
         table = self.bot.database.get_table("plex_alert_channel")
         if table.get_row(guild_id=guild.id) is None:
@@ -77,8 +80,10 @@ class PlexEvents(Cog):
         plex = await self.bot.fetch_plex(guild)
 
         event_queue = asyncio.Queue()
+        last_event = time.time()
 
         def event_callback(data):
+            nonlocal last_event
             if data['type'] == 'timeline':
                 entry = data['TimelineEntry'][0]
                 if entry['identifier'] == 'com.plexapp.plugins.library':
@@ -90,6 +95,11 @@ class PlexEvents(Cog):
         self.listener_tasks[guild_id] = task
         logging.info(f"Started event listener for {guild.name}")
         while listener.is_alive():
+            # Check when the last event was received
+            if time.time() - last_event > 300:
+                logging.info(f"Event listener for {guild.name} has been inactive for 5 minutes, restarting")
+                listener.stop()
+                break
             await asyncio.sleep(1)
         logging.warning(f"Event listener for {guild.name} has stopped")
         embed = discord.Embed(title="Plex Event Listener Failure",
