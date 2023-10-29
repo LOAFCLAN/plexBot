@@ -102,7 +102,7 @@ class PlexEvents(Cog):
             # Check when the last event was received
             if time.time() - last_event > 300 and not sent_event_trigger:
                 logging.debug(f"Event listener for {guild.name} has been inactive for 5 minutes, sending trigger")
-                # Send an action to the plex server that will trigger an event
+                # Send an action to the plex server that will trigger an event message
                 plex.runButlerTask('LoudnessAnalysis')
                 sent_event_trigger = True
             elif time.time() - last_event < 300 and sent_event_trigger:
@@ -113,6 +113,7 @@ class PlexEvents(Cog):
                 listener.stop()
                 break
             await asyncio.sleep(1)
+        task.cancel()
         logging.warning(f"Event listener for {guild.name} has stopped")
         embed = discord.Embed(title="Plex Event Listener Failure",
                                 description=f"The event listener for {guild.name} has stopped. "
@@ -120,7 +121,6 @@ class PlexEvents(Cog):
                                 color=discord.Color.red())
         await channel.send(embed=embed)
         # Start the event listener again
-        task.cancel()
         await self.start_event_listener(guild_id, channel_id)
 
     def event_error(self, error):
