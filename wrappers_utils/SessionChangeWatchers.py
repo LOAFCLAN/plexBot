@@ -13,8 +13,9 @@ class SessionWatcher:
     def __init__(self, session: plexapi.video.Video, server, callback) -> None:
 
         try:
-            logging.info(f"Creating SessionWatcher for {session.title} ({session.year}) on {server.friendlyName} "
-                         f"for {session.usernames[0]}")
+            logging.info(f"Creating SessionWatcher for {session.title} ({session.year}) [{session.guid}] "
+                         f"on {server.friendlyName} "
+                         f"for {session.usernames[0]} ({session.player.machineIdentifier})")
 
             self.callback = callback
             self.server = server

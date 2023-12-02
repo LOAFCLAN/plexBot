@@ -180,6 +180,10 @@ class PlexHistory(commands.Cog):
         self.sent_hashes = []
         self.history_channels = []
 
+        # Create variable to check the rate of history updates (if it is being flooded with requests we kill it)
+        self.history_update_rate = 0
+        self.history_update_rate_limit = 10
+
     @Cog.listener('on_ready')
     async def on_ready(self):
         logging.info("Cog: PlexHistory is ready")
@@ -203,9 +207,27 @@ class PlexHistory(commands.Cog):
                     # Delete the history entry
                     history_entry[0].delete()
                     table.delete(message_id=payload.message_id)
-                    logging.debug(f"Deleted history entry for message {payload.message_id}")
+                    logging.info(f"Deleted history entry for message {payload.message_id}")
                 else:
                     logging.error("Found multiple history entries for a single message")
+
+    @Cog.listener('on_raw_bulk_message_delete')
+    async def on_raw_bulk_message_delete(self, payload: discord.RawBulkMessageDeleteEvent):
+        # Check if the message was in a history channel
+        if payload.channel_id in self.history_channels:
+            logging.info(f"Bulk delete in history channel {payload.channel_id}, deleting associated records")
+            table = self.bot.database.get_table("plex_history_messages")
+            for message_id in payload.message_ids:
+                message_entry = table.get_row(message_id=message_id)
+                if message_entry:
+                    history_entry = message_entry.get("plex_history_events")
+                    if len(history_entry) == 1:
+                        # Delete the history entry
+                        history_entry[0].delete()
+                        table.delete(message_id=message_id)
+                        logging.info(f"Deleted history entry for message {message_id}")
+                    else:
+                        logging.error("Found multiple history entries for a single message")
 
     async def history_watcher(self, guild_id, channel_id):
         channel = await self.bot.fetch_channel(channel_id)
@@ -343,6 +365,7 @@ class PlexHistory(commands.Cog):
                                 session_duration=alive_time.seconds * 1000,
                                 device_id=watcher.device_id,
                                 watch_time=round(watch_time * 1000))
+
 
         msg = await channel.send(embed=embed, view=view)
 
