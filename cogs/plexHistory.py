@@ -571,20 +571,28 @@ class PlexHistory(commands.Cog):
     @command(name="clean_history", aliases=["ch"])
     async def clean_history(self, ctx):
         """Check for any unmatched history messages and remove them from the database"""
-        table = self.bot.database.get_table("plex_history_messages")
+        message_table = self.bot.database.get_table("plex_history_messages")
+        history_table = self.bot.database.get_table("plex_history_events")
         channel = self.bot.database.get_table("plex_history_channel").get_row(guild_id=ctx.guild.id)["channel_id"]
         message_cache = {}
-        await ctx.send(f"Fetching messages from {ctx.guild.get_channel(channel).mention}")
+        msg = await ctx.send(f"Fetching messages from {ctx.guild.get_channel(channel).mention}")
         async for message in ctx.guild.get_channel(channel).history(limit=None):
             if message.author == self.bot.user:
                 message_cache[message.id] = message
         logging.info(f"Checking {len(message_cache)} messages")
+        await msg.edit(content=f"Checking {len(message_cache)} messages")
         # Check if any messages are in the database but not in the channel
         removed = 0
-        for entry in table.get_all():
+        for entry in message_table.get_all():
             if entry["message_id"] not in message_cache:
-                logging.info(f"Removing {entry['message_id']} from database")
-                table.delete(message_id=entry["message_id"])
+                # Get the watch event
+                watch_event = history_table.get_row(event_id=entry["event_id"])
+                if watch_event is not None:
+                    logging.info(f"Removing {entry['message_id']}-({watch_event['event_id']}) from database")
+                    watch_event.delete()
+                else:
+                    logging.info(f"Removing only message {entry['message_id']} from database")
+                message_table.delete(message_id=entry["message_id"])
                 removed += 1
         await ctx.send(f"Removed {removed} unmatched watch logs from the database")
 
