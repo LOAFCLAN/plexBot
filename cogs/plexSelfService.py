@@ -278,7 +278,7 @@ class PlexSelfService(Cog):
                 qbittorrent_status = self.get_qbittorrent(ctx.guild.id).app_version()
                 qbittorrent_status = f"Online - {qbittorrent_status}"
             except Exception as e:
-                qbittorrent_status = f"Offline - {str(e)[:100]}..."
+                qbittorrent_status = f"Offline - {type(e)}..."
 
             embed = discord.Embed(title="CSS Database Info", color=discord.Color.blue())
             embed.description = f"Database Size: `{humanize.naturalsize(database_size)}`\n" \
