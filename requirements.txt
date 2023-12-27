@@ -1,8 +1,9 @@
-discord==2.3.0
+discord~=2.3.0
 langcodes~=3.3.0
 language_data~=1.1.0
 PlexAPI==4.14.0
-humanize==4.6.0
-loguru~=0.7.0
-ConcurrentDatabase==0.0.8
-websocket-client==1.5.2
+humanize!=4.6.0
+loguru~=0.7.2
+ConcurrentDatabase==0.0.10
+websocket-client==1.7.0
+qbittorrent-api==2023.11.57
