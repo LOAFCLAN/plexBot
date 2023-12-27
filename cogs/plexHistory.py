@@ -180,6 +180,10 @@ class PlexHistory(commands.Cog):
         self.sent_hashes = []
         self.history_channels = []
 
+        # Create variable to check the rate of history updates (if it is being flooded with requests we kill it)
+        self.history_update_rate = 0
+        self.history_update_rate_limit = 10
+
     @Cog.listener('on_ready')
     async def on_ready(self):
         logging.info("Cog: PlexHistory is ready")
@@ -203,9 +207,27 @@ class PlexHistory(commands.Cog):
                     # Delete the history entry
                     history_entry[0].delete()
                     table.delete(message_id=payload.message_id)
-                    logging.debug(f"Deleted history entry for message {payload.message_id}")
+                    logging.info(f"Deleted history entry for message {payload.message_id}")
                 else:
                     logging.error("Found multiple history entries for a single message")
+
+    @Cog.listener('on_raw_bulk_message_delete')
+    async def on_raw_bulk_message_delete(self, payload: discord.RawBulkMessageDeleteEvent):
+        # Check if the message was in a history channel
+        if payload.channel_id in self.history_channels:
+            logging.info(f"Bulk delete in history channel {payload.channel_id}, deleting associated records")
+            table = self.bot.database.get_table("plex_history_messages")
+            for message_id in payload.message_ids:
+                message_entry = table.get_row(message_id=message_id)
+                if message_entry:
+                    history_entry = message_entry.get("plex_history_events")
+                    if len(history_entry) == 1:
+                        # Delete the history entry
+                        history_entry[0].delete()
+                        table.delete(message_id=message_id)
+                        logging.info(f"Deleted history entry for message {message_id}")
+                    else:
+                        logging.error("Found multiple history entries for a single message")
 
     async def history_watcher(self, guild_id, channel_id):
         channel = await self.bot.fetch_channel(channel_id)
@@ -343,6 +365,7 @@ class PlexHistory(commands.Cog):
                                 session_duration=alive_time.seconds * 1000,
                                 device_id=watcher.device_id,
                                 watch_time=round(watch_time * 1000))
+
 
         msg = await channel.send(embed=embed, view=view)
 
@@ -548,158 +571,30 @@ class PlexHistory(commands.Cog):
     @command(name="clean_history", aliases=["ch"])
     async def clean_history(self, ctx):
         """Check for any unmatched history messages and remove them from the database"""
-        table = self.bot.database.get_table("plex_history_messages")
+        message_table = self.bot.database.get_table("plex_history_messages")
+        history_table = self.bot.database.get_table("plex_history_events")
         channel = self.bot.database.get_table("plex_history_channel").get_row(guild_id=ctx.guild.id)["channel_id"]
         message_cache = {}
-        await ctx.send(f"Fetching messages from {ctx.guild.get_channel(channel).mention}")
+        msg = await ctx.send(f"Fetching messages from {ctx.guild.get_channel(channel).mention}")
         async for message in ctx.guild.get_channel(channel).history(limit=None):
             if message.author == self.bot.user:
                 message_cache[message.id] = message
         logging.info(f"Checking {len(message_cache)} messages")
+        await msg.edit(content=f"Checking {len(message_cache)} messages")
         # Check if any messages are in the database but not in the channel
         removed = 0
-        for entry in table.get_all():
+        for entry in message_table.get_all():
             if entry["message_id"] not in message_cache:
-                logging.info(f"Removing {entry['message_id']} from database")
-                table.delete(message_id=entry["message_id"])
+                # Get the watch event
+                watch_event = history_table.get_row(event_id=entry["event_id"])
+                if watch_event is not None:
+                    logging.info(f"Removing {entry['message_id']}-({watch_event['event_id']}) from database")
+                    watch_event.delete()
+                else:
+                    logging.info(f"Removing only message {entry['message_id']} from database")
+                message_table.delete(message_id=entry["message_id"])
                 removed += 1
         await ctx.send(f"Removed {removed} unmatched watch logs from the database")
-
-    @has_permissions(administrator=True)
-    @command(name="migrate_history", aliases=["mh"])
-    async def migrate_history(self, ctx):
-        media_table = self.bot.database.get_table("plex_watched_media")
-        updated, failed = 0, 0
-        embed = discord.Embed(title="Updating Metadata for Watched Media",
-                              description="Progress: ?/?", color=discord.Color.yellow())
-        msg = await ctx.send(embed=embed)
-        rows = media_table.get_rows(guild_id=ctx.guild.id)
-        row_count = len(rows)
-
-        # Add the data to the content GUID and library ID columns
-        for media in rows:
-            # Get the media object from plex
-            if media["media_type"] == "episode":
-                show = media_table.get_row(title=media["title"], media_type="show")
-                if not show:
-                    show = media_table.get_row(media_id=media["show_id"])
-
-                if not show:
-                    content = get_episode(ctx.plex, media["title"],
-                                          season=media["season_num"], episode=media["ep_num"])
-                    if not content:
-                        continue
-                    media_table.add(title=content.grandparentTitle, media_type="show", guild_id=ctx.guild.id,
-                                    media_guid=content.grandparentGuid, media_year=content.show().year,
-                                    library_id=content.librarySectionID,
-                                    media_length=round(get_series_duration(content.show()) / 1000))
-                    show = media_table.get_row(title=content.grandparentTitle, media_type="show",
-                                               guild_id=ctx.guild.id)
-                    logging.info(f"Added show {content.grandparentTitle} to watched media")
-                else:
-                    content = get_episode(ctx.plex, show["title"],
-                                          season=media["season_num"], episode=media["ep_num"])
-
-                if content is None or show is None:
-                    logging.warning(f"Failed to find episode"
-                                    f" {media['title']} S{media['season_num']}E{media['ep_num']}")
-                    failed += 1
-                    continue
-
-                media.set(title=content.title, media_guid=content.guid, library_id=content.librarySectionID,
-                          media_length=round(content.duration / 1000), show_id=show["media_id"])
-                show.set(media_length=round(get_series_duration(content.show()) / 1000))
-
-            else:
-                results = ctx.plex.search(media["title"], mediatype=media["media_type"])
-                possible_contents = [r for r in results if isinstance(r, plexapi.video.Video)]
-                # Find the content with the same media year and media type
-                content = None
-                for possible_content in possible_contents:
-                    if possible_content.year == media["media_year"] and possible_content.type == media["media_type"]:
-                        content = possible_content
-                        break
-                else:
-                    if len(possible_contents) == 1:
-                        content = possible_contents[0]
-                        # logging.warning(f"Found {content.title} ({content.year}) instead of {media['title']} "
-                        #                 f"({media['media_year']})")
-                    else:
-                        logging.warning(f"Failed to find {media['title']} ({media['media_year']}) search returned "
-                                        f"{len(possible_contents)} results but none matched")
-
-                if content is None:
-                    failed += 1
-                    continue
-
-                media.set(media_guid=content.guid, library_id=content.librarySectionID,
-                          media_length=round(content.duration / 1000))
-                # logging.debug(f"Updated [{media['title']}] with content GUID {content.guid}"
-                #               f" and library ID {content.librarySectionID}")
-            if updated % 10 == 0:
-                embed.description = f"Progress: {updated}/{row_count} [Failed: {failed}]"
-                await msg.edit(embed=embed)
-            updated += 1
-
-        # Update the embed one last time
-        embed.description = f"Progress: {updated}/{row_count}"
-        embed.colour = discord.Color.green()
-        await msg.edit(embed=embed)
-        logging.info(f"Updated {updated} rows with content GUID, library ID and media length")
-
-    @has_permissions(administrator=True)
-    @command(name="update_devices", aliases=["ud"])
-    async def update_devices(self, ctx):
-        # Add which device each session was watched on now that its been added to the database
-        # Use the device name value in the embed to get the device ID and add it to the database
-        try:
-            # Bulk load all the messages from the history channel into memory
-            history_channel_id = self.bot.database.get_table("plex_history_channel").get_row(guild_id=ctx.guild.id)
-            if not history_channel_id:
-                await ctx.send("No history channel set")
-                return
-            history_channel = await self.bot.fetch_channel(history_channel_id["channel_id"])
-            message_cache = {}
-            await ctx.send("Loading messages from history channel")
-            async for message in history_channel.history(limit=None):
-                if message.author == self.bot.user:
-                    message_cache[message.id] = message
-            logging.info(f"Checking {len(message_cache)} messages")
-            history_messages = self.bot.database.get_table("plex_history_messages").get_rows(guild_id=ctx.guild.id)
-            # Filter out messages from the cache that aren't known history messages
-            message_cache = {k: v for k, v in message_cache.items() if k in [m["message_id"] for m in history_messages]}
-            logging.info(f"Found {len(message_cache)} history messages in the history channel")
-            # Get all devices from plex
-            devices = ctx.plex.systemDevices()
-            # Read the description from the embed and find the "...watched this with `{`device name`}`..." string
-            # Use the device name to find the device ID and add it to the database
-            updated, failed = 0, 0
-            # The regex should only return the string between the first set of backticks
-            regex = re.compile(r"watched this with `(.+?)`")
-            await ctx.send(f"Processing {len(message_cache)} messages with {len(devices)} devices")
-            for message_id, message in message_cache.items():
-                match = regex.search(message.embeds[0].description)
-                if not match:
-                    logging.warning(f"Failed to find device name in message {message_id}")
-                    failed += 1
-                    continue
-                device_name = match.group(1)
-                device = [d for d in devices if d.name == device_name]
-                if not device:
-                    logging.warning(f"Failed to find device [{device_name}]")
-                    failed += 1
-                    continue
-                device_id = device[0].clientIdentifier
-                # Get the history event for this message
-                event_id = [m["event_id"] for m in history_messages if m["message_id"] == message_id][0]
-                event_entry = self.bot.database.get_table("plex_history_events").get_row(event_id=event_id)
-                event_entry.set(device_id=device_id)
-                updated += 1
-            await ctx.send(f"Updated {updated} rows with device IDs [Failed: {failed}]")
-        except Exception as e:
-            logging.error("Failed to update devices")
-            logging.exception(e)
-            await ctx.send("Failed to update devices, check the logs for more info")
 
 
 async def setup(bot):

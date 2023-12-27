@@ -1,5 +1,7 @@
 import asyncio
 import datetime
+import time
+
 import requests
 import os
 
@@ -51,6 +53,7 @@ class PlexEvents(Cog):
     async def on_plex_connect(self, plex):
         """Called when the bot establishes a connection a plex server"""
         # Used to start the event listener
+        logging.info(f"Connection established with {plex.friendlyName}, starting event listener")
         guild = plex.host_guild
         table = self.bot.database.get_table("plex_alert_channel")
         if table.get_row(guild_id=guild.id) is None:
@@ -77,8 +80,13 @@ class PlexEvents(Cog):
         plex = await self.bot.fetch_plex(guild)
 
         event_queue = asyncio.Queue()
+        last_event = time.time()
+        sent_event_trigger = False
 
         def event_callback(data):
+            nonlocal last_event
+            last_event = time.time()
+            # print(data)
             if data['type'] == 'timeline':
                 entry = data['TimelineEntry'][0]
                 if entry['identifier'] == 'com.plexapp.plugins.library':
@@ -89,9 +97,31 @@ class PlexEvents(Cog):
         task = self.bot.loop.create_task(self.event_message_loop(plex, event_queue, channel))
         self.listener_tasks[guild_id] = task
         logging.info(f"Started event listener for {guild.name}")
+        # print([task.name for task in plex.butlerTasks()])
         while listener.is_alive():
+            # Check when the last event was received
+            if time.time() - last_event > 300 and not sent_event_trigger:
+                # logging.debug(f"Event listener for {guild.name} has been inactive for 5 minutes, sending trigger")
+                # Send an action to the plex server that will trigger an event message
+                plex.runButlerTask('LoudnessAnalysis')
+                sent_event_trigger = True
+            elif time.time() - last_event < 300 and sent_event_trigger:
+                # logging.debug(f"Event trigger for {guild.name} was successful, resuming normal operation")
+                sent_event_trigger = False
+            elif time.time() - last_event > 500:
+                logging.warning(f"Event trigger for {guild.name} was unsuccessful, restarting event listener")
+                listener.stop()
+                break
             await asyncio.sleep(1)
+        task.cancel()
         logging.warning(f"Event listener for {guild.name} has stopped")
+        embed = discord.Embed(title="Plex Event Listener Failure",
+                                description=f"The event listener for {guild.name} has stopped. "
+                                            f"Attempting to restart the event listener",
+                                color=discord.Color.red())
+        await channel.send(embed=embed)
+        # Start the event listener again
+        await self.start_event_listener(guild_id, channel_id)
 
     def event_error(self, error):
         logging.error(error)
