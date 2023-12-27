@@ -278,14 +278,14 @@ class PlexSelfService(Cog):
                 qbittorrent_status = self.get_qbittorrent(ctx.guild.id).app_version()
                 qbittorrent_status = f"Online - {qbittorrent_status}"
             except Exception as e:
-                qbittorrent_status = f"Offline - {e}"
+                qbittorrent_status = f"Offline - {e[:100]}..."
 
             embed = discord.Embed(title="CSS Database Info", color=discord.Color.blue())
             embed.description = f"Database Size: `{humanize.naturalsize(database_size)}`\n" \
                                 f"Total Entries: `{humanize.intcomma(total_entries)}`\n" \
                                 f"Default Movie Library: `{default_movie_library}`\n" \
                                 f"Default Show Library:  `{default_tv_library}`\n" \
-                                f"qbittorrent Status: `{qbittorrent_status}`\n"
+                                f"qBittorrent Status: `{qbittorrent_status}`\n"
             await ctx.send(embed=embed)
         except Exception as e:
             logging.exception(e)
