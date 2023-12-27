@@ -40,6 +40,9 @@ class PlexHistory(commands.Cog):
         async def media_info_button(self, interaction: discord.Interaction, button: discord.ui.Button):
             # Get the message ID
             event = self.get_event(interaction)
+            if event is None:
+                return await interaction.response.send_message("PlexBot was unable to find this media event in the database.",
+                                                               ephemeral=True)
             # Get the media from the database
             media_entry = event.get("plex_watched_media")
             # Get the media object
@@ -101,6 +104,9 @@ class PlexHistory(commands.Cog):
                 else:
                     await interaction.response.send_message("You are not the user who watched this media!",
                                                             ephemeral=True)
+            else:
+                await interaction.response.send_message("PlexBot was unable to find this media event in the database.",
+                                                        ephemeral=True)
 
         def get_event(self, interaction: discord.Interaction):
             # Get the message ID
