@@ -149,7 +149,14 @@ class PlexBot(commands.Bot):
             except Exception as e:
                 logging.error(f"Failed to connect to plex server for guild {guild_id}: {e}")
                 await asyncio.sleep(5)
-        return plex_servers[guild_id]
+                raise PlexNotReachable()
+        try:
+            return plex_servers[guild_id]
+        except KeyError:
+            if passive:
+                return None
+            else:
+                raise PlexNotReachable()
 
     # Create on member join event listener
     @commands.Cog.listener()

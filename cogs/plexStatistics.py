@@ -129,9 +129,9 @@ class PlexStatistics(commands.Cog):
             if user is None:
                 await ctx.send("Could not find a CombinedUser matching that name.")
                 return
-            print(user)
+            # print(user)
             # Get the user's watch history
-            print(user.account_id)
+            # print(user.account_id)
             watch_history_movies = self.bot.database.get(f"""
             SELECT media.title, media.media_guid,
             SUM(events.watch_time) / 1000 AS total_watch_time,
@@ -157,7 +157,7 @@ class PlexStatistics(commands.Cog):
             watch_history = watch_history_movies + watch_history_shows
             # Resorted by percentage of total watch time
             watch_history.sort(key=lambda x: x[2] / x[3], reverse=True)
-            print(watch_history)
+            # print(watch_history)
             watch_history = watch_history[:15]
 
             server_sessions = self.bot.database.get("""SELECT COUNT(*) FROM plex_history_events""")[0][0]

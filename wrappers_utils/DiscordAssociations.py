@@ -27,7 +27,8 @@ class DiscordAssociations:
     async def load_associations(self) -> None:
         logging.info(f"Loading associations for {self.guild.name}")
         await self.bot.wait_until_ready()  # Wait until the bot is ready for API calls
-        self.plex_server = await self.bot.fetch_plex(self.guild)
+        while self.plex_server is None:
+            self.plex_server = await self.bot.fetch_plex(self.guild)
         await self.plex_server.wait_until_ready()  # Wait until the plex server is ready for API calls
 
         # Chunk all users from all guilds into the bot's cache
