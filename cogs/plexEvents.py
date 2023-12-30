@@ -39,6 +39,7 @@ class PlexEvents(Cog):
         self.plex_alert_channels = table.get_all()
         self.event_message_table = self.bot.database.get_table("plex_media_event_messages")
         event_manager.add_instance(self)
+        self.event_listener_warning_messages = {}
 
         self.event_tracker = {}
         self.listener_tasks = {}
@@ -108,6 +109,20 @@ class PlexEvents(Cog):
             elif time.time() - last_event < 300 and sent_event_trigger:
                 # logging.debug(f"Event trigger for {guild.name} was successful, resuming normal operation")
                 sent_event_trigger = False
+                # Edit the warning message to indicate the event listener is working again
+                if guild.id in self.event_listener_warning_messages:
+                    msg = self.event_listener_warning_messages[guild.id]
+                else:
+                    msg = await channel.send("Generating event listener warning message")
+                embed = discord.Embed(title="Plex Event Listener Restored",
+                                      description=f"The event listener for {guild.name} had stopped but has "
+                                                  f"been restored",
+                                      color=discord.Color.green())
+                embed.timestamp = datetime.datetime.utcnow()
+                await msg.edit(embed=embed)
+                # Delete the record of the warning message
+                if guild.id in self.event_listener_warning_messages:
+                    del self.event_listener_warning_messages[guild.id]
             elif time.time() - last_event > 500:
                 logging.warning(f"Event trigger for {guild.name} was unsuccessful, restarting event listener")
                 listener.stop()
@@ -115,11 +130,16 @@ class PlexEvents(Cog):
             await asyncio.sleep(1)
         task.cancel()
         logging.warning(f"Event listener for {guild.name} has stopped")
+        if guild.id in self.event_listener_warning_messages:
+            msg = self.event_listener_warning_messages[guild.id]
+        else:
+            msg = await channel.send("Generating event listener warning message")
         embed = discord.Embed(title="Plex Event Listener Failure",
-                                description=f"The event listener for {guild.name} has stopped. "
-                                            f"Attempting to restart the event listener",
-                                color=discord.Color.red())
-        await channel.send(embed=embed)
+                              description=f"The event listener for {guild.name} has stopped. "
+                                          f"Attempting to restart the event listener",
+                              color=discord.Color.red())
+        embed.timestamp = datetime.datetime.utcnow()
+        await msg.edit(embed=embed)
         # Start the event listener again
         await self.start_event_listener(guild_id, channel_id)
 
