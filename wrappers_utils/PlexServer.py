@@ -17,16 +17,24 @@ class PlexServer(plexapi.server.PlexServer):
         self.database = kwargs.pop("database", None)
         self.friendlyName = "name_not_loaded"
         self.host_guild = kwargs.pop("host_guild", None)
+        self.offline_reason = None
         self._background_thread = None
         try:
             super().__init__(*args, timeout=1, **kwargs)
             self._online = True
             event_manager.trigger_event("plex_connect", plex=self)
-        except requests.exceptions.ConnectionError:
-            self._server_offline()
+        except requests.exceptions.ConnectionError as e:
+            self._server_offline(e)
 
-    def _server_offline(self):
-        logging.warning(f"Plex server {self.friendlyName} has gone offline")
+    def _server_offline(self, exception=None):
+        """Called when the server goes offline"""
+        if type(exception) == requests.exceptions.ConnectTimeout:
+            logging.error(f"Plex server {self.friendlyName} has gone offline, timed out")
+        elif type(exception) == requests.exceptions.ConnectionError:
+            logging.error(f"Plex server {self.friendlyName} has gone offline, connection error")
+        else:
+            logging.error(f"Plex server {self.friendlyName} has gone offline, {exception}")
+        # logging.warning(f"Plex server {self.friendlyName} has gone offline, {exception}")
         self._online = False
         event_manager.trigger_event("plex_disconnect", plex=self)
         if self._background_thread is None or not self._background_thread.is_alive():
@@ -35,6 +43,7 @@ class PlexServer(plexapi.server.PlexServer):
 
     def _reconnection_thread(self):
         """Check if the server is back online"""
+        logging.info(f"Starting reconnection thread for {self.friendlyName}")
         while not self._online:
             try:
                 super().__init__(self._baseurl, self._token, timeout=1)
@@ -65,11 +74,11 @@ class PlexServer(plexapi.server.PlexServer):
             return None
         try:
             return super().fetchItem(ekey, cls, **kwargs)
-        except requests.exceptions.ConnectTimeout:
-            self._server_offline()
+        except requests.exceptions.ConnectTimeout as e:
+            self._server_offline(e)
             return None
-        except requests.exceptions.ConnectionError:
-            self._server_offline()
+        except requests.exceptions.ConnectionError as e:
+            self._server_offline(e)
             return None
 
     def fetchItems(self, ekey, cls=None, container_start=None, container_size=None, **kwargs):
@@ -77,9 +86,9 @@ class PlexServer(plexapi.server.PlexServer):
             return []
         try:
             return super().fetchItems(ekey, cls, container_start, container_size, **kwargs)
-        except requests.exceptions.ConnectTimeout:
-            self._server_offline()
+        except requests.exceptions.ConnectTimeout as e:
+            self._server_offline(e)
             return []
-        except requests.exceptions.ConnectionError:
-            self._server_offline()
+        except requests.exceptions.ConnectionError as e:
+            self._server_offline(e)
             return []
