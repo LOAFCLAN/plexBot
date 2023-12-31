@@ -110,19 +110,19 @@ class PlexEvents(Cog):
                 # logging.debug(f"Event trigger for {guild.name} was successful, resuming normal operation")
                 sent_event_trigger = False
                 # Edit the warning message to indicate the event listener is working again
-                if guild.id in self.event_listener_warning_messages:
-                    msg = self.event_listener_warning_messages[guild.id]
-                else:
-                    msg = await channel.send("Generating event listener warning message")
-                embed = discord.Embed(title="Plex Event Listener Restored",
-                                      description=f"The event listener for {guild.name} had stopped but has "
-                                                  f"been restored",
-                                      color=discord.Color.green())
-                embed.timestamp = datetime.datetime.utcnow()
-                await msg.edit(embed=embed)
-                # Delete the record of the warning message
-                if guild.id in self.event_listener_warning_messages:
-                    del self.event_listener_warning_messages[guild.id]
+                # if guild.id in self.event_listener_warning_messages:
+                #     msg = self.event_listener_warning_messages[guild.id]
+                # else:
+                #     msg = await channel.send("Generating event listener warning message")
+                # embed = discord.Embed(title="Plex Event Listener Restored",
+                #                       description=f"The event listener for {guild.name} had stopped but has "
+                #                                   f"been restored",
+                #                       color=discord.Color.green())
+                # embed.timestamp = datetime.datetime.utcnow()
+                # await msg.edit(embed=embed)
+                # # Delete the record of the warning message
+                # if guild.id in self.event_listener_warning_messages:
+                #     del self.event_listener_warning_messages[guild.id]
             elif time.time() - last_event > 500:
                 logging.warning(f"Event trigger for {guild.name} was unsuccessful, restarting event listener")
                 listener.stop()
