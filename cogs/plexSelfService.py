@@ -267,17 +267,12 @@ class PlexSelfService(Cog):
              description="Get info about the CSS database")
     async def css_info(self, ctx):
         try:
-            # database_size = os.path.getsize("rarbg_db/rarbg_db.sqlite")
-            # total_entries = self.rargb_database.get("SELECT COUNT(*) FROM items")[0][0]
-            # default_movie_library = self.bot.database.get_table("qbittorrent_servers").get_row(
-            #     guild_id=ctx.guild.id)["default_movie_library"]
-            # default_tv_library = self.bot.database.get_table("qbittorrent_servers").get_row(
-            #     guild_id=ctx.guild.id)["default_tv_library"]
-
-            database_size = 0
-            total_entries = 0
-            default_movie_library = "Not Set"
-            default_tv_library = "Not Set"
+            database_size = os.path.getsize("rarbg_db/rarbg_db.sqlite")
+            total_entries = self.rargb_database.get("SELECT COUNT(*) FROM items")[0][0]
+            default_movie_library = self.bot.database.get_table("qbittorrent_servers").get_row(
+                guild_id=ctx.guild.id)["default_movie_library"]
+            default_tv_library = self.bot.database.get_table("qbittorrent_servers").get_row(
+                guild_id=ctx.guild.id)["default_tv_library"]
 
             try:
                 qbittorrent_status = self.get_qbittorrent(ctx.guild.id).app_version()
