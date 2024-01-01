@@ -267,25 +267,34 @@ class PlexSelfService(Cog):
              description="Get info about the CSS database")
     async def css_info(self, ctx):
         try:
-            database_size = os.path.getsize("rarbg_db/rarbg_db.sqlite")
-            total_entries = self.rargb_database.get("SELECT COUNT(*) FROM items")[0][0]
-            default_movie_library = self.bot.database.get_table("qbittorrent_servers").get_row(
-                guild_id=ctx.guild.id)["default_movie_library"]
-            default_tv_library = self.bot.database.get_table("qbittorrent_servers").get_row(
-                guild_id=ctx.guild.id)["default_tv_library"]
+            # database_size = os.path.getsize("rarbg_db/rarbg_db.sqlite")
+            # total_entries = self.rargb_database.get("SELECT COUNT(*) FROM items")[0][0]
+            # default_movie_library = self.bot.database.get_table("qbittorrent_servers").get_row(
+            #     guild_id=ctx.guild.id)["default_movie_library"]
+            # default_tv_library = self.bot.database.get_table("qbittorrent_servers").get_row(
+            #     guild_id=ctx.guild.id)["default_tv_library"]
+
+            database_size = 0
+            total_entries = 0
+            default_movie_library = "Not Set"
+            default_tv_library = "Not Set"
 
             try:
                 qbittorrent_status = self.get_qbittorrent(ctx.guild.id).app_version()
                 qbittorrent_status = f"Online - {qbittorrent_status}"
+                qbittorrent_free_space = self.get_qbittorrent(ctx.guild.id).app_preferences().free_space_on_disk
             except Exception as e:
                 qbittorrent_status = f"Offline - {type(e)}"
+                qbittorrent_free_space = 0
+                logging.exception(e)
 
             embed = discord.Embed(title="CSS Database Info", color=discord.Color.blue())
             embed.description = f"Database Size: `{humanize.naturalsize(database_size)}`\n" \
                                 f"Total Entries: `{humanize.intcomma(total_entries)}`\n" \
                                 f"Default Movie Library: `{default_movie_library}`\n" \
                                 f"Default Show Library:  `{default_tv_library}`\n" \
-                                f"qBittorrent Status: `{qbittorrent_status}`\n"
+                                f"qBittorrent Status: `{qbittorrent_status}`\n" \
+                                f"qBt Free Space: `{humanize.naturalsize(qbittorrent_free_space)}`"
             await ctx.send(embed=embed)
         except Exception as e:
             logging.exception(e)
