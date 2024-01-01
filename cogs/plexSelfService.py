@@ -137,17 +137,17 @@ class PlexSelfService(Cog):
             if result == "Ok.":
                 embed = discord.Embed(title="Torrent Added",
                                       description=f"Added `{torrent_entry['title']}` to `{library_name}`",
-                                        color=discord.Color.green())
+                                      color=discord.Color.green())
                 embed.set_footer(
                     text="When this media finishes downloading a message will be sent in the new content channel")
             elif result == "Fails.":
                 embed = discord.Embed(title="Torrent Add Failed",
                                       description=f"Failed to add `{torrent_entry['title']}` to `{library_name}`",
-                                        color=discord.Color.red())
+                                      color=discord.Color.red())
             else:
                 embed = discord.Embed(title="Unexpected qbittorrent Response",
-                                        description=f"Unexpected response from qbittorrent: `{result}`",
-                                            color=discord.Color.yellow())
+                                      description=f"Unexpected response from qbittorrent: `{result}`",
+                                      color=discord.Color.yellow())
             embed.set_author(name=interaction.user.display_name, icon_url=interaction.user.display_avatar.url)
             await interaction.response.edit_message(embed=embed, view=None)
         except Exception as e:
@@ -234,7 +234,7 @@ class PlexSelfService(Cog):
             await ctx.send(embed=embed, view=view)
 
     @command(name="set_qbittorrent", aliases=["set_qb", "set_qbittorrent_url"], brief="Set the qbittorrent URL",
-                description="Set the URL for the qbittorrent server", hidden=True)
+             description="Set the URL for the qbittorrent server", hidden=True)
     @has_permissions(administrator=True)
     async def set_qbittorrent_url(self, ctx, url, username, password):
         try:
@@ -250,7 +250,7 @@ class PlexSelfService(Cog):
             await ctx.message.delete()
 
     @command(name="set_library", aliases=["set_lib"], brief="Set the Plex library",
-                description="Set the Plex library to add content to")
+             description="Set the Plex library to add content to")
     @has_permissions(administrator=True)
     async def set_library(self, ctx, default_movie, default_tv):
         try:
@@ -264,7 +264,7 @@ class PlexSelfService(Cog):
             await ctx.send(f"PlexBot encountered an error setting the Plex library: `{e}`")
 
     @command(name="css_info", brief="Get info about the CSS database",
-                description="Get info about the CSS database")
+             description="Get info about the CSS database")
     async def css_info(self, ctx):
         try:
             database_size = os.path.getsize("rarbg_db/rarbg_db.sqlite")

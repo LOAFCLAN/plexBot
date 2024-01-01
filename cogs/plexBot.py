@@ -86,19 +86,19 @@ class PlexBot(Cog):
                 if total_servers == 0:
                     await self.bot.change_presence(activity=discord.Activity(type=discord.ActivityType.watching,
                                                                              name="No Servers Online"),
-                                                    status=discord.Status.dnd)
+                                                   status=discord.Status.dnd)
                 elif total_sessions == 0:
                     await self.bot.change_presence(activity=discord.Activity(type=discord.ActivityType.watching,
                                                                              name="Plex"),
-                                                    status=discord.Status.online)
+                                                   status=discord.Status.online)
                 elif total_sessions == 1:
                     await self.bot.change_presence(activity=discord.Activity(type=discord.ActivityType.watching,
                                                                              name=f"{total_sessions} session"),
-                                                    status=discord.Status.online)
+                                                   status=discord.Status.online)
                 else:
                     await self.bot.change_presence(activity=discord.Activity(type=discord.ActivityType.watching,
                                                                              name=f"{total_sessions} sessions"),
-                                                    status=discord.Status.online)
+                                                   status=discord.Status.online)
             except Exception as e:
                 logging.error(e)
                 logging.exception(e)
@@ -301,8 +301,8 @@ class PlexBot(Cog):
     async def user(self, ctx, user: typing.Union[discord.Member, str]):
         if not ctx.plex.online:
             embed = discord.Embed(title="Unable to fulfill request",
-                                    description=f"Target server `{ctx.plex.friendlyName}` is offline",
-                                    color=0xFF0000)
+                                  description=f"Target server `{ctx.plex.friendlyName}` is offline",
+                                  color=0xFF0000)
 
             embed.timestamp = datetime.datetime.now()
             await ctx.send(embed=embed)

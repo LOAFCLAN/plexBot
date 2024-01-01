@@ -122,7 +122,6 @@ async def session_embed(plex):
         embed = discord.Embed(title="Server Offline",
                               description="The target Plex Media Server is offline.",
                               color=discord.Color.red(), timestamp=datetime.datetime.now())
-        # embed.set_footer(text=f""
         return embed
 
     if len(plex_sessions) == 0:
@@ -257,13 +256,13 @@ def make_session_entry(plex, session, embed):
                      f"| {media.audioCodec}: {media.audioChannels}ch`"
     elif len(session.transcodeSessions) == 1:
         transcode = session.transcodeSessions[0]
-        if transcode.videoDecision == "transcode" or transcode.audioDecision == "transcode":
-            media_info = f"`{transcode.sourceVideoCodec}:{transcode.sourceAudioCodec}" \
-                         f"`->`{transcode.videoCodec}:{transcode.audioCodec}`"
-        else:
-            media_info = f"`{media.container}` - `{media.videoCodec}:" \
-                         f" {media.width}x{media.height}@{media.videoFrameRate} " \
-                         f"| {media.audioCodec}: {media.audioChannels}ch`"
+        media_info = f"`{media.container}` - `{media.videoCodec}:" \
+                     f" {media.width}x{media.height}@{media.videoFrameRate} " \
+                     f"| {media.audioCodec}: {media.audioChannels}ch`\n"
+        transcode_speed = f"{round(transcode.speed, 2)}x" if transcode.speed > 0 else "IDLE"
+        media_info += f"`{transcode.sourceVideoCodec}:{transcode.sourceAudioCodec}" \
+                      f"`->`{transcode.videoCodec}:{transcode.audioCodec} " \
+                      f" [{str(transcode.transcodeHwEncoding).upper()}:{transcode_speed}]`"
     else:
         media_info = "`Multiple transcode sessions detected!`"
 
@@ -276,7 +275,7 @@ def make_session_entry(plex, session, embed):
     # print(session.session[0].__dict__)
 
     if session.type == 'movie':
-        value = f"{session.title[:30]} ({session.year})\n" \
+        value = f"{session.title[:40]} ({session.year})\n" \
                 f"{timeline}\n" \
                 f"{progress_bar}\n" \
                 f"{bandwidth}\n" \
