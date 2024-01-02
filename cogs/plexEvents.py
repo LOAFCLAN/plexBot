@@ -106,6 +106,7 @@ class PlexEvents(Cog):
                 # Send an action to the plex server that will trigger an event message
                 plex.runButlerTask('LoudnessAnalysis')
                 sent_event_trigger = True
+                continue
             elif time.time() - last_event < 300 and sent_event_trigger:
                 # logging.debug(f"Event trigger for {guild.name} was successful, resuming normal operation")
                 sent_event_trigger = False
@@ -123,10 +124,10 @@ class PlexEvents(Cog):
                 # # Delete the record of the warning message
                 # if guild.id in self.event_listener_warning_messages:
                 #     del self.event_listener_warning_messages[guild.id]
+                continue
             elif time.time() - last_event > 500:
                 logging.warning(f"Event trigger for {guild.name} was unsuccessful, restarting event listener")
                 listener.stop()
-                break
             await asyncio.sleep(1)
             task.cancel()
             logging.warning(f"Event listener for {guild.name} has stopped")
