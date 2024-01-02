@@ -331,8 +331,8 @@ class PlexHistory(commands.Cog):
             # noinspection PyBroadException
             try:
                 # Check if a file is hosted at the URL
-                async with aiohttp.ClientSession() as session:
-                    async with session.get(thumb_url) as r:
+                async with aiohttp.ClientSession() as web_session:
+                    async with web_session.get(thumb_url) as r:
                         if r.status != 200:
                             thumb_url = "https://cdn.discordapp.com/attachments/1191806535861538948/1191806693621911572/bad_thumb.png"
                             logging.warning(f"Bad thumb URL: {thumb_url}")
