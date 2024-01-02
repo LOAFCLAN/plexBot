@@ -188,7 +188,9 @@ async def media_details(content, self=None, requester=None, full=True):
     # if inter is not None:
     #     await inter.disable_components()
 
-    if hasattr(content, "thumb"):
+    if hasattr(content, "bad_thumb"):
+        embed.set_thumbnail(url="https://cdn.discordapp.com/attachments/1191806535861538948/1191806693621911572/bad_thumb.png")
+    elif hasattr(content, "thumb"):
         thumb_url = cleanup_url(content.thumb)
         embed.set_thumbnail(url=thumb_url)
 

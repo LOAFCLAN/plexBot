@@ -220,6 +220,7 @@ class PlexEvents(Cog):
             except Exception as e:
                 logging.error(e)
                 logging.exception(e)
+                media.bad_thumb = True
             embed, view = await media_details(media, self, full=False)
 
         if not edit:
