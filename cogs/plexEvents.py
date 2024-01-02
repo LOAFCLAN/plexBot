@@ -99,36 +99,35 @@ class PlexEvents(Cog):
         self.listener_tasks[guild_id] = task
         logging.info(f"Started event listener for {guild.name}")
         # print([task.name for task in plex.butlerTasks()])
-        while listener.is_alive():
-            # Check when the last event was received
-            if time.time() - last_event > 300 and not sent_event_trigger:
-                # logging.debug(f"Event listener for {guild.name} has been inactive for 5 minutes, sending trigger")
-                # Send an action to the plex server that will trigger an event message
-                plex.runButlerTask('LoudnessAnalysis')
-                sent_event_trigger = True
-                continue
-            elif time.time() - last_event < 300 and sent_event_trigger:
-                # logging.debug(f"Event trigger for {guild.name} was successful, resuming normal operation")
-                sent_event_trigger = False
-                # Edit the warning message to indicate the event listener is working again
-                # if guild.id in self.event_listener_warning_messages:
-                #     msg = self.event_listener_warning_messages[guild.id]
-                # else:
-                #     msg = await channel.send("Generating event listener warning message")
-                # embed = discord.Embed(title="Plex Event Listener Restored",
-                #                       description=f"The event listener for {guild.name} had stopped but has "
-                #                                   f"been restored",
-                #                       color=discord.Color.green())
-                # embed.timestamp = datetime.datetime.utcnow()
-                # await msg.edit(embed=embed)
-                # # Delete the record of the warning message
-                # if guild.id in self.event_listener_warning_messages:
-                #     del self.event_listener_warning_messages[guild.id]
-                continue
-            elif time.time() - last_event > 500:
-                logging.warning(f"Event trigger for {guild.name} was unsuccessful, restarting event listener")
-                listener.stop()
-            await asyncio.sleep(1)
+        while True:
+            while listener.is_alive():
+                # Check when the last event was received
+                if time.time() - last_event > 300 and not sent_event_trigger:
+                    # logging.debug(f"Event listener for {guild.name} has been inactive for 5 minutes, sending trigger")
+                    # Send an action to the plex server that will trigger an event message
+                    plex.runButlerTask('LoudnessAnalysis')
+                    sent_event_trigger = True
+                elif time.time() - last_event < 300 and sent_event_trigger:
+                    # logging.debug(f"Event trigger for {guild.name} was successful, resuming normal operation")
+                    sent_event_trigger = False
+                    # Edit the warning message to indicate the event listener is working again
+                    # if guild.id in self.event_listener_warning_messages:
+                    #     msg = self.event_listener_warning_messages[guild.id]
+                    # else:
+                    #     msg = await channel.send("Generating event listener warning message")
+                    # embed = discord.Embed(title="Plex Event Listener Restored",
+                    #                       description=f"The event listener for {guild.name} had stopped but has "
+                    #                                   f"been restored",
+                    #                       color=discord.Color.green())
+                    # embed.timestamp = datetime.datetime.utcnow()
+                    # await msg.edit(embed=embed)
+                    # # Delete the record of the warning message
+                    # if guild.id in self.event_listener_warning_messages:
+                    #     del self.event_listener_warning_messages[guild.id]
+                elif time.time() - last_event > 500:
+                    logging.warning(f"Event trigger for {guild.name} was unsuccessful, restarting event listener")
+                    listener.stop()
+                await asyncio.sleep(1)
             task.cancel()
             logging.warning(f"Event listener for {guild.name} has stopped")
             # if guild.id in self.event_listener_warning_messages:
