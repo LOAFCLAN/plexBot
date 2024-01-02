@@ -128,20 +128,22 @@ class PlexEvents(Cog):
                 listener.stop()
                 break
             await asyncio.sleep(1)
-        task.cancel()
-        # logging.warning(f"Event listener for {guild.name} has stopped")
-        # if guild.id in self.event_listener_warning_messages:
-        #     msg = self.event_listener_warning_messages[guild.id]
-        # else:
-        #     msg = await channel.send("Generating event listener warning message")
-        # embed = discord.Embed(title="Plex Event Listener Failure",
-        #                       description=f"The event listener for {guild.name} has stopped. "
-        #                                   f"Attempting to restart the event listener",
-        #                       color=discord.Color.red())
-        # embed.timestamp = datetime.datetime.utcnow()
-        # await msg.edit(embed=embed)
-        # Start the event listener again
-        await self.start_event_listener(guild_id, channel_id)
+            task.cancel()
+            logging.warning(f"Event listener for {guild.name} has stopped")
+            # if guild.id in self.event_listener_warning_messages:
+            #     msg = self.event_listener_warning_messages[guild.id]
+            # else:
+            #     msg = await channel.send("Generating event listener warning message")
+            # embed = discord.Embed(title="Plex Event Listener Failure",
+            #                       description=f"The event listener for {guild.name} has stopped. "
+            #                                   f"Attempting to restart the event listener",
+            #                       color=discord.Color.red())
+            # embed.timestamp = datetime.datetime.utcnow()
+            # await msg.edit(embed=embed)
+            # Start the event listener again
+            task = self.bot.loop.create_task(self.start_event_listener(guild.id, channel_id))
+            self.listener_tasks[guild_id] = task
+        logging.warning(f"Event listener watcher for {guild.name} has failed")
 
     def event_error(self, error):
         logging.error(error)
