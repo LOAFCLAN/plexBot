@@ -277,7 +277,8 @@ class PlexSelfService(Cog):
             try:
                 qbittorrent_status = self.get_qbittorrent(ctx.guild.id).app_version()
                 qbittorrent_status = f"Online - {qbittorrent_status}"
-                qbittorrent_free_space = self.get_qbittorrent(ctx.guild.id).app_preferences().free_space_on_disk
+                # qbittorrent_free_space = self.get_qbittorrent(ctx.guild.id).app_preferences().free_space_on_disk
+                qbittorrent_free_space = 0
             except Exception as e:
                 qbittorrent_status = f"Offline - {type(e)}"
                 qbittorrent_free_space = 0
