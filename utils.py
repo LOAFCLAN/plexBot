@@ -320,10 +320,10 @@ def subtitle_details(content, max_subs=-1) -> list:
                 file_str += f"{opener} {sub_index}[{str(subtitle.codec).upper()}]" \
                             f": {translate(subtitle.language)}{title}" \
                             f"{' - Forced' if subtitle.forced else ''}`\n"
-                sub_index += 1
-                if max_subs != -1 and sub_index > max_subs:
+                if max_subs != -1 and max_subs <= sub_index < len(part.subtitleStreams()):
                     file_str += f"`└──> {len(part.subtitleStreams()) - max_subs} more subs hidden`"
                     break
+                sub_index += 1
             return_list.append(file_str)
         file_index += 1
 
