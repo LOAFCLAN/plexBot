@@ -140,7 +140,12 @@ async def media_details(content, self=None, requester=None, full=True):
         embed.add_field(name="Rating", value=rating_string, inline=False)
         embed.add_field(name="Genres", value=stringify(content.genres), inline=False)
 
-        embed.add_field(name="Studio", value=content.studio, inline=True)
+        if content.studio:
+            embed.add_field(name="Studio", value=content.studio, inline=True)
+        elif content.network:
+            embed.add_field(name="Network", value=content.network, inline=True)
+        else:
+            embed.add_field(name="Studio", value="Unknown", inline=True)
         size = await self.bot.loop.run_in_executor(None, get_series_size, content)
         embed.add_field(name="Size", value=humanize.naturalsize(size), inline=True)
         embed.add_field(name="Originally Aired", value=content.originallyAvailableAt.strftime("%B %d, %Y"),
