@@ -37,7 +37,7 @@ class PlexServer(plexapi.server.PlexServer):
             logging.error(f"Plex server {self.friendlyName} has gone offline, {exception}")
         # logging.warning(f"Plex server {self.friendlyName} has gone offline, {exception}")
         self._online = False
-        event_manager.trigger_event("plex_disconnect", plex=self)
+        event_manager.trigger_event("plex_disconnect", self.event_loop, plex=self)
         if self._background_thread is None or not self._background_thread.is_alive():
             self._background_thread = threading.Thread(target=self._reconnection_thread, daemon=True)
             self._background_thread.start()

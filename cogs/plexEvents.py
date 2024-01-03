@@ -54,13 +54,13 @@ class PlexEvents(Cog):
     async def on_plex_connect(self, plex):
         """Called when the bot establishes a connection a plex server"""
         # Used to start the event listener
-        logging.info(f"Connection established with {plex.friendlyName}, starting event listener")
+        # logging.info(f"Connection established with {plex.friendlyName}, starting event listener")
         guild = plex.host_guild
         table = self.bot.database.get_table("plex_alert_channel")
         if table.get_row(guild_id=guild.id) is None:
             return
         channel_id = table.get_row(guild_id=guild.id)['channel_id']
-        logging.debug(f"Starting event listener for {guild.name} ({plex.friendlyName})")
+        logging.info(f"Starting event listener for {guild.name} ({plex.friendlyName})")
         self.bot.loop.create_task(self.start_event_listener(guild.id, channel_id))
 
     @EventDecorator.on_event('plex_disconnect')
@@ -71,7 +71,7 @@ class PlexEvents(Cog):
             task = self.listener_tasks[guild.id]
             task.cancel()
             del self.listener_tasks[guild.id]
-            logging.info(f"Stopped event listener for {guild.name}")
+            logging.info(f"Stopped event listener for {guild.name} - {plex.friendlyName}")
 
     async def start_event_listener(self, guild_id, channel_id):
         """Starts the event listener"""
@@ -116,11 +116,16 @@ class PlexEvents(Cog):
             await asyncio.sleep(1)
         task.cancel()
         logging.warning(f"Event listener for {guild.name} has stopped")
+        # Check if the plex server is offline
+        if not plex.online:
+            logging.warning(f"Plex server {plex.friendlyName} is offline, discontinuing attempts to restart event "
+                            f"listener")
+            return
         await self.start_event_listener(guild_id, channel_id)
 
     def event_error(self, error):
         logging.error(error)
-        logging.exception(error)
+        # logging.exception(error)
 
     async def event_message_loop(self, plex, queue, channel):
         self.event_tracker[channel.guild.id] = []

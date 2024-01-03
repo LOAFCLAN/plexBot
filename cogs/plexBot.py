@@ -131,6 +131,7 @@ class PlexBot(Cog):
                     message = await create_message()
 
             while True:
+                # Check if we still have a connection to discord
                 try:
                     embed = await session_embed(plex)
                     await message.edit(embed=embed, content="")
