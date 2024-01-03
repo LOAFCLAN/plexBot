@@ -47,8 +47,8 @@ class PlexEvents(Cog):
     @Cog.listener()
     async def on_ready(self):
         logging.info("PlexEvents is ready")
-        for entry in self.plex_alert_channels:
-            self.bot.loop.create_task(self.start_event_listener(entry[0], entry[1]))
+        # for entry in self.plex_alert_channels:
+        #     self.bot.loop.create_task(self.start_event_listener(entry[0], entry[1]))
 
     @EventDecorator.on_event('plex_connect')
     async def on_plex_connect(self, plex):
@@ -61,7 +61,7 @@ class PlexEvents(Cog):
             return
         channel_id = table.get_row(guild_id=guild.id)['channel_id']
         logging.debug(f"Starting event listener for {guild.name} ({plex.friendlyName})")
-        # self.bot.loop.create_task(self.start_event_listener(guild.id, channel_id))
+        self.bot.loop.create_task(self.start_event_listener(guild.id, channel_id))
 
     @EventDecorator.on_event('plex_disconnect')
     async def on_plex_disconnect(self, plex):
