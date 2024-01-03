@@ -93,6 +93,7 @@ class PlexEvents(Cog):
                     event_queue.put_nowait(entry)
 
         listener = plexapi.alert.AlertListener(plex, event_callback, self.event_error)
+        listener.name = f"EventListener-{guild.name}"
         listener.start()
         task = self.bot.loop.create_task(self.event_message_loop(plex, event_queue, channel))
         self.listener_tasks[guild_id] = task
@@ -112,7 +113,7 @@ class PlexEvents(Cog):
                 logging.warning(f"Event trigger for {guild.name} was unsuccessful, restarting event listener")
                 listener.stop()
                 break
-        await asyncio.sleep(1)
+            await asyncio.sleep(1)
         task.cancel()
         logging.warning(f"Event listener for {guild.name} has stopped")
         await self.start_event_listener(guild_id, channel_id)
