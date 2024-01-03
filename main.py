@@ -149,6 +149,7 @@ class PlexBot(commands.Bot):
                 plex_servers[guild_id].token = server_entry["server_token"]
             except Exception as e:
                 logging.error(f"Failed to connect to plex server for guild {guild_id}: {e}")
+                logging.exception(e)
                 await asyncio.sleep(5)
                 raise PlexNotReachable()
         try:

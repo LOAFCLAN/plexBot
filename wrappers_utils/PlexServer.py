@@ -23,7 +23,7 @@ class PlexServer(plexapi.server.PlexServer):
         try:
             super().__init__(*args, timeout=1, **kwargs)
             self._online = True
-            event_manager.trigger_event("plex_connect", plex=self)
+            event_manager.trigger_event("plex_connect", self.event_loop, plex=self)
         except requests.exceptions.ConnectionError as e:
             self._server_offline(e)
 
