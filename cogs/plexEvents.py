@@ -143,7 +143,7 @@ class PlexEvents(Cog):
         # await msg.edit(embed=embed)
         # Start the event listener again
         # Call start_event_listener again to restart the event listener but avoid increasing the stack depth
-        asyncio.ensure_future(self.start_event_listener(guild_id, channel_id))
+        await self.start_event_listener(guild_id, channel_id)
 
     def event_error(self, error):
         logging.error(error)
