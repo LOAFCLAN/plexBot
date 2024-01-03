@@ -17,7 +17,11 @@ class EventManager:
     def add_instance(self, cls):
         self.instances.append(cls)
 
-    def trigger_event(self, event_name, *args, **kwargs):
+    def trigger_event(self, event_name, event_loop, *args, **kwargs):
+        # Check if the event loop is running
+        if not event_loop.is_running():
+            logging.warning("Event loop is not running, cannot trigger event")
+            return
         if event_name in self.event_handlers:
             for handler in self.event_handlers[event_name]:
                 # Find the instance that the handler belongs to
@@ -26,7 +30,7 @@ class EventManager:
                         # Run the handler in a separate thread
                         # print(f"Running {handler.__qualname__} with"
                         #       f" args self={instance}, *args={args}, **kwargs={kwargs}")
-                        asyncio.create_task(handler(instance, *args, **kwargs))
+                        event_loop.create_task(handler(instance, *args, **kwargs))
                         break
 
 

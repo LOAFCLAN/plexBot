@@ -13,6 +13,7 @@ from wrappers_utils.EventDecorator import event_manager
 class PlexServer(plexapi.server.PlexServer):
 
     def __init__(self, *args, **kwargs):
+        self.event_loop = kwargs.pop("event_loop", None)
         self.associations = kwargs.pop("discord_associations", None)
         self.database = kwargs.pop("database", None)
         self.friendlyName = "name_not_loaded"
@@ -48,13 +49,16 @@ class PlexServer(plexapi.server.PlexServer):
             try:
                 super().__init__(self._baseurl, self._token, timeout=1)
                 self._online = True
-                event_manager.trigger_event("plex_connect", plex=self)
+                event_manager.trigger_event("plex_connect", self.event_loop, plex=self)
                 logging.info(f"Plex server {self.friendlyName} has come back online")
             except requests.exceptions.ConnectTimeout:
                 pass
             except requests.exceptions.ConnectionError:
                 pass
+            except plexapi.exceptions.BadRequest:
+                pass
             except Exception as e:
+                logging.error(f"Unknown error in reconnection thread for {self.friendlyName}, {e} - {type(e)}")
                 logging.exception(e)
                 pass
             finally:
