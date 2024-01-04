@@ -203,7 +203,7 @@ async def media_details(content, self=None, requester=None, full=True):
             async with aiohttp.ClientSession() as session:
                 async with session.get(thumb_url) as r:
                     if r.status != 200:
-                        logging.warning(f"Bad thumb URL: {thumb_url}")
+                        logging.warning(f"Bad thumb URL: {thumb_url} - {r.status}")
                         thumb_url = "https://cdn.discordapp.com/attachments/1191806535861538948/1191806693621911572/bad_thumb.png"
         except Exception as e:
             logging.warning(f"Error validating thumb URL: {thumb_url} - {e}")
