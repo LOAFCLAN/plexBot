@@ -449,9 +449,27 @@ class PlexBot(Cog):
     async def run_butler_task(self, ctx, *, task_name: str):
         """Runs a butler task"""
         available_tasks = [task.name for task in ctx.plex.butlerTasks()]
+        if task_name == 'list':
+            message = "Available tasks:\n"
+            for task in available_tasks:
+                message += f"`{task}`\n"
+            await ctx.send(message)
+            return
         if task_name not in available_tasks:
             raise BadArgument("Task not found")
         ctx.plex.runButlerTask(task_name)
+
+    @command(name="current_butler_tasks", aliases=["cbt"])
+    async def current_butler_tasks(self, ctx):
+        """Lists the current butler tasks"""
+        tasks = ctx.plex.butlerTasks()
+        if len(tasks) == 0:
+            await ctx.send("No tasks currently running")
+            return
+        message = "Current tasks:\n"
+        for task in tasks:
+            message += f"`{task}`\n"
+        await ctx.send(message)
 
     @has_permissions(manage_guild=True)
     @command(name="deep_media_analysis", aliases=["dma"])

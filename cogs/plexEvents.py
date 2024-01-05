@@ -232,9 +232,13 @@ class PlexEvents(Cog):
     async def send_event_message(self, plex, channel, event):
 
         # only include messages with an ID of 0, 5, 9
+        library = plex.library.sectionByID(int(event['sectionID']))
+
+        # temporary
+        if "Anime" in library.title:
+            return
         match event['state']:
             case 0:
-                library = plex.library.sectionByID(int(event['sectionID']))
                 embed = discord.Embed(title="New Media Added", color=0x00FFFF,
                                       description=f"New media file added to `{library.title}`")
                 embed.set_footer(text=f"Waiting for item matching to complete")
@@ -247,7 +251,6 @@ class PlexEvents(Cog):
                     if event_obj.last_state == 1:
                         return
                     event_obj.title = event['title']
-                    library = plex.library.sectionByID(int(event['sectionID']))
                     embed = discord.Embed(title="New Media Added", color=0x00FFFF,
                                           description=f"Media `{event['title']}` added to `{library.title}`")
                     embed.set_footer(text=f"Waiting for metadata download to start, media ID: {event['itemID']}")
@@ -260,7 +263,6 @@ class PlexEvents(Cog):
                     if event_obj.last_state == 3:
                         return
                     event_obj.itemID = event['itemID']
-                    library = plex.library.sectionByID(int(event['sectionID']))
                     embed = discord.Embed(title="New Media Added", color=0x00FFFF,
                                           description=f"Media `{event['title']}` added to `{library.title}`")
                     embed.set_footer(text=f"Waiting for metadata download to finish, media ID: {event['itemID']}")
@@ -274,7 +276,6 @@ class PlexEvents(Cog):
                     if event_obj.last_state == 4:
                         return
                     event_obj.itemID = event['itemID']
-                    library = plex.library.sectionByID(int(event['sectionID']))
                     embed = discord.Embed(title="New Media Added", color=0x00FFFF,
                                           description=f"Media `{event['title']}` added to `{library.title}`")
                     embed.set_footer(text=f"Processing media metadata, media ID: {event['itemID']}")
@@ -284,7 +285,6 @@ class PlexEvents(Cog):
                     event_obj.last_state = 4
             case 5:
                 if event in self.event_tracker[channel.guild.id]:
-                    library = plex.library.sectionByID(int(event['sectionID']))
                     event_obj = self.get_media_event(channel.guild.id, event['itemID'])
                     if event_obj.last_state == 5:
                         return
@@ -300,7 +300,6 @@ class PlexEvents(Cog):
                 if event in self.event_tracker[channel.guild.id]:
                     msg = self.get_media_event(channel.guild.id, event['itemID']).message
                     title = self.get_media_event(channel.guild.id, event['itemID']).title
-                    library = plex.library.sectionByID(int(event['sectionID']))
                     embed = discord.Embed(title="New Media Added", color=0x00FFFF,
                                           description=f"Merging media `{title}` in `{library.title}`")
                     embed.set_footer(text=f"Media ID: {event['itemID']}")
@@ -310,7 +309,6 @@ class PlexEvents(Cog):
 
                 # Find the original media message if it exists
                 message = await self.get_message_from_plex_id(event['itemID'])
-                library = plex.library.sectionByID(int(event['sectionID']))
                 embed = discord.Embed(title="Media Deleted", color=0xff0000,
                                       description=f"Media `{event['title']}` deleted from `{library.title}`")
                 embed.set_footer(text=f"Media ID: {event['itemID']}")
