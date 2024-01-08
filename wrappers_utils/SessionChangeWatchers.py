@@ -91,8 +91,8 @@ class SessionWatcher:
         else:
             try:
                 return self._session_compare(other, "title") and self._user_compare(other) and \
-                       self._session_compare(other, "guid") and \
-                       self.device_id == getattr(other.player, "machineIdentifier", None)
+                    self._session_compare(other, "guid") and \
+                    self.device_id == getattr(other.player, "machineIdentifier", None)
             except Exception as e:
                 logging.error(f"Error comparing {self} to {other}")
                 logging.exception(e)

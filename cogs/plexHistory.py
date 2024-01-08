@@ -249,6 +249,12 @@ class PlexHistory(commands.Cog):
         except PlexNotLinked:
             logging.warning(f"Can't start history watcher for {guild.name} because Plex is not linked")
             return
+        # Check if there is already a watcher for this guild
+        if self.bot.session_watchers:
+            for watcher in self.bot.session_watchers:
+                if watcher.server.friendlyName == plex.friendlyName:
+                    logging.info(f"History watcher for {guild.name} already exists")
+                    return
         self.bot.session_watchers.append(SessionChangeWatcher(plex, self.on_watched, channel))
 
     async def on_watched(self, watcher, channel):
