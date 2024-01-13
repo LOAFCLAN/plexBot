@@ -223,7 +223,7 @@ class PlexSelfService(Cog):
             if len(filtered_results) > 10:
                 embed.set_footer(text="Only showing first 10 results, try a more specific search")
             # Add a selection menu to the embed to allow the user to select a torrent
-            view = View(timeout=15)
+            view = View(timeout=60)
             select = Select(placeholder="Select a torrent", min_values=1, max_values=1)
             for result in filtered_results if len(filtered_results) < 10 else filtered_results[:10]:
                 select.add_option(label=result[2][:100], value=result[0], description=f"Hash: {result[1]}")
