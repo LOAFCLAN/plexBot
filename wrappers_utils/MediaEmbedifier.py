@@ -173,6 +173,8 @@ async def media_details(content, self=None, requester=None, full=True):
         embed.add_field(name="Total Duration",
                         value=f"{datetime.timedelta(seconds=round(get_series_duration(content) / 1000))}",
                         inline=True)
+        embed.add_field(name="Watch Time", value=f"{get_watch_time(content, self.bot.database)}", inline=True)
+        embed.add_field(name="Total Size", value=humanize.naturalsize(get_series_size(content)), inline=True)
         if self and requester:
             view = PlexSearchView(requester, self, "episode", content.episodes(), content)
 

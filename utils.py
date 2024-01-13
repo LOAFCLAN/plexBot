@@ -445,6 +445,7 @@ def get_from_media_index(library, media_index):
         logging.warning(f"Could not find {media_index} in {library.title} using all()")
         return None
 
+
 def get_show(library, show_name):
     try:
         return library.get(show_name)
@@ -456,6 +457,7 @@ def get_show(library, show_name):
                 return content
         logging.warning(f"Could not find {show_name} in {library.title} using all()")
         return None
+
 
 def get_season(plex, show_name, season_num):
     for section in plex.library.sections():
@@ -861,6 +863,15 @@ def get_watch_time(content, db) -> datetime.timedelta:
         result = db.get(
             f'''SELECT SUM(watch_time) FROM plex_history_events WHERE media_id in 
             (SELECT media_id FROM plex_watched_media WHERE show_id = {media['media_id']})''')
+    elif isinstance(content, plexapi.video.Season):
+        media = media_table.get_row(media_guid=content.parentGuid, media_type="show")
+        if media is None:
+            logging.warning(f"Could not find {content.title} in the database")
+            return datetime.timedelta(seconds=0)
+        result = db.get(
+            '''SELECT SUM(watch_time) FROM plex_history_events WHERE media_id in 
+            (SELECT media_id FROM plex_watched_media WHERE show_id = ? AND season_num = ?)''',
+            (media['media_id'], content.seasonNumber))
     elif isinstance(content, plexapi.video.Episode):
         media = media_table.get_row(media_guid=content.guid, media_type="episode")
         if media is None:
@@ -868,6 +879,7 @@ def get_watch_time(content, db) -> datetime.timedelta:
         result = db.get('''SELECT SUM(watch_time) FROM plex_history_events WHERE media_id = ?''', (media['media_id'],))
     else:
         raise TypeError("content must be a plexapi video object")
+    print(result)
     if result[0][0] is None:
         logging.warning(f"Watch time for {content.title} was None")
         return datetime.timedelta(seconds=0)

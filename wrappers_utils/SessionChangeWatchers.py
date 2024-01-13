@@ -86,10 +86,13 @@ class SessionWatcher:
         return f"{self.session.title}@{self.server.friendlyName}"
 
     def __eq__(self, other):
-        if isinstance(other, SessionWatcher):
+        if isinstance(other, SessionWatcher):  # This comparison happens when a session is being closed
             return self.guid == other.guid and self._user_compare(other) and self.device_id == other.device_id
         else:
-            try:
+            try:  # This comparison happens when a session is being created
+                if getattr(other.player, "machineIdentifier", None) is None:
+                    logging.warning(f"machineIdentifier returned None for {other.title} {self.account_id}")
+                    return False
                 return self._session_compare(other, "title") and self._user_compare(other) and \
                     self._session_compare(other, "guid") and \
                     self.device_id == getattr(other.player, "machineIdentifier", None)
@@ -105,6 +108,9 @@ class SessionWatcher:
 class SessionChangeWatcher:
     """Binds to a plexapi.Server and fires events when sessions start or stop"""
 
+    max_sessions = 15
+    max_per_user = 2
+
     def __init__(self, server_object: plexapi.server, callback: typing.Callable, channel: discord.TextChannel) -> None:
         self.server = server_object
         self.watchers = []
@@ -116,6 +122,10 @@ class SessionChangeWatcher:
 
     async def observer(self):
         while self.server is not None:
+            if len(self.watchers) > self.max_sessions:
+                logging.error(f"SessionChangeWatcher for {self.server.friendlyName} exceeded max sessions,"
+                              f"terminating watcher")
+                return
             try:
                 sessions = self.server.sessions()
                 for session in sessions:
