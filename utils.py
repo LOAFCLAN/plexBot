@@ -714,10 +714,12 @@ def base_info_layer(embed, content, database=None, full=True):
 
     if hasattr(content, 'genres'):
         embed.add_field(name="Genres", value=stringify(content.genres, max_length=6), inline=True)
+        embed.add_field(name="Runtime", value=f"{datetime.timedelta(seconds=rounded_duration)}", inline=True)
     else:
-        embed.add_field(name="Genres", value="Not applicable", inline=True)
+        embed.add_field(name="Runtime", value=f"{datetime.timedelta(seconds=rounded_duration)}", inline=True)
+        count = get_session_count(content, database)
+        embed.add_field(name="Watch Sessions", value=f"{'No sessions' if count == 0 else count}", inline=True)
 
-    embed.add_field(name="Runtime", value=f"{datetime.timedelta(seconds=rounded_duration)}", inline=True)
     if database:
         embed.add_field(name="Watch Time", value=f"{get_watch_time(content, database)}", inline=True)
     actors = content.roles
