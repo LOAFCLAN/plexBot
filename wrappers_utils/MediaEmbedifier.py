@@ -1,3 +1,4 @@
+import asyncio
 import datetime
 import typing
 
@@ -66,7 +67,6 @@ class PlexSearchView(View):
             await interaction.response.defer()
             self.stop()
         elif interaction.data["custom_id"] == "add_review":
-
             row = self.client.database.get_table("plex_watched_media").get_row(guild_id=interaction.guild.id,
                                                                                media_guid=self.current_content.guid)
             if row:
@@ -75,40 +75,48 @@ class PlexSearchView(View):
                 await interaction.response.send_message("This media has not been watched yet", ephemeral=True)
         else:
             await interaction.response.defer()
+            self.stop()
             await interaction.message.edit(content=f"Loading... `{self.results[int(interaction.data['values'][0])]}`",
                                            embed=None, view=None)
             embed, view = await media_details(content=self.results[int(interaction.data["values"][0])],
                                               self=self.plex_search,
                                               requester=interaction.user)
             # Set the target message to the new message
-            msg = await interaction.message.edit(content=None, embed=embed, view=view)
-            view.set_message(msg)
+            await asyncio.sleep(0.5)
+            view.set_message(await interaction.message.edit(content=None, embed=embed, view=view))
 
     def generate_search_select(self):
-        select_thing = Select(custom_id="content_search", placeholder="Select a result", min_values=1, max_values=1)
-        # Remove any duplicates
-        labels = []
-        for result in self.results:
-            if result.type == "movie":
-                label = f"{result.title} ({result.year})"
-            elif result.type == "show":
-                label = f"{result.title} ({result.year})"
-            elif result.type == "season":
-                label = f"Season {result.index}"
-            elif result.type == "episode":
-                label = f"Episode {result.index} - {result.title}"
-            else:
-                label = result.title
-            if label not in labels:
-                labels.append(label)
-                if result.type == "season":
-                    select_thing.add_option(label=label, value=str(self.results.index(result)),
-                                            description=f"Episodes: {len(result.episodes())}")
+        """Generates the search select menu"""
+        # Chunk the results into 25 items per select menu
+        chunks = [self.results[i:i + 25] for i in range(0, len(self.results), 25)]
+        for i, chunk in enumerate(chunks):
+            select_thing = Select(custom_id=f"search_select_{i}",
+                                  placeholder="Select a result" if len(
+                                      chunks) == 1 else f"Select a result ({i + 1}/{len(chunks)})",
+                                  min_values=1, max_values=1)
+            # Remove any duplicates
+            labels = []
+            for result in chunk:
+                if result.type == "movie":
+                    label = f"{result.title} ({result.year})"
+                elif result.type == "show":
+                    label = f"{result.title} ({result.year})"
+                elif result.type == "season":
+                    label = f"Season {result.index}"
+                elif result.type == "episode":
+                    label = f"Episode {result.index} - {result.title}"
                 else:
-                    select_thing.add_option(label=label, value=str(self.results.index(result)))
-            else:
-                logging.info(f"Duplicate result found: {label}")
-        self.add_item(select_thing)
+                    label = result.title
+                if label not in labels:
+                    labels.append(label)
+                    if result.type == "season":
+                        select_thing.add_option(label=label, value=str(self.results.index(result)),
+                                                description=f"Episodes: {len(result.episodes())}")
+                    else:
+                        select_thing.add_option(label=label, value=str(self.results.index(result)))
+                else:
+                    logging.info(f"Duplicate result found: {label}")
+            self.add_item(select_thing)
 
 
 async def media_details(content, self=None, requester=None, full=True):
@@ -159,7 +167,9 @@ async def media_details(content, self=None, requester=None, full=True):
         embed.add_field(name="Watch Time", value=f"{get_watch_time(content, self.bot.database)}", inline=True)
         embed.add_field(name="Total Seasons", value=content.childCount, inline=True)
         embed.add_field(name="Total Episodes", value=f"{len(content.episodes())}", inline=True)
-        embed.add_field(name="Total Sessions", value=f"{get_session_count(content, self.bot.database)}",
+        count = get_session_count(content, self.bot.database)
+        embed.add_field(name="Total Sessions",
+                        value=f"{'No sessions' if count == 0 else ('Not Available' if count == -1 else count)}",
                         inline=True)
         if self and requester:
             view = PlexSearchView(requester, self, "season", content.seasons(), content)
