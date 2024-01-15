@@ -718,7 +718,9 @@ def base_info_layer(embed, content, database=None, full=True):
     else:
         embed.add_field(name="Runtime", value=f"{datetime.timedelta(seconds=rounded_duration)}", inline=True)
         count = get_session_count(content, database)
-        embed.add_field(name="Watch Sessions", value=f"{'No sessions' if count == 0 else count}", inline=True)
+        embed.add_field(name="Watch Sessions",
+                        value=f"{'No sessions' if count == 0 else ('Not Available' if count == -1 else count)}",
+                        inline=True)
 
     if database:
         embed.add_field(name="Watch Time", value=f"{get_watch_time(content, database)}", inline=True)
