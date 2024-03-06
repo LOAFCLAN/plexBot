@@ -234,9 +234,6 @@ class PlexEvents(Cog):
         # only include messages with an ID of 0, 5, 9
         library = plex.library.sectionByID(int(event['sectionID']))
 
-        # temporary
-        if "Anime" in library.title:
-            return
         match event['state']:
             case 0:
                 embed = discord.Embed(title="New Media Added", color=0x00FFFF,
