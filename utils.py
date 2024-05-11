@@ -827,7 +827,7 @@ def base_user_layer(user: CombinedUser, database):
     return embed
 
 
-def text_progress_bar_maker(duration: float, end: float, start: float = 0, length: int = 55) -> str:
+def text_progress_bar_maker(duration: float, end: float, start: float = 0, length: int = 54) -> str:
     """
     Make a elapsed time bar using -'s and different sized ▋'s to represent the elapsed time
     :param length: The length of the bar in characters
