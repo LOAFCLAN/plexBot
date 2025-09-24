@@ -221,6 +221,8 @@ class PlexEvents(Cog):
         if media.thumbUrl:
             urls.append(media.thumbUrl)
         plex_url = server_info['server_url']
+        for i in range(len(urls)):
+            logging.info(f"Downloading thumbnail {urls[i]} for media {media.title} in guild {channel.guild.id}")
         paths = [os.path.join(server_info['webserver_path'], url[len(plex_url) + 1:url.find('?')] + ".jpg")
                  for url in urls]
         for i in range(len(urls)):
