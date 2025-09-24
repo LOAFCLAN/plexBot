@@ -1,17 +1,12 @@
-import asyncio
-import datetime
-
-import humanize
-import requests
 import os
 
 import discord
-import plexapi
-from discord.ext.commands import command, has_permissions, Cog, BadArgument, is_owner
-from loguru import logger as logging
-from ConcurrentDatabase.Database import Database
+import humanize
 import qbittorrentapi
+from ConcurrentDatabase.Database import Database
+from discord.ext.commands import command, has_permissions, Cog
 from discord.ui import View, Button, Select
+from loguru import logger as logging
 
 
 def make_magnet(torrent_entry):
@@ -171,7 +166,7 @@ class PlexSelfService(Cog):
             results = cursor.fetchall()
             if len(results) == 0:
                 await ctx.send("No torrents found")
-                return
+                return None
             # Now filter out any results that are not rarbg x265 1080p
             valid_encodings = ["x265", "H.265", "H265"]
             valid_resolutions = ["1080p", "2160p"]

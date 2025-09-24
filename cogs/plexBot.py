@@ -28,7 +28,7 @@ class PlexBot(Cog):
                                                                 "user was not added", color=0xFF0000)
             embed.timestamp = datetime.datetime.now()
             await ctx.send(embed=embed)
-            return
+            return None
         for invite in pending:
             if invite.username == plex_id:
                 embed = discord.Embed(title="Add User", description=f"User `{invite.username}` was added",
@@ -52,6 +52,7 @@ class PlexBot(Cog):
         embed = discord.Embed(title="Add User", description="User was not found in pending invites", color=0xFF0000)
         embed.timestamp = datetime.datetime.now()
         await ctx.send(embed=embed)
+        return None
 
     def __init__(self, bot):
         self.bot = bot

@@ -211,6 +211,7 @@ class PlexEvents(Cog):
         """Downloads thumbnails for media into the webserver path"""
         server_info = self.bot.database.get_table("plex_servers").get_row(guild_id=channel.guild.id)
         if not server_info['webserver_path']:
+            logging.warning(f"Webserver path not set for guild {channel.guild.id}, cannot create thumbnails")
             return
         urls, paths = [], []
         if media.posterUrl:

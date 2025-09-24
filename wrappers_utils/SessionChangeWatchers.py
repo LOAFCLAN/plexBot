@@ -74,13 +74,15 @@ class SessionWatcher:
     async def session_expired(self):
         await self.callback(self)
 
-    def _session_compare(self, other, attribute: str) -> bool:
+    def _session_compare(self, other, attribute: str) -> bool | None:
         if hasattr(self.session, attribute) and hasattr(other, attribute):
             return getattr(self.session, attribute) == getattr(other, attribute)
+        return None
 
-    def _user_compare(self, other) -> bool:
+    def _user_compare(self, other) -> bool | None:
         if hasattr(self.session, "usernames") and hasattr(other, "usernames"):
             return self.session.usernames[0] == other.usernames[0]
+        return None
 
     def __str__(self):
         return f"{self.session.title}@{self.server.friendlyName}"
