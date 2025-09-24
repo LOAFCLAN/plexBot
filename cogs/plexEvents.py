@@ -1,6 +1,7 @@
 import asyncio
 import datetime
 import time
+from urllib.parse import urlparse
 
 import requests
 import os
@@ -220,8 +221,7 @@ class PlexEvents(Cog):
             urls.append(media.artUrl)
         if media.thumbUrl:
             urls.append(media.thumbUrl)
-        plex_url = server_info['server_url']
-        paths = [os.path.join(server_info['webserver_path'], url[len(plex_url) + 1:url.find('?')] + ".jpg")
+        paths = [os.path.join(server_info['webserver_path'], urlparse(url).path + ".jpg")
                  for url in urls]
         for i in range(len(urls)):
             if not os.path.exists(paths[i]):
