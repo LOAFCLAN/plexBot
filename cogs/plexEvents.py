@@ -221,14 +221,13 @@ class PlexEvents(Cog):
         if media.thumbUrl:
             urls.append(media.thumbUrl)
         plex_url = server_info['server_url']
-        for i in range(len(urls)):
-            logging.info(f"Downloading thumbnail {urls[i]} for media {media.title} in guild {channel.guild.id}")
         paths = [os.path.join(server_info['webserver_path'], url[len(plex_url) + 1:url.find('?')] + ".jpg")
                  for url in urls]
         for i in range(len(urls)):
             if not os.path.exists(paths[i]):
                 os.makedirs(paths[i][:paths[i].rfind('/')], exist_ok=True)
                 r = requests.get(urls[i], timeout=5)
+                logging.info(f"Downloading thumbnail {urls[i]} to {paths[i]}")
                 with open(paths[i], 'wb') as f:
                     f.write(r.content)
 
