@@ -1,7 +1,6 @@
 import asyncio
 import datetime
 import time
-from urllib.parse import urlparse
 
 import requests
 import os
@@ -11,8 +10,8 @@ import plexapi
 from discord.ext.commands import command, has_permissions, Cog, BadArgument, is_owner
 from loguru import logger as logging
 
-from utils import get_from_media_index, safe_field, base_info_layer, rating_str, stringify, get_series_duration, \
-    get_watch_time, get_session_count, cleanup_url
+
+from utils import get_from_media_index
 from wrappers_utils import EventDecorator
 from wrappers_utils.EventDecorator import EventManager, event_manager
 from wrappers_utils.MediaEmbedifier import media_details
@@ -221,8 +220,11 @@ class PlexEvents(Cog):
             urls.append(media.artUrl)
         if media.thumbUrl:
             urls.append(media.thumbUrl)
-        paths = [os.path.join(server_info['webserver_path'], urlparse(url).path + ".jpg")
-                 for url in urls]
+        plex_url = server_info['server_url']
+        if server_info['webserver_path'].endswith('/'):
+            server_info['webserver_path'] = server_info['webserver_path'][:-1]
+        paths = [os.path.join(server_info['webserver_path'],
+                              url[len(plex_url) + 1:url.find('?')] + ".jpg") for url in urls]
         for i in range(len(urls)):
             if not os.path.exists(paths[i]):
                 os.makedirs(paths[i][:paths[i].rfind('/')], exist_ok=True)
