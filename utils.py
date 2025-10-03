@@ -426,7 +426,7 @@ def get_from_guid(library, guid):
 def get_from_media_index(library, media_index):
     try:
         logging.debug(f"Getting media from index {media_index}")
-        all_content = library.all()
+        all_content = library.all().__reversed__()
         for content in all_content:
             if isinstance(content, plexapi.video.Movie):
                 if content.ratingKey == int(media_index):
