@@ -221,8 +221,8 @@ class PlexEvents(Cog):
         if media.thumbUrl:
             urls.append(media.thumbUrl)
         plex_url = server_info['server_url']
-        if server_info['webserver_path'].endswith('/'):
-            server_info['webserver_path'] = server_info['webserver_path'][:-1]
+        if plex_url.endswith('/'):
+            plex_url = plex_url[:-1]
         paths = [os.path.join(server_info['webserver_path'],
                               url[len(plex_url) + 1:url.find('?')] + ".jpg") for url in urls]
         for i in range(len(urls)):
@@ -250,6 +250,8 @@ class PlexEvents(Cog):
                 return
             case 3:
                 return
+            case 4:
+                return
             #     if event in self.event_tracker[channel.guild.id]:
             #         event_obj = self.get_media_event(channel.guild.id, event['itemID'])
             #         if event_obj.last_state == 1:
@@ -274,19 +276,19 @@ class PlexEvents(Cog):
             #         await msg.edit(embed=embed)
             #         await asyncio.sleep(1)
             #         event_obj.last_state = 3
-            case 4:
-                if event in self.event_tracker[channel.guild.id]:
-                    event_obj = self.get_media_event(channel.guild.id, event['itemID'], event['title'])
-                    if event_obj.last_state == 4:
-                        return
-                    event_obj.itemID = event['itemID']
-                    embed = discord.Embed(title="New Media Added", color=0x00FFFF,
-                                          description=f"Media `{event['title']}` added to `{library.title}`")
-                    embed.set_footer(text=f"Processing media metadata, media ID: {event['itemID']}")
-                    msg = self.get_media_event(channel.guild.id, event['itemID']).message
-                    await msg.edit(embed=embed)
-                    await asyncio.sleep(1)
-                    event_obj.last_state = 4
+            # case 4:
+            #     if event in self.event_tracker[channel.guild.id]:
+            #         event_obj = self.get_media_event(channel.guild.id, event['itemID'], event['title'])
+            #         if event_obj.last_state == 4:
+            #             return
+            #         event_obj.itemID = event['itemID']
+            #         embed = discord.Embed(title="New Media Added", color=0x00FFFF,
+            #                               description=f"Media `{event['title']}` added to `{library.title}`")
+            #         embed.set_footer(text=f"Processing media metadata, media ID: {event['itemID']}")
+            #         msg = self.get_media_event(channel.guild.id, event['itemID']).message
+            #         await msg.edit(embed=embed)
+            #         await asyncio.sleep(1)
+            #         event_obj.last_state = 4
             case 5:
                 if event in self.event_tracker[channel.guild.id]:
                     event_obj = self.get_media_event(channel.guild.id, event['itemID'])
