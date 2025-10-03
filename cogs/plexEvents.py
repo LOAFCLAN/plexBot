@@ -203,7 +203,8 @@ class PlexEvents(Cog):
 
         if not edit:
             await event_obj.message.edit(content="Media Added", embed=embed)
-            self.event_tracker[channel.guild.id].remove(event_obj)
+            if event_obj in self.event_tracker[channel.guild.id]:
+                self.event_tracker[channel.guild.id].remove(event_obj)
         else:
             await msg.edit(embed=embed)
 
