@@ -247,30 +247,33 @@ class PlexEvents(Cog):
                 await asyncio.sleep(1)
                 self.event_tracker[channel.guild.id].append(self.PlexMediaEvent(event['itemID'], msg))
             case 1:
-                if event in self.event_tracker[channel.guild.id]:
-                    event_obj = self.get_media_event(channel.guild.id, event['itemID'])
-                    if event_obj.last_state == 1:
-                        return
-                    event_obj.title = event['title']
-                    embed = discord.Embed(title="New Media Added", color=0x00FFFF,
-                                          description=f"Media `{event['title']}` added to `{library.title}`")
-                    embed.set_footer(text=f"Waiting for metadata download to start, media ID: {event['itemID']}")
-                    await event_obj.message.edit(embed=embed)
-                    await asyncio.sleep(1)
-                    event_obj.last_state = 1
+                return
             case 3:
-                if event in self.event_tracker[channel.guild.id]:
-                    event_obj = self.get_media_event(channel.guild.id, event['itemID'], event['title'])
-                    if event_obj.last_state == 3:
-                        return
-                    event_obj.itemID = event['itemID']
-                    embed = discord.Embed(title="New Media Added", color=0x00FFFF,
-                                          description=f"Media `{event['title']}` added to `{library.title}`")
-                    embed.set_footer(text=f"Waiting for metadata download to finish, media ID: {event['itemID']}")
-                    msg = self.get_media_event(channel.guild.id, event['itemID']).message
-                    await msg.edit(embed=embed)
-                    await asyncio.sleep(1)
-                    event_obj.last_state = 3
+                return
+            #     if event in self.event_tracker[channel.guild.id]:
+            #         event_obj = self.get_media_event(channel.guild.id, event['itemID'])
+            #         if event_obj.last_state == 1:
+            #             return
+            #         event_obj.title = event['title']
+            #         embed = discord.Embed(title="New Media Added", color=0x00FFFF,
+            #                               description=f"Media `{event['title']}` added to `{library.title}`")
+            #         embed.set_footer(text=f"Waiting for metadata download to start, media ID: {event['itemID']}")
+            #         await event_obj.message.edit(embed=embed)
+            #         await asyncio.sleep(1)
+            #         event_obj.last_state = 1
+            # case 3:
+            #     if event in self.event_tracker[channel.guild.id]:
+            #         event_obj = self.get_media_event(channel.guild.id, event['itemID'], event['title'])
+            #         if event_obj.last_state == 3:
+            #             return
+            #         event_obj.itemID = event['itemID']
+            #         embed = discord.Embed(title="New Media Added", color=0x00FFFF,
+            #                               description=f"Media `{event['title']}` added to `{library.title}`")
+            #         embed.set_footer(text=f"Waiting for metadata download to finish, media ID: {event['itemID']}")
+            #         msg = self.get_media_event(channel.guild.id, event['itemID']).message
+            #         await msg.edit(embed=embed)
+            #         await asyncio.sleep(1)
+            #         event_obj.last_state = 3
             case 4:
                 if event in self.event_tracker[channel.guild.id]:
                     event_obj = self.get_media_event(channel.guild.id, event['itemID'], event['title'])
