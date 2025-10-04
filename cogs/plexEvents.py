@@ -155,7 +155,7 @@ class PlexEvents(Cog):
         """Because searching by mediaID is blocking and takes awhile we need to do it asyncio safe to prevent
         blocking the event loop"""
         # Use get_from_media_index(library, mediaID)
-        return await self.bot.loop.run_in_executor(None, get_from_media_index, library, mediaID)
+        return await self.bot.loop.run_in_executor(None, get_from_media_index, library, mediaID, True)
 
     async def get_message_from_plex_id(self, plex_media_id):
         """Searches the database for a message with the given itemID"""

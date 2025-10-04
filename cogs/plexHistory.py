@@ -18,8 +18,8 @@ from discord.ui import Button, View, Select
 from wrappers_utils.BotExceptions import PlexNotLinked, PlexNotReachable
 from wrappers_utils.Modals import ReviewModal
 from wrappers_utils.SessionChangeWatchers import SessionChangeWatcher, SessionWatcher
-from utils import base_info_layer, get_season, get_episode, cleanup_url, text_progress_bar_maker, stringify, \
-    base_user_layer, get_series_duration, get_from_guid, get_from_media_index, get_show
+from utils import base_info_layer,cleanup_url, text_progress_bar_maker, \
+    base_user_layer, get_series_duration, get_from_guid, get_show
 
 from loguru import logger as logging
 

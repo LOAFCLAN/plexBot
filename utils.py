@@ -423,23 +423,36 @@ def get_from_guid(library, guid):
         return None
 
 
-def get_from_media_index(library, media_index):
+def get_from_media_index(library: plexapi.library.LibrarySection,
+                         media_index, recent=False):
     try:
+
+        def search(search_content):
+            for content in search_content:
+                if isinstance(content, plexapi.video.Movie):
+                    if content.ratingKey == int(media_index):
+                        return content
+                elif isinstance(content, plexapi.video.Show):
+                    if content.ratingKey == int(media_index):
+                        return content
+                    for season in content.seasons():
+                        if season.ratingKey == int(media_index):
+                            return season
+                        for episode in season.episodes():
+                            if episode.ratingKey == int(media_index):
+                                return episode
+            return None
+
+        if recent:
+            recent_content = library.recentlyAdded(maxResults=100).__reversed__()
+            found = search(recent_content)
+            if found is not None:
+                return found
         logging.debug(f"Getting media from index {media_index}")
-        all_content = library.all().__reversed__()
-        for content in all_content:
-            if isinstance(content, plexapi.video.Movie):
-                if content.ratingKey == int(media_index):
-                    return content
-            elif isinstance(content, plexapi.video.Show):
-                if content.ratingKey == int(media_index):
-                    return content
-                for season in content.seasons():
-                    if season.ratingKey == int(media_index):
-                        return season
-                    for episode in season.episodes():
-                        if episode.ratingKey == int(media_index):
-                            return episode
+        all_content = library.all()
+        found = search(all_content)
+        if found is not None:
+            return found
         return None
     except plexapi.exceptions.NotFound:
         logging.warning(f"Could not find {media_index} in {library.title} using all()")
