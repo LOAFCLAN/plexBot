@@ -444,7 +444,7 @@ def get_from_media_index(library: plexapi.library.LibrarySection,
             return None
 
         if recent:
-            recent_content = library.recentlyAdded(maxResults=100).__reversed__()
+            recent_content = library.recentlyAdded(maxresults=50).__reversed__()
             found = search(recent_content)
             if found is not None:
                 return found
