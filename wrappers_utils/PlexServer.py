@@ -21,8 +21,9 @@ class PlexServer(plexapi.server.PlexServer):
         self.offline_reason = None
         self._background_thread = None
         try:
-            super().__init__(*args, timeout=10, **kwargs)
+            super().__init__(*args, timeout=1, **kwargs)
             self._online = True
+            self._timeout = 10
             event_manager.trigger_event("plex_connect", self.event_loop, plex=self)
         except requests.exceptions.ConnectionError as e:
             self._server_offline(e)
@@ -49,6 +50,7 @@ class PlexServer(plexapi.server.PlexServer):
             try:
                 super().__init__(self._baseurl, self._token, timeout=1)
                 self._online = True
+                self._timeout = 10
                 event_manager.trigger_event("plex_connect", self.event_loop, plex=self)
                 logging.info(f"Plex server {self.friendlyName} has come back online")
             except requests.exceptions.ConnectTimeout:
