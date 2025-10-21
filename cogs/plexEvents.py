@@ -103,12 +103,9 @@ class PlexEvents(Cog):
         while listener.is_alive():
             # Check when the last event was received
             if time.time() - last_event > 300:
-                # logging.debug(f"Event listener for {guild.name} has been inactive for 5 minutes, sending trigger")
+                logging.info(f"Event listener for {guild.name} has been inactive for 5 minutes, sending trigger")
                 # Send an action to the plex server that will trigger an event message
                 plex.runButlerTask('LoudnessAnalysis')
-            elif time.time() - last_event < 300:
-                # logging.debug(f"Event trigger for {guild.name} was successful, resuming normal operation")
-                last_event = time.time()
             elif time.time() - last_event > 500:
                 logging.warning(f"Event trigger for {guild.name} was unsuccessful, restarting event listener")
                 listener.stop()
