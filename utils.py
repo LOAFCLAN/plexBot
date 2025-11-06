@@ -424,7 +424,11 @@ def get_from_guid(library, guid):
 
 
 def get_from_media_index(library: plexapi.library.LibrarySection,
-                         media_index, recent=False):
+                         media_index, recent=False) -> typing.Union[plexapi.video.Movie,
+                                                                   plexapi.video.Show,
+                                                                   plexapi.video.Season,
+                                                                   plexapi.video.Episode,
+                                                                   None]:
     try:
 
         def search(search_content):

@@ -28,6 +28,10 @@ class PlexServer(plexapi.server.PlexServer):
         except requests.exceptions.ConnectionError as e:
             self._server_offline(e)
 
+    def backgroundSessions(self):
+        """ Returns a list of all active :class:`~plexapi.media.BackgroundSession` objects. """
+        return self.fetchItems('/status/sessions/background')
+
     def _server_offline(self, exception=None):
         """Called when the server goes offline"""
         if type(exception) == requests.exceptions.ConnectTimeout:

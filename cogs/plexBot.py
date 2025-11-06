@@ -3,7 +3,7 @@ import datetime
 import random
 import traceback
 import typing
-
+from plexapi.sync import *
 import plexapi.alert
 from discord.ext.commands import command, has_permissions, Cog, BadArgument
 import discord.errors as discord_errors
@@ -435,7 +435,7 @@ class PlexBot(Cog):
         # Delete the command message as it contains the servers token
         await ctx.message.delete()
 
-    @command(name='transcoding', aliases=['layer8', 'thespiel', 'therant', 'pebkac'], description="Just ask nick")
+    @command(name='transcoding', aliases=['layer8', 'thespiel', 'therant', 'pebkac'], description="Just ask nic")
     async def transcoding(self, ctx):
         spiel_txt = """```Some video files are encoded in a way that the Plex player will lag or drop frames while 
         watching. For the best experience, follow these steps: 1. Install the plex windows app, DO NOT use the 
@@ -444,6 +444,63 @@ class PlexBot(Cog):
         "Video", uncheck the box that reads "Use Hardware Decoding" This should fix the vast majority of playback 
         issues. ``` """
         await ctx.send(spiel_txt)
+
+    async def update_optimization_message(self, ctx, msg, media, media_id):
+        async with ctx.typing():
+            # Find the optimization task
+            background_tasks = ctx.plex.backgroundSessions()
+            while len(background_tasks) > 0:
+                background_tasks = ctx.plex.backgroundSessions()
+                for task in background_tasks:
+                    if task.ratingKey == media_id:
+                        progress = float(task.progress)
+                        embed = discord.Embed(title="Optimize Media",
+                                              description=f"Optimization task for `{media.title} ({media.year})`",
+                                              color=0x00ff00)
+                        embed.add_field(name="Progress", value=f"{progress:.2f}%", inline=False)
+
+                        embed.timestamp = datetime.datetime.now()
+                        await msg.edit(embed=embed)
+                await asyncio.sleep(5)
+
+    @has_permissions(manage_guild=True)
+    @command(name='optimize', aliases=['optimize_media'])
+    async def optimize_media(self, ctx, media_id: str, *, device_profile: str = "Android"):
+        """Optimize media for streaming"""
+        optimized_items = ctx.plex.optimizedItems()
+        print(optimized_items)
+        # return
+        embed = discord.Embed(title="Optimize Media", description=f"Searching for media: {media_id}", color=0x00ff00)
+        embed.timestamp = datetime.datetime.now()
+        msg = await ctx.send(embed=embed)
+        async with ctx.typing():
+            libraries = get_all_library(ctx.plex)
+            for library in libraries:
+                if library.title.lower() == 'movies':
+                    library = library
+                    break
+        print(f"Using library: {library.title}")
+        media = get_from_media_index(library, media_id)
+        if media is None:
+            embed = discord.Embed(title="Optimize Media", description=f"Media `{media_id}` not found",
+                                  color=0xFF0000)
+            embed.timestamp = datetime.datetime.now()
+            await msg.edit(embed=embed)
+            return
+        media.optimize(deviceProfile=device_profile, videoQuality=VIDEO_QUALITY_1_5_MBPS_480p)
+        embed = discord.Embed(title="Optimize Media",
+                              description=f"Optimization task started for `{media.title} ({media.year})`",
+                              color=0x00ff00)
+        embed.timestamp = datetime.datetime.now()
+        await msg.edit(embed=embed)
+        await asyncio.sleep(1)
+        await self.update_optimization_message(ctx, msg, media, media_id)
+        embed = discord.Embed(title="Optimize Media",
+                              description=f"Optimization task for `{media.title} ({media.year})` completed",
+                              color=0x00ff00)
+        embed.timestamp = datetime.datetime.now()
+        await msg.edit(embed=embed)
+        return
 
     @has_permissions(manage_guild=True)
     @command(name="run_butler_task", aliases=["rbt"])
