@@ -111,7 +111,7 @@ def translate(lang):
     try:
         return langcodes.find(lang).display_name()
     except Exception as e:
-        print(f"Translation error: {e}\n{traceback.format_exc()}")
+        # print(f"Translation error: {e}\n{traceback.format_exc()}")
         return f"{lang}*"
 
 

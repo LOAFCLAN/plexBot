@@ -30,10 +30,13 @@ class DiscordAssociations:
         while self.plex_server is None:
             self.plex_server = await self.bot.fetch_plex(self.guild)
         await self.plex_server.wait_until_ready()  # Wait until the plex server is ready for API calls
+        logging.info(f"Plex server {self.plex_server.friendlyName} is online for guild {self.guild.name}")
 
         # Chunk all users from all guilds into the bot's cache
         for guild in self.bot.guilds:
-            await guild.chunk(cache=True)
+            logging.info(f"Chunking guild {guild.name} to load users into cache")
+            # await guild.chunk(cache=True)
+            logging.info(f"Chunked guild {guild.name}")
         logging.info(f"Loaded {len(self.bot.users)} users into cache")
         # Copy all users from the bot's cache into the discord_users dict
         for member in self.guild.members:
@@ -109,11 +112,13 @@ class DiscordAssociations:
                 member = association['discord_user_id']
             user = CombinedUser(self.plex_server, member, association['plex_id'],
                                 association['plex_email'], association['plex_username'])
+            logging.info(f"Found existing association in database for user PID:{user.plex_id} PUN:{user.plex_user}")
             self.associations.append(user)
         # If there is no association one can be created as long as there is plex information
         elif plex_id is not None or plex_email is not None or plex_username is not None or plex_unknown is not None:
             user = CombinedUser(self.plex_server, plex_id=plex_id, plex_email=plex_email, plex_username=plex_username,
                                 plex_unknown=plex_unknown)
+            logging.info(f"Created new plex-only association for user PID:{user.plex_id} PUN:{user.plex_user}")
             self.associations.append(user)
         else:
             raise Exception("No association could be created")

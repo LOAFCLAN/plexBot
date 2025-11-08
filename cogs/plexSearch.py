@@ -71,7 +71,7 @@ class PlexSearch(commands.Cog):
             return
         elif len(results) == 1:
             msg = await ctx.send("Found 1 result. Loading details...")
-            embed, view = await media_details(results[0], self=self, requester=ctx.author)
+            embed, view = await media_details(results[0], self=self, ctx=ctx, requester=ctx.author)
             await msg.edit(content=None, embed=embed, view=view)
             view.set_message(msg)
             return
@@ -80,7 +80,7 @@ class PlexSearch(commands.Cog):
             for result in results:
                 embed.add_field(name=f"{result.title} ({result.year})", value=safe_field(result.summary[:1024]),
                                 inline=False)
-            view = PlexSearchView(ctx.author, self, "search", results)
+            view = PlexSearchView(ctx.author, self, ctx, "search", results)
             view.set_message(await ctx.send(embed=embed, view=view))
 
     async def on_timeout(self, view):

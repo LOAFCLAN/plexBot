@@ -8,9 +8,10 @@ import humanize
 import plexapi
 from discord import ButtonStyle, Interaction
 from discord.ui import View, Button, Select
+from plexapi.sync import VIDEO_QUALITY_12_MBPS_1080p
 
 from utils import stringify, get_series_duration, base_info_layer, get_watch_time, get_session_count, safe_field, \
-    rating_str, cleanup_url, get_series_size
+    rating_str, cleanup_url, get_series_size, get_all_library, get_from_media_index
 from loguru import logger as logging
 
 from wrappers_utils.Modals import ReviewModal
@@ -18,13 +19,14 @@ from wrappers_utils.Modals import ReviewModal
 
 class PlexSearchView(View):
 
-    def __init__(self, user, plex_search, mode: str, results: typing.List, current_content=None):
+    def __init__(self, user, plex_search, context, mode: str, results: typing.List, current_content=None):
         super().__init__(timeout=60)
         self.target_message = None
         self.user = user
         self.mode = mode
         self.plex_search = plex_search
         self.results = results
+        self.context = context
         self.client = self.plex_search.bot
         self.current_content = current_content
         if mode != "content":
@@ -37,6 +39,16 @@ class PlexSearchView(View):
             else:
                 self.add_item(Button(label="Add Review", style=ButtonStyle.grey, custom_id="add_review", emoji="📝",
                                      disabled=True))
+            if current_content.type in ["movie", "episode"]:
+                already_optimized = False
+                for media in current_content.media:
+                    if media.optimizedForStreaming:
+                        already_optimized = True
+                if already_optimized:
+                    self.add_item(Button(label="Transcode", style=ButtonStyle.green, custom_id="optimize",
+                                         disabled=True))
+                else:
+                    self.add_item(Button(label="Transcode", style=ButtonStyle.green, custom_id="optimize"))
         self.add_item(Button(label="Cancel", style=ButtonStyle.red, custom_id="cancel"))
         self.timeout_task = self.client.loop.create_task(self.timeout_task())
 
@@ -58,6 +70,7 @@ class PlexSearchView(View):
     async def interaction_check(self, interaction: Interaction):
         if interaction.user.id == self.user.id:
             await self.process_interaction(interaction)
+            return None
         else:
             await interaction.response.send_message("You cannot use this menu.", ephemeral=True)
             return False
@@ -73,17 +86,104 @@ class PlexSearchView(View):
                 await interaction.response.send_modal(ReviewModal(row["media_id"]))
             else:
                 await interaction.response.send_message("This media has not been watched yet", ephemeral=True)
+        elif interaction.data["custom_id"] == "optimize":
+            await interaction.response.defer()
+            self.stop()
+            await self.optimize_media(self.current_content, interaction)
         else:
             await interaction.response.defer()
             self.stop()
             await interaction.message.edit(content=f"Loading... `{self.results[int(interaction.data['values'][0])]}`",
                                            embed=None, view=None)
             embed, view = await media_details(content=self.results[int(interaction.data["values"][0])],
+                                              ctx=self.context,
                                               self=self.plex_search,
                                               requester=interaction.user)
             # Set the target message to the new message
             await asyncio.sleep(0.5)
             view.set_message(await interaction.message.edit(content=None, embed=embed, view=view))
+
+    def get_transcode_session(self, background_task):
+        task_key = background_task.key.replace("/transcode/sessions/", "")
+        transcode_sessions = self.context.plex.transcodeSessions()
+        for session in transcode_sessions:
+            if session.key == task_key:
+                return session
+        return None
+
+    async def update_optimization_message(self, msg, media, media_id):
+        # Find the optimization task
+        background_tasks = self.context.plex.backgroundSessions()
+        while len(background_tasks) > 0:
+            background_tasks = self.context.plex.backgroundSessions()
+            for task in background_tasks:
+                if int(task.ratingKey) == int(media_id):
+                    transcode_session = self.get_transcode_session(task)
+                    progress = float(task.progress) if task.progress is not None else 0.0
+                    embed = discord.Embed(title="Optimize Media",
+                                          description=f"Transcoding `{media.title} ({media.year})`",
+                                          color=0x00ff00)
+                    embed.add_field(name="Progress", value=f"{progress:.2f}%", inline=True)
+                    embed.add_field(name="Speed", value=f"{transcode_session.speed:.2f}x" if transcode_session else "N/A", inline=True)
+                    embed.add_field(name="Size", value=f"{humanize.naturalsize(transcode_session.size)}" if transcode_session else "N/A",
+                                    inline=True)
+                    if transcode_session and transcode_session.speed > 0:
+                        remaining_media = transcode_session.duration - (transcode_session.duration * (progress / 100))
+                        remaining_time = remaining_media / (transcode_session.speed / 100)
+                        remaining_time /= 1000  # Convert from ms to s
+                    else:
+                        remaining_time = -1
+                    embed.add_field(name="Estimated Time Remaining",
+                                    value=f"{str(datetime.timedelta(seconds=int(remaining_time)))}" if remaining_time > 0 else "N/A",
+                                    inline=False)
+                    embed.timestamp = datetime.datetime.now()
+                    await msg.edit(embed=embed)
+            await asyncio.sleep(5)
+        embed = discord.Embed(title="Optimize Media",
+                              description=f"Optimization task for `{media.title} ({media.year})` completed",
+                              color=0x00ff00)
+        embed.timestamp = datetime.datetime.now()
+        await msg.edit(embed=embed)
+
+    async def optimize_media(self, media, interaction: Interaction):
+        """Optimize media for streaming"""
+        optimized_items = self.context.plex.optimizedItems()
+        in_progress_items = self.context.plex.backgroundSessions()
+        print(optimized_items)
+        if any(int(item.id) == int(media.ratingKey) for item in optimized_items):
+            embed = discord.Embed(title="Optimize Media",
+                                  description=f"Media `{media.title} ({media.year})` is already optimized.",
+                                  color=0xff0000)
+            embed.timestamp = datetime.datetime.now()
+            await interaction.followup.send(embed=embed)
+            return
+        if any(int(item.ratingKey) == int(media.ratingKey) for item in in_progress_items):
+            embed = discord.Embed(title="Optimize Media",
+                                  description=f"Media `{media.title} ({media.year})` is already being optimized.",
+                                  color=0xff0000)
+            embed.timestamp = datetime.datetime.now()
+            msg = await interaction.followup.send(embed=embed)
+            await asyncio.sleep(1)
+            await self.update_optimization_message(msg, media, media.ratingKey)
+            return
+        embed = discord.Embed(title="Optimize Media", description=f"Searching for media: {media.title}", color=0x00ff00)
+        embed.timestamp = datetime.datetime.now()
+        msg = await interaction.followup.send(embed=embed)
+        device_profile = "Android"
+        media.optimize(deviceProfile=device_profile, videoQuality=VIDEO_QUALITY_12_MBPS_1080p)
+        embed = discord.Embed(title="Optimize Media",
+                              description=f"Optimization task started for `{media.title} ({media.year})`",
+                              color=0x00ff00)
+        embed.timestamp = datetime.datetime.now()
+        await msg.edit(embed=embed)
+        await asyncio.sleep(1)
+        await self.update_optimization_message(msg, media, media.ratingKey)
+        embed = discord.Embed(title="Optimize Media",
+                              description=f"Optimization task for `{media.title} ({media.year})` completed",
+                              color=0x00ff00)
+        embed.timestamp = datetime.datetime.now()
+        await msg.edit(embed=embed)
+        return
 
     def generate_search_select(self):
         """Generates the search select menu"""
@@ -119,7 +219,7 @@ class PlexSearchView(View):
             self.add_item(select_thing)
 
 
-async def media_details(content, self=None, requester=None, full=True):
+async def media_details(content, self=None, ctx=None, requester=None, full=True):
     """Show details about a content"""
     view = None
 
@@ -135,7 +235,7 @@ async def media_details(content, self=None, requester=None, full=True):
 
         base_info_layer(embed, content, database=self.bot.database, full=full)
         if self and requester:
-            view = PlexSearchView(requester, self, "content", content, content)
+            view = PlexSearchView(requester, self, ctx, "content", content, content)
 
     elif isinstance(content, plexapi.video.Show):  # ----------------------------------------------------------
         """Format the embed being sent for a show"""
@@ -172,7 +272,7 @@ async def media_details(content, self=None, requester=None, full=True):
                         value=f"{'No sessions' if count == 0 else ('Not Available' if count == -1 else count)}",
                         inline=True)
         if self and requester:
-            view = PlexSearchView(requester, self, "season", content.seasons(), content)
+            view = PlexSearchView(requester, self, ctx, "season", content.seasons(), content)
 
     elif isinstance(content, plexapi.video.Season):  # ------------------------------------------------------
         """Format the embed being sent for a season"""
@@ -186,7 +286,7 @@ async def media_details(content, self=None, requester=None, full=True):
         embed.add_field(name="Watch Time", value=f"{get_watch_time(content, self.bot.database)}", inline=True)
         embed.add_field(name="Total Size", value=humanize.naturalsize(get_series_size(content)), inline=True)
         if self and requester:
-            view = PlexSearchView(requester, self, "episode", content.episodes(), content)
+            view = PlexSearchView(requester, self, ctx, "episode", content.episodes(), content)
 
     elif isinstance(content, plexapi.video.Episode):  # ------------------------------------------------------
         """Format the embed being sent for an episode"""
@@ -195,7 +295,7 @@ async def media_details(content, self=None, requester=None, full=True):
                               description=f"{content.summary}" if full else "", color=0x00ff00)
         base_info_layer(embed, content, database=self.bot.database, full=full)
         if self and requester:
-            view = PlexSearchView(requester, self, "content", content, content)
+            view = PlexSearchView(requester, self, ctx, "content", content, content)
     else:
         embed = discord.Embed(title="Unknown content type", color=0x00ff00)
 
