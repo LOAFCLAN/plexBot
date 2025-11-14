@@ -131,6 +131,7 @@ class PlexSearchView(View):
                         remaining_media = transcode_session.duration - (transcode_session.duration * (progress / 100))
                         remaining_time = remaining_media / (transcode_session.speed / 100)
                         remaining_time /= 1000  # Convert from ms to s
+                        remaining_time /= 60
                     else:
                         remaining_time = -1
                     embed.add_field(name="Estimated Time Remaining",

@@ -1,4 +1,4 @@
-discord~=2.3.0
+discord-py~=2.6.4
 langcodes~=3.3.0
 language_data~=1.1.0
 PlexAPI==4.17.1
