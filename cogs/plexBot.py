@@ -287,17 +287,18 @@ class PlexBot(Cog):
     async def users(self, ctx):
         celery = ctx.plex.myPlexAccount()
         users = celery.users()
-        embed = discord.Embed(title="Users", description="", color=0x00ff00)
-        for user in users:
-            username = user.username
-            email = user.email
-            if username is None or len(username) <= 0:
-                username = "N/A"
-            if email is None or len(email) <= 0:
-                email = "N/A"
-            embed.add_field(name=f"{username} - {user.id}", value=f"{email}", inline=False)
-        embed.timestamp = datetime.datetime.now()
-        await ctx.send(embed=embed, delete_after=30)
+        for chunked_users in [users[i:i + 20] for i in range(0, len(users), 20)]:
+            embed = discord.Embed(title="Users", description="", color=0x00ff00)
+            for user in chunked_users:
+                username = user.username
+                email = user.email
+                if username is None or len(username) <= 0:
+                    username = "N/A"
+                if email is None or len(email) <= 0:
+                    email = "N/A"
+                embed.add_field(name=f"{username} - {user.id}", value=f"{email}", inline=False)
+            embed.timestamp = datetime.datetime.now()
+            await ctx.send(embed=embed, delete_after=45)
 
     @command(name='user', aliases=['u'])
     async def user(self, ctx, user: typing.Union[discord.Member, str]):
