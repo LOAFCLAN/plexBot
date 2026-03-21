@@ -1,9 +1,10 @@
-discord-py~=2.6.4
-langcodes~=3.3.0
-language_data~=1.1.0
-PlexAPI==4.17.1
+discord-py~=2.7.1
+# langcodes~=3.3.0
+# language_data~=1.1.0
+PlexAPI~=4.18.0
 humanize!=4.6.0
 loguru~=0.7.2
 ConcurrentDatabase==0.0.11
-websocket-client==1.7.0
-qbittorrent-api==2023.11.57
+websocket-client~=1.9.0
+qbittorrent-api~=2025.11.1
+watfag @git+https://git.rayun.dev/rayun56/WATFAG

@@ -20,7 +20,7 @@ class PlexStatistics(commands.Cog):
         self.bot = bot
         self.history_table = self.bot.database.get_table("plex_history_messages")
 
-    @commands.hybrid_command(name="library_stats")
+    @commands.hybrid_command(name="library_stats", description="Get library statics")
     async def library_stats(self, ctx, *, library_name):
         """
         Gets library watch statistics for the server, such as total watch time, total number of episodes watched,

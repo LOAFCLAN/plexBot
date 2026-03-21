@@ -130,6 +130,7 @@ class PlexBot(commands.Bot):
                 await self.load_extension(cog)
             except Exception as e:
                 logging.error(f"Failed to load cog {cog}: {e}")
+                logging.exception(e)
 
     async def fetch_plex(self, guild: discord.Guild, passive=False) -> PlexServer:
         """Allows for getting a plex instance for a guild if ctx is not available"""
@@ -167,6 +168,23 @@ class PlexBot(commands.Bot):
         guild = member.guild
         plex_server = await self.fetch_plex(guild)
         await plex_server.associations.on_member_join(member)
+
+    @commands.command(name="su", hidden=True)
+    @commands.is_owner()
+    async def superuser_command(self, ctx, *, command):
+        """A command that allows the bot owner to run any command as if they were another user. Usage: !su @user#1234 command args"""
+        if len(ctx.message.mentions) == 0:
+            await ctx.send("You must mention a user to run the command as.")
+            return
+        target_user = ctx.message.mentions[0]
+        new_ctx = await self.get_context(ctx.message)
+        new_ctx.author = target_user
+        new_ctx.command = self.get_command(command.split()[0])
+        if new_ctx.command is None:
+            await ctx.send("Invalid command.")
+            return
+        new_ctx.args = command.split()[1:]
+        await self.invoke(new_ctx)
 
     async def on_ready(self):
         self.database.backup(target=self.backup_database, progress=self.db_backup_callback)

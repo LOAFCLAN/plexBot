@@ -163,6 +163,15 @@ class PlexBot(Cog):
             await asyncio.sleep(5)
             self.bot.loop.create_task(self.monitor_plex(guild_id, channel_id, message_id))
 
+    @command(name="sync_slash", aliases=["sync"])
+    async def sync_slash(self, ctx):
+        """Syncs the bots slash commands, this is done automatically on startup but can be used to manually sync if needed"""
+        await self.bot.tree.sync()
+        embed = discord.Embed(title="Sync Slash Commands", description="Slash commands synced successfully",
+                              color=0x00ff00)
+        embed.timestamp = datetime.datetime.now()
+        await ctx.send(embed=embed)
+
     @command(name="pending_invites", aliases=["pendinginvites", "pendinginvite", "pending"])
     async def pending_invites(self, ctx):
         celery = ctx.plex.myPlexAccount()
