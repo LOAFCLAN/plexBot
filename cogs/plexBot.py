@@ -172,6 +172,15 @@ class PlexBot(Cog):
         embed.timestamp = datetime.datetime.now()
         await ctx.send(embed=embed)
 
+    @command(name="clear_slash", aliases=["clear"])
+    async def clear_slash(self, ctx):
+        """Clears the bots slash commands, this can be used to clear out old commands if needed"""
+        self.bot.tree.clear_commands(guild=None)
+        embed = discord.Embed(title="Clear Slash Commands", description="Slash commands cleared successfully",
+                              color=0x00ff00)
+        embed.timestamp = datetime.datetime.now()
+        await ctx.send(embed=embed)
+
     @command(name="pending_invites", aliases=["pendinginvites", "pendinginvite", "pending"])
     async def pending_invites(self, ctx):
         celery = ctx.plex.myPlexAccount()

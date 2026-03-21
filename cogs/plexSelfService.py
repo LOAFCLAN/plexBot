@@ -363,7 +363,11 @@ class PlexSelfService(Cog):
             await message.edit(embed=embed, view=None)
 
     async def cancel_callback(self, interaction):
-        await interaction.edit_original_response(content="Action cancelled.", embed=None, view=None)
+        message = await interaction.channel.fetch_message(interaction.message.id)
+        embed = discord.Embed(title="Cancelled",
+                              description="The torrent addition has been cancelled.",
+                              color=discord.Color.red())
+        await message.edit(embed=embed, view=None)
 
     def inline_text(self, release):
         text_info = [f"WATFAG: {release.watfag:.2f}"]
