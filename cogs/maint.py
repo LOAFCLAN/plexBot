@@ -264,7 +264,7 @@ class maintCog(Cog):
         else:
             await ctx.send('```\n' + res + '```')
             # Run pip update on requirements.txt
-            res = os.popen("pip install -r requirements.txt").read()
+            res = os.popen("pip install -r requirements.txt --break-system-packages").read()
             new_res = ""
             for line in res.split('\n'):
                 if line.startswith('Requirement already satisfied'):

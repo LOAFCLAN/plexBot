@@ -164,6 +164,7 @@ class PlexBot(Cog):
             self.bot.loop.create_task(self.monitor_plex(guild_id, channel_id, message_id))
 
     @command(name="sync_slash", aliases=["sync"])
+    @command(name="sync_slash", aliases=["sync"])
     async def sync_slash(self, ctx):
         """Syncs the bots slash commands, this is done automatically on startup but can be used to manually sync if needed"""
         await self.bot.tree.sync()
