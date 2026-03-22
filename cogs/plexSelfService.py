@@ -417,10 +417,10 @@ class PlexSelfService(Cog):
             dropdown = Select(placeholder="Select a release", min_values=1, max_values=1)
             n = 1
             for result in filtered[:10]:  # Limit to top 25 results
-                embed.add_field(name=f"{n}. {result.original_text[:99]}",
+                embed.add_field(name=f"{n}. {result.original_text[:90]}",
                                 value=self.inline_text(result), inline=False)
                 self.torrent_cache[str(hash(result.original_text))] = result
-                dropdown.add_option(label=f"{n}. {result.original_text[:99]}",
+                dropdown.add_option(label=f"{n}. {result.original_text[:90]}",
                                     value=str(hash(result.original_text)))
                 n += 1
 
