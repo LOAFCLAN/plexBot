@@ -63,11 +63,12 @@ class PlexSelfService(Cog):
     @staticmethod
     def movie_comparator(result, torrent_entry):
         logging.info(f"Comparing movie `{result.title}` with `{torrent_entry.title}`")
-        if hasattr(result, "year") and hasattr(torrent_entry, "year") and result.year == torrent_entry.year:
-            return result
-        if torrent_entry.title.lower() in result.title.lower() or result.title.lower() in torrent_entry.title.lower():
-            return result
-        return None
+        if not (hasattr(result, "year") and hasattr(torrent_entry, "year") and result.year == torrent_entry.year):
+            return None
+        if not (torrent_entry.title.lower() in result.title.lower() or
+                result.title.lower() in torrent_entry.title.lower()):
+            return None
+        return result
 
     @staticmethod
     def tv_comparator(result, torrent_entry):
@@ -84,10 +85,11 @@ class PlexSelfService(Cog):
         if not (torrent_entry.title.lower() in result.title.lower() or
                 result.title.lower() in torrent_entry.title.lower()):
             return None
+        matches = []
         for season in result.seasons():
             if season.seasonNumber in seasons:
-                return result
-        return None
+                matches.append(season)
+        return matches if matches else None
 
     @staticmethod
     def get_media_name(item):
@@ -174,12 +176,14 @@ class PlexSelfService(Cog):
         for result in results:
             if type(torrent_entry) == MovieRelease:
                 match = self.movie_comparator(result, torrent_entry)
+                if match is not None:
+                    potential_duplicates.append(match)
             elif type(torrent_entry) == TVBoxSetRelease:
-                match = self.tv_comparator(result, torrent_entry)
+                matches = self.tv_comparator(result, torrent_entry)
+                if matches is not None:
+                    potential_duplicates.extend(matches)
             else:
                 continue
-            if match is not None:
-                potential_duplicates.append(match)
         return potential_duplicates
 
     async def create_duplicate_warning_embed(self, release, potential_duplicates):
