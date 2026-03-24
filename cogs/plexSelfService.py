@@ -270,7 +270,7 @@ class PlexSelfService(Cog):
             embed.add_field(name="Group", value=f"`{release_entry.group_name}`", inline=True)
             embed.add_field(name="Streaming Service", value=f"`{release_entry.streaming}`", inline=True)
             embed.add_field(name="Seeders", value=f"`{release_entry.seeders}`", inline=True)
-            embed.set_footer(text=f"Please confirm that you want to add this torrent to your library.")
+            embed.set_footer(text=f"{interaction.user.name} | Please confirm that you want to add this torrent")
             view = View()
             confirm = Button(label="Confirm", style=discord.ButtonStyle.green, custom_id=f"confirm_{torrent_id}")
             cancel = Button(label="Cancel", style=discord.ButtonStyle.red, custom_id="cancel")
@@ -334,6 +334,7 @@ class PlexSelfService(Cog):
             embed = discord.Embed(title="Torrent Added",
                                   description=f"`{release_entry.original_text}` has been added to the `{target_library}` library.",
                                   color=discord.Color.green())
+            embed.set_footer(text=f"{interaction.user.name}")
             await message.edit(embed=embed, view=None)
 
             # # Search QBT for the torrent with the tag we just added and then pass this message to the watch_torrent_download method to update the user on the download status
@@ -370,7 +371,9 @@ class PlexSelfService(Cog):
         message = await interaction.channel.fetch_message(interaction.message.id)
         # Load the original embed without the view
         embed = message.embeds[0]
-        embed.set_footer(text=f"Action cancelled by [{interaction.user.id}]")
+        # Disable the all components in the view
+        embed.colour = discord.Color.random()
+        embed.set_footer(text=f"Action cancelled by {interaction.user.name} [{interaction.user.id}]")
         await message.edit(embed=embed, view=None)
 
     def inline_text(self, release):
@@ -424,7 +427,7 @@ class PlexSelfService(Cog):
                                     value=str(hash(result.original_text)))
                 n += 1
 
-            embed.set_footer(text=f"{ctx.author.id} | Please select a release to add to plex")
+            embed.set_footer(text=f"{ctx.author.name} | Please select a release to add to plex")
             dropdown.callback = self.selection_callback
             cancel = Button(label="Cancel", style=discord.ButtonStyle.red, custom_id="cancel")
             cancel.callback = self.cancel_callback
