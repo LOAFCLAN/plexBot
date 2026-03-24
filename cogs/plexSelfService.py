@@ -368,9 +368,9 @@ class PlexSelfService(Cog):
 
     async def cancel_callback(self, interaction):
         message = await interaction.channel.fetch_message(interaction.message.id)
-        embed = discord.Embed(title="Cancelled",
-                              description="The torrent addition has been cancelled.",
-                              color=discord.Color.red())
+        # Load the original embed without the view
+        embed = message.embeds[0]
+        embed.set_footer(text=f"Action cancelled by [{interaction.user.id}]")
         await message.edit(embed=embed, view=None)
 
     def inline_text(self, release):
@@ -432,6 +432,7 @@ class PlexSelfService(Cog):
             view.add_item(cancel)
             if not allow_adding:
                 dropdown.disabled = True
+                cancel.disabled = True
             await ctx.send(embed=embed, view=view)
         except Exception as e:
             logging.exception(e)

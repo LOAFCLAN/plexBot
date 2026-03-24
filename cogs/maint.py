@@ -204,14 +204,13 @@ class maintCog(Cog):
 
     @is_owner()
     @command(name='su', pass_context=True)
-    async def pseudo(self, ctx, user: discord.Member, *, command):
+    async def su(self, ctx, user: discord.Member, *, command):
         """Aka Switch User"""
         msg = copy.copy(ctx.message)
         msg.author = user
         msg.content = command
         context = await self.bot.get_context(msg)
         context.is_pseudo = True  # adds new flag to bypass ratelimit
-        # let's also add a log of who ran pseudo
         await self.bot.invoke(context)
 
     @is_owner()
