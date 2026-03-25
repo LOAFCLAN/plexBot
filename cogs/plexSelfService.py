@@ -372,7 +372,7 @@ class PlexSelfService(Cog):
         # Load the original embed without the view
         embed = message.embeds[0]
         # Disable the all components in the view
-        embed.colour = discord.Color.random()
+        embed.colour = discord.Color.dark_red()
         embed.set_footer(text=f"Action cancelled by {interaction.user.name} [{interaction.user.id}]")
         await message.edit(embed=embed, view=None)
 
