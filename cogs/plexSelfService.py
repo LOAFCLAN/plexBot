@@ -231,6 +231,7 @@ class PlexSelfService(Cog):
                 cancel.callback = self.cancel_callback
                 await interaction.response.edit_message(embed=embed, view=view)
             else:
+                interaction.data["custom_id"] = torrent_id  # Reuse the custom_id field to pass the torrent
                 await self.confirmation_callback(interaction)
 
         except Exception as e:
@@ -240,7 +241,7 @@ class PlexSelfService(Cog):
 
     async def confirmation_callback(self, interaction):
         try:
-            torrent_id = interaction.data["values"][0]
+            torrent_id = interaction.data["custom_id"]
             release_entry = self.torrent_cache.get(torrent_id, None)
 
             if release_entry is None:
