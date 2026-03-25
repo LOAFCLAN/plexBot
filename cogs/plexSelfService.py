@@ -1,5 +1,6 @@
 import asyncio
 import os
+import random
 from encodings.aliases import aliases
 from typing import Optional
 
@@ -394,6 +395,14 @@ class PlexSelfService(Cog):
                     description="Search for content to add to Plex")
     async def content_self_service(self, ctx, *, query):
         try:
+            if random.randint(0, 500) == 0:
+                # React with the :eyes: emoji and then do nothing
+                await ctx.message.add_reaction("👀")
+                async with ctx.typing():
+                    await asyncio.sleep(30)
+                await ctx.message.remove_reaction("👀", self.bot.user)
+                await ctx.message.add_reaction("👎")
+                return
             async with ctx.typing():
                 results = await self.search_jackett(ctx.guild.id, query)
             if not results:
