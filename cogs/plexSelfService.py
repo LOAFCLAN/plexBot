@@ -223,9 +223,9 @@ class PlexSelfService(Cog):
             if potential_duplicates:
                 embed = await self.create_duplicate_warning_embed(release_entry, potential_duplicates)
                 view = View()
-                confirm = Button(label="Confirm", style=discord.ButtonStyle.green, custom_id=torrent_id)
+                confirm = Button(label="⚠️ Confirm", style=discord.ButtonStyle.green, custom_id=torrent_id)
                 view.add_item(confirm)
-                cancel = Button(label="Cancel", style=discord.ButtonStyle.red, custom_id="cancel")
+                cancel = Button(label="✅ Cancel", style=discord.ButtonStyle.red, custom_id="cancel")
                 view.add_item(cancel)
                 confirm.callback = self.confirmation_callback
                 cancel.callback = self.cancel_callback
@@ -334,7 +334,7 @@ class PlexSelfService(Cog):
                 return
 
             embed = discord.Embed(title="Torrent Added",
-                                  description=f"`{release_entry.original_text}` has been added to the `{target_library}` library.",
+                                  description=f"`{release_entry.original_text}` is being downloaded to `{target_library}` library.",
                                   color=discord.Color.green())
             embed.set_footer(text=f"{interaction.user.name}")
             await message.edit(embed=embed, view=None)
