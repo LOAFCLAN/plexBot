@@ -223,9 +223,9 @@ class PlexSelfService(Cog):
             if potential_duplicates:
                 embed = await self.create_duplicate_warning_embed(release_entry, potential_duplicates)
                 view = View()
-                confirm = Button(label="⚠️ Confirm", style=discord.ButtonStyle.green, custom_id=torrent_id)
                 view.add_item(confirm)
-                cancel = Button(label="✅ Cancel", style=discord.ButtonStyle.red, custom_id="cancel")
+                cancel = Button(label="✅ Cancel", style=discord.ButtonStyle.green, custom_id="cancel")
+                confirm = Button(label="⚠️ Confirm", style=discord.ButtonStyle.red, custom_id=torrent_id)
                 view.add_item(cancel)
                 confirm.callback = self.confirmation_callback
                 cancel.callback = self.cancel_callback
