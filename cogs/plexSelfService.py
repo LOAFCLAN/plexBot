@@ -325,13 +325,13 @@ class PlexSelfService(Cog):
                 await message.edit(embed=embed, view=None)
                 return
 
-            if result != "Ok.":
-                logging.error(f"Unexpected response from qbittorrent: {result}")
-                embed = discord.Embed(title="Error Adding Torrent",
-                                      description=f"An unexpected error occurred while adding the torrent to qbittorrent: `{result}`",
-                                      color=discord.Color.red())
-                await message.edit(embed=embed, view=None)
-                return
+            # if result != "Ok.":
+            #     logging.error(f"Unexpected response from qbittorrent: {result}")
+            #     embed = discord.Embed(title="Error Adding Torrent",
+            #                           description=f"An unexpected error occurred while adding the torrent to qbittorrent: `{result}`",
+            #                           color=discord.Color.red())
+            #     await message.edit(embed=embed, view=None)
+            #     return
 
             embed = discord.Embed(title="Torrent Added",
                                   description=f"`{release_entry.original_text}` is being downloaded to `{target_library}` library.",
