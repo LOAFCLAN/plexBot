@@ -27,6 +27,7 @@ class PlexSelfService(Cog):
         self.init_database()
         self.jackett_instances = {}
         self.torrent_cache = {}
+        self.download_watch_tasks = set()
         jackett_table = self.bot.database.get_table("jackett_servers")
         for row in jackett_table.get_all():
             try:
@@ -133,9 +134,12 @@ class PlexSelfService(Cog):
         qbittorrent = self.get_qbittorrent(release_entry.message.guild.id)
         try:
             while True:
-                torrent_info = qbittorrent.torrents_info(hash=release_entry.torrent_entry.hash)[0]
-                print(torrent_info)
-                if torrent_info.state != "downloading":
+                torrents = qbittorrent.torrents_info(hash=release_entry.torrent_entry.hash)
+                if len(torrents) == 0:
+                    raise ValueError("Torrent no longer exists in qBittorrent")
+                torrent_info = torrents[0]
+                progress = torrent_info.progress * 100
+                if progress >= 100:
                     embed = discord.Embed(title="Download Complete",
                                           description=f"`{release_entry.original_text}` has finished downloading.",
                                           color=discord.Color.green())
@@ -143,15 +147,15 @@ class PlexSelfService(Cog):
                     logging.info(f"Torrent `{release_entry.original_text}` has completed downloading")
                     break
                 else:
-                    progress = torrent_info.progress
                     embed = discord.Embed(title="Downloading...",
                                           description=f"`{release_entry.original_text}` is currently downloading.",
                                           color=discord.Color.orange())
                     embed.add_field(name="Progress", value=f"{progress:.2f}%", inline=True)
                     embed.add_field(name="Download Speed", value=f"{humanize.naturalsize(torrent_info.dlspeed)}/s", inline=True)
                     embed.add_field(name="Seeders", value=f"{torrent_info.num_seeds}", inline=True)
+                    embed.add_field(name="State", value=f"`{torrent_info.state}`", inline=True)
                     await release_entry.message.edit(embed=embed)
-                await asyncio.sleep(30)  # Update every 30 seconds
+                await asyncio.sleep(10)
         except Exception as e:
             logging.exception(e)
             embed = discord.Embed(title="Error Watching Torrent",
@@ -339,28 +343,36 @@ class PlexSelfService(Cog):
             embed.set_footer(text=f"{interaction.user.name}")
             await message.edit(embed=embed, view=None)
 
-            # # Search QBT for the torrent with the tag we just added and then pass this message to the watch_torrent_download method to update the user on the download status
-            # torrents = qbittorrent.torrents_info(tags=f"css_{interaction.message.id}")
-            # if len(torrents) == 1:
-            #     release_entry.torrent_entry = torrents[0]
-            #     release_entry.message = message
-            #     await self.watch_torrent_download(release_entry)
-            # elif len(torrents) == 0:
-            #     logging.error(f"Unable to find torrent in qbittorrent with tag css_{interaction.message.id}")
-            #     embed = discord.Embed(title="Error Finding Torrent",
-            #                           description=f"Unable to find the torrent in qbittorrent after adding it. "
-            #                                       f"Progress updates will not be available.",
-            #                             color=discord.Color.dark_orange())
-            #     await message.edit(embed=embed, view=None)
-            # else:
-            #     logging.error(f"Multiple torrents found in qbittorrent with tag css_{interaction.message.id}")
-            #     embed = discord.Embed(title="Error Finding Torrent",
-            #                           description=f"Multiple torrents found in qbittorrent with the tag css_{interaction.message.id}. "
-            #                                       f"Progress updates will not be available.",
-            #                           color=discord.Color.dark_orange())
-            #     for torrent in torrents[:5]:  # List the first 5 torrents found with this tag
-            #         embed.add_field(name=f"{torrent.name} [{torrent.hash}]", value=f"Status: {torrent.state}", inline=False)
-            #     await message.edit(embed=embed, view=None)
+            torrent_tag = f"css_{interaction.message.id}"
+            torrents = []
+            for _ in range(5):
+                torrents = qbittorrent.torrents_info(tags=torrent_tag)
+                if torrents:
+                    break
+                await asyncio.sleep(2)
+
+            if len(torrents) == 1:
+                release_entry.torrent_entry = torrents[0]
+                release_entry.message = message
+                task = asyncio.create_task(self.watch_torrent_download(release_entry))
+                self.download_watch_tasks.add(task)
+                task.add_done_callback(self.download_watch_tasks.discard)
+            elif len(torrents) == 0:
+                logging.error(f"Unable to find torrent in qbittorrent with tag {torrent_tag}")
+                embed = discord.Embed(title="Error Finding Torrent",
+                                      description=f"Unable to find the torrent in qbittorrent after adding it. "
+                                                  f"Progress updates will not be available.",
+                                      color=discord.Color.dark_orange())
+                await message.edit(embed=embed, view=None)
+            else:
+                logging.error(f"Multiple torrents found in qbittorrent with tag {torrent_tag}")
+                embed = discord.Embed(title="Error Finding Torrent",
+                                      description=f"Multiple torrents found in qbittorrent with the tag {torrent_tag}. "
+                                                  f"Progress updates will not be available.",
+                                      color=discord.Color.dark_orange())
+                for torrent in torrents[:5]:
+                    embed.add_field(name=f"{torrent.name} [{torrent.hash}]", value=f"Status: {torrent.state}", inline=False)
+                await message.edit(embed=embed, view=None)
 
         except Exception as e:
             logging.exception(e)
