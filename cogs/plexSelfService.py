@@ -28,6 +28,7 @@ class PlexSelfService(Cog):
         self.jackett_instances = {}
         self.torrent_cache = {}
         self.download_watch_tasks = set()
+        self.download_watch_task_update_lock = asyncio.Lock()
         jackett_table = self.bot.database.get_table("jackett_servers")
         for row in jackett_table.get_all():
             try:
@@ -60,7 +61,6 @@ class PlexSelfService(Cog):
         if jackett is None:
             raise ConnectionError("Jackett not configured for this guild")
         return await jackett.search(query)
-
 
     @staticmethod
     def movie_comparator(result, torrent_entry):
@@ -134,28 +134,36 @@ class PlexSelfService(Cog):
         qbittorrent = self.get_qbittorrent(release_entry.message.guild.id)
         try:
             while True:
-                torrents = qbittorrent.torrents_info(hash=release_entry.torrent_entry.hash)
-                if len(torrents) == 0:
-                    raise ValueError("Torrent no longer exists in qBittorrent")
-                torrent_info = torrents[0]
-                progress = torrent_info.progress * 100
-                if progress >= 100:
-                    embed = discord.Embed(title="Download Complete",
-                                          description=f"`{release_entry.original_text}` has finished downloading.",
-                                          color=discord.Color.green())
-                    await release_entry.message.edit(embed=embed)
-                    logging.info(f"Torrent `{release_entry.original_text}` has completed downloading")
-                    break
-                else:
-                    embed = discord.Embed(title="Downloading...",
-                                          description=f"`{release_entry.original_text}` is currently downloading.",
-                                          color=discord.Color.orange())
-                    embed.add_field(name="Progress", value=f"{progress:.2f}%", inline=True)
-                    embed.add_field(name="Download Speed", value=f"{humanize.naturalsize(torrent_info.dlspeed)}/s", inline=True)
-                    embed.add_field(name="Seeders", value=f"{torrent_info.num_seeds}", inline=True)
-                    embed.add_field(name="State", value=f"`{torrent_info.state}`", inline=True)
-                    await release_entry.message.edit(embed=embed)
-                await asyncio.sleep(10)
+                async with self.download_watch_task_update_lock:
+                    await asyncio.sleep(9)
+                    torrents = qbittorrent.torrents_info(torrent_hashes=[release_entry.torrent_entry.hash])
+                    if len(torrents) == 0:
+                        raise ValueError("Torrent no longer exists in qBittorrent")
+                    elif len(torrents) > 1:
+                        raise ValueError("Multiple torrents found with the same hash in qBittorrent")
+                    torrent_info = torrents[0]
+                    progress = torrent_info.progress * 100
+                    status = torrent_info.state # type: str
+                    if "up" in status.lower() and torrent_info.completed > 420:
+                        embed = discord.Embed(title="Download Complete",
+                                              description=f"`{release_entry.original_text}` has finished downloading.",
+                                              color=discord.Color.green())
+                        await release_entry.message.edit(embed=embed)
+                        logging.info(f"Torrent `{release_entry.original_text}` has completed downloading")
+                        break
+                    else:
+                        embed = discord.Embed(title="Downloading...",
+                                              description=f"`{release_entry.original_text}` is currently downloading.",
+                                              color=discord.Color.orange())
+                        embed.add_field(name="Progress", value=f"{progress:.2f}%", inline=True)
+                        embed.add_field(name="Download Speed", value=f"{humanize.naturalsize(torrent_info.dlspeed)}/s", inline=True)
+                        embed.add_field(name="Seeders", value=f"{torrent_info.num_seeds}", inline=True)
+                        embed.add_field(name="State", value=f"`{torrent_info.state}`", inline=True)
+                        embed.add_field(name="Remaining", value=f"{humanize.naturalsize(torrent_info.amount_left)}", inline=True)
+                        embed.add_field(name="ETA", value=f"{humanize.naturaldelta(torrent_info.eta)}", inline=True)
+                        embed.set_footer(text=f"Torrent hash: {torrent_info.hash}")
+                        await release_entry.message.edit(embed=embed)
+                await asyncio.sleep(1)
         except Exception as e:
             logging.exception(e)
             embed = discord.Embed(title="Error Watching Torrent",
@@ -346,7 +354,7 @@ class PlexSelfService(Cog):
             torrent_tag = f"css_{interaction.message.id}"
             torrents = []
             for _ in range(5):
-                torrents = qbittorrent.torrents_info(tags=torrent_tag)
+                torrents = qbittorrent.torrents_info(tag=torrent_tag)
                 if torrents:
                     break
                 await asyncio.sleep(2)
