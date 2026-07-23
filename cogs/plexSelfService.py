@@ -28,6 +28,9 @@ class PlexSelfService(Cog):
         self.jackett_instances = {}
         self.torrent_cache = {}
         self.download_watch_tasks = set()
+        self.download_watch_tasks_by_message = {}
+        self.download_message_torrents = {}
+        self.cancelled_torrents = set()
         self.download_watch_task_update_lock = asyncio.Lock()
         jackett_table = self.bot.database.get_table("jackett_servers")
         for row in jackett_table.get_all():
@@ -128,6 +131,24 @@ class PlexSelfService(Cog):
         files = list(set(files))
         return files
 
+    def build_download_view(self, message_id: int, allow_cancel: bool = True):
+        view = View(timeout=None)
+        cancel = Button(
+            label="Cancel Download",
+            style=discord.ButtonStyle.red,
+            custom_id=f"cancel_download_{message_id}",
+            disabled=not allow_cancel
+        )
+        cancel.callback = self.cancel_callback
+        view.add_item(cancel)
+        return view
+
+    def unregister_download_tracking(self, message_id: int):
+        self.download_message_torrents.pop(message_id, None)
+        task = self.download_watch_tasks_by_message.pop(message_id, None)
+        if task is not None:
+            self.download_watch_tasks.discard(task)
+
     async def watch_torrent_download(self, release_entry):
         # Send updates to the user on the download status of the torrent until it is complete
         logging.info(f"Watching torrent `{release_entry.original_text}` for download status updates")
@@ -148,7 +169,9 @@ class PlexSelfService(Cog):
                         embed = discord.Embed(title="Download Complete",
                                               description=f"`{release_entry.original_text}` has finished downloading.",
                                               color=discord.Color.green())
-                        await release_entry.message.edit(embed=embed)
+                        await release_entry.message.edit(embed=embed, view=None)
+                        self.unregister_download_tracking(release_entry.message.id)
+                        self.cancelled_torrents.discard(release_entry.torrent_entry.hash)
                         logging.info(f"Torrent `{release_entry.original_text}` has completed downloading")
                         break
                     else:
@@ -162,14 +185,23 @@ class PlexSelfService(Cog):
                         embed.add_field(name="Remaining", value=f"{humanize.naturalsize(torrent_info.amount_left)}", inline=True)
                         embed.add_field(name="ETA", value=f"{humanize.naturaldelta(torrent_info.eta)}", inline=True)
                         embed.set_footer(text=f"Torrent hash: {torrent_info.hash}")
-                        await release_entry.message.edit(embed=embed)
+                        view = self.build_download_view(release_entry.message.id, allow_cancel=progress < 10)
+                        await release_entry.message.edit(embed=embed, view=view)
                 await asyncio.sleep(1)
+        except asyncio.CancelledError:
+            logging.info(f"Stopped watching torrent `{release_entry.original_text}`")
+            raise
         except Exception as e:
+            if release_entry.torrent_entry.hash in self.cancelled_torrents:
+                self.unregister_download_tracking(release_entry.message.id)
+                self.cancelled_torrents.discard(release_entry.torrent_entry.hash)
+                return
             logging.exception(e)
             embed = discord.Embed(title="Error Watching Torrent",
                                   description=f"An error occurred while watching the torrent download status: `{e}`",
                                   color=discord.Color.red())
-            await release_entry.message.edit(embed=embed)
+            await release_entry.message.edit(embed=embed, view=None)
+            self.unregister_download_tracking(release_entry.message.id)
 
 
     async def find_potential_duplicates(self, plex, torrent_entry):
@@ -349,7 +381,7 @@ class PlexSelfService(Cog):
                                   description=f"`{release_entry.original_text}` is being downloaded to `{target_library}` library.",
                                   color=discord.Color.green())
             embed.set_footer(text=f"{interaction.user.name}")
-            await message.edit(embed=embed, view=None)
+            await message.edit(embed=embed, view=self.build_download_view(message.id, allow_cancel=False))
 
             torrent_tag = f"css_{interaction.message.id}"
             torrents = []
@@ -362,9 +394,16 @@ class PlexSelfService(Cog):
             if len(torrents) == 1:
                 release_entry.torrent_entry = torrents[0]
                 release_entry.message = message
+                self.download_message_torrents[message.id] = torrents[0].hash
                 task = asyncio.create_task(self.watch_torrent_download(release_entry))
                 self.download_watch_tasks.add(task)
-                task.add_done_callback(self.download_watch_tasks.discard)
+                self.download_watch_tasks_by_message[message.id] = task
+
+                def _cleanup_download_task(done_task, msg_id=message.id):
+                    self.download_watch_tasks.discard(done_task)
+                    self.download_watch_tasks_by_message.pop(msg_id, None)
+
+                task.add_done_callback(_cleanup_download_task)
             elif len(torrents) == 0:
                 logging.error(f"Unable to find torrent in qbittorrent with tag {torrent_tag}")
                 embed = discord.Embed(title="Error Finding Torrent",
@@ -372,6 +411,7 @@ class PlexSelfService(Cog):
                                                   f"Progress updates will not be available.",
                                       color=discord.Color.dark_orange())
                 await message.edit(embed=embed, view=None)
+                self.unregister_download_tracking(message.id)
             else:
                 logging.error(f"Multiple torrents found in qbittorrent with tag {torrent_tag}")
                 embed = discord.Embed(title="Error Finding Torrent",
@@ -381,6 +421,7 @@ class PlexSelfService(Cog):
                 for torrent in torrents[:5]:
                     embed.add_field(name=f"{torrent.name} [{torrent.hash}]", value=f"Status: {torrent.state}", inline=False)
                 await message.edit(embed=embed, view=None)
+                self.unregister_download_tracking(message.id)
 
         except Exception as e:
             logging.exception(e)
@@ -390,6 +431,47 @@ class PlexSelfService(Cog):
             await message.edit(embed=embed, view=None)
 
     async def cancel_callback(self, interaction):
+        logging.info(f"User {interaction.user} cancelled the interaction for message {interaction.message.id}, custom_id: {interaction.data.get('custom_id')}")
+        if interaction.data.get("custom_id", "").startswith("cancel_download_"):
+            logging.info(f"User {interaction.user} attempting to cancel download for message {interaction.message.id}")
+            message = await interaction.channel.fetch_message(interaction.message.id)
+            try:
+                custom_id = interaction.data["custom_id"]
+                message_id = int(custom_id.split("cancel_download_")[1])
+                torrent_hash = self.download_message_torrents.get(message_id)
+                if torrent_hash is None:
+                    raise ValueError("Torrent tracking data was not found for this message")
+
+                qbittorrent = self.get_qbittorrent(interaction.guild_id)
+                if qbittorrent is None:
+                    raise ConnectionError("qBittorrent not configured for this guild")
+
+                self.cancelled_torrents.add(torrent_hash)
+                qbittorrent.torrents_delete(delete_files=True, torrent_hashes=[torrent_hash])
+
+                watch_task = self.download_watch_tasks_by_message.get(message_id)
+                if watch_task is not None and not watch_task.done():
+                    watch_task.cancel()
+
+                embed = discord.Embed(
+                    title="Download Cancelled",
+                    description=f"Torrent `{torrent_hash}` was removed from qBittorrent by {interaction.user.mention}.",
+                    color=discord.Color.dark_red(),
+                )
+                embed.set_footer(text=f"Cancelled by {interaction.user.name} [{interaction.user.id}]")
+                await message.edit(embed=embed, view=None)
+            except Exception as e:
+                logging.exception(e)
+                embed = discord.Embed(
+                    title="Error Cancelling Torrent",
+                    description=f"An error occurred while cancelling the torrent: `{e}`",
+                    color=discord.Color.red(),
+                )
+                await message.edit(embed=embed, view=None)
+            finally:
+                self.unregister_download_tracking(interaction.message.id)
+            return
+
         message = await interaction.channel.fetch_message(interaction.message.id)
         # Load the original embed without the view
         embed = message.embeds[0]

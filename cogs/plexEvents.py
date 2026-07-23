@@ -233,6 +233,12 @@ class PlexEvents(Cog):
     async def send_event_message(self, plex, channel, event):
 
         # only include messages with an ID of 0, 5, 9
+        if int(event['sectionID']) < 0:
+            logging.warning(f"Received event with invalid sectionID: {event['sectionID']}")
+            embed = discord.Embed(title="Plex Event Error", color=0xff0000,
+                                  description=f"Received event with invalid sectionID: {event['sectionID']}")
+            await channel.send(embed=embed)
+            return
         library = plex.library.sectionByID(int(event['sectionID']))
 
         match event['state']:
