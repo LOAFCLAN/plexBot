@@ -99,25 +99,30 @@ class PlexEvents(Cog):
         logging.info(f"Started event listener for {guild.name}")
         # print([task.name for task in plex.butlerTasks()])
 
-        while listener.is_alive():
-            # Check when the last event was received
-            if time.time() - last_event > 300:
-                logging.info(f"Event listener for {guild.name} has been inactive for 5 minutes, sending trigger")
-                # Send an action to the plex server that will trigger an event message
-                plex.runButlerTask('LoudnessAnalysis')
-            elif time.time() - last_event > 500:
-                logging.warning(f"Event trigger for {guild.name} was unsuccessful, restarting event listener")
-                listener.stop()
-                break
-            await asyncio.sleep(1)
-        task.cancel()
-        logging.warning(f"Event listener for {guild.name} has stopped")
-        # Check if the plex server is offline
-        if not plex.online:
-            logging.warning(f"Plex server {plex.friendlyName} is offline, discontinuing attempts to restart event "
-                            f"listener")
-            return
-        await self.start_event_listener(guild_id, channel_id)
+        try:
+            while listener.is_alive():
+                # Check when the last event was received
+                if time.time() - last_event > 300:
+                    logging.info(f"Event listener for {guild.name} has been inactive for 5 minutes, sending trigger")
+                    # Send an action to the plex server that will trigger an event message
+                    plex.runButlerTask('LoudnessAnalysis')
+                elif time.time() - last_event > 500:
+                    logging.warning(f"Event trigger for {guild.name} was unsuccessful, restarting event listener")
+                    listener.stop()
+                    break
+                await asyncio.sleep(1)
+            task.cancel()
+            logging.warning(f"Event listener for {guild.name} has stopped")
+            # Check if the plex server is offline
+            if not plex.online:
+                logging.warning(f"Plex server {plex.friendlyName} is offline, discontinuing attempts to restart event "
+                                f"listener")
+                return
+        except Exception as e:
+            logging.error(e)
+            logging.exception(e)
+        finally:
+            await self.start_event_listener(guild_id, channel_id)
 
     def event_error(self, error):
         logging.error(error)
@@ -352,6 +357,23 @@ class PlexEvents(Cog):
         task = self.listener_tasks[ctx.guild.id]
         task.cancel()
         await ctx.send("Stopped event listener")
+
+    @has_permissions(manage_guild=True)
+    @command(name="restart_event_listener", aliases=["rel"])
+    async def restart_event_listener(self, ctx):
+        table = self.bot.database.get_table("plex_alert_channel")
+        config = table.get_row(guild_id=ctx.guild.id)
+        if config is None:
+            await ctx.send("No event listener configured")
+        else:
+            # Stop the existing event listener
+            task = self.listener_tasks[ctx.guild.id]
+            task.cancel()
+            await ctx.send("Stopped existing event listener")
+            # actually start the event listener
+            task = self.bot.loop.create_task(self.start_event_listener(ctx.guild.id, config['channel_id']))
+            self.listener_tasks[ctx.guild.id] = task
+            await ctx.send("Started event listener")
 
     @has_permissions(manage_guild=True)
     @command(name="event_listener_status", aliases=["els"])
