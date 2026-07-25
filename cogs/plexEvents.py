@@ -122,6 +122,13 @@ class PlexEvents(Cog):
             logging.error(e)
             logging.exception(e)
         finally:
+            try:
+                listener.stop()
+                task.cancel()
+            except Exception as e:
+                logging.error(e)
+                logging.exception(e)
+            logging.info(f"Restarting event listener for {guild.name}")
             await self.start_event_listener(guild_id, channel_id)
 
     def event_error(self, error):
@@ -237,14 +244,14 @@ class PlexEvents(Cog):
 
     async def send_event_message(self, plex, channel, event):
 
-        # only include messages with an ID of 0, 5, 9
-        if int(event['sectionID']) < 0:
+        if int(event['sectionID']) < 0: # Invalid sectionID, ignore the event
             logging.warning(f"Received event with invalid sectionID: {event['sectionID']}")
-            embed = discord.Embed(title="Plex Event Error", color=0xff0000,
-                                  description=f"Received event with invalid sectionID: {event['sectionID']}")
-            await channel.send(embed=embed)
             return
-        library = plex.library.sectionByID(int(event['sectionID']))
+        try:
+            library = plex.library.sectionByID(int(event['sectionID']))
+        except Exception as e:
+            logging.error(f"Could not find library for sectionID {event['sectionID']}: {e}")
+            return
 
         match event['state']:
             case 0:
