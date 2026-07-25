@@ -101,6 +101,11 @@ class PlexEvents(Cog):
 
         try:
             while listener.is_alive():
+                # Check if the message task is still running
+                if task.done():
+                    logging.warning(f"Event message task for {guild.name} has stopped, restarting event listener")
+                    listener.stop()
+                    break
                 # Check when the last event was received
                 if time.time() - last_event > 300:
                     logging.info(f"Event listener for {guild.name} has been inactive for 5 minutes, sending trigger")
@@ -110,7 +115,7 @@ class PlexEvents(Cog):
                     logging.warning(f"Event trigger for {guild.name} was unsuccessful, restarting event listener")
                     listener.stop()
                     break
-                await asyncio.sleep(1)
+                await asyncio.sleep(10)
             task.cancel()
             logging.warning(f"Event listener for {guild.name} has stopped")
             # Check if the plex server is offline
