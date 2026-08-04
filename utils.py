@@ -198,7 +198,7 @@ def make_session_entry(plex, session, embed):
         else:
             embed.add_field(name=f"{session.usernames[0]} has encountered an error",
                             value=f"Invalid session type, {type(session)}", inline=False)
-        return
+        return None
 
     if len(session.media) > 1:
         # Find which media file has a bitrate closest to the reserved bitrate
@@ -271,9 +271,6 @@ def make_session_entry(plex, session, embed):
         media_info += f"\n└──> `{str(subtitle_stream.codec).upper().rjust(4)}:" \
                       f" {name if name else 'Unknown language'}`"
 
-    # print(session.__dict__)
-    # print(session.session[0].__dict__)
-
     if session.type == 'movie':
         value = f"{session.title[:40]} ({session.year})\n" \
                 f"{timeline}\n" \
@@ -293,7 +290,7 @@ def make_session_entry(plex, session, embed):
                 f"{progress_bar}\n" \
                 f"{bandwidth}\n" \
                 f"{media_info}"
-    # print(session.players[0].__dict__)
+
     try:
         embed.add_field(name=f"{plex.associations.display_name(session.usernames[0])} on {device}", value=value,
                         inline=False)

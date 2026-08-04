@@ -44,6 +44,8 @@ class PlexEvents(Cog):
         self.event_tracker = {}
         self.listener_tasks = {}
 
+        self.message_edit_lock = asyncio.Lock()
+
     @Cog.listener()
     async def on_ready(self):
         logging.info("PlexEvents is ready")
@@ -90,6 +92,12 @@ class PlexEvents(Cog):
                 entry = data['TimelineEntry'][0]
                 if entry['identifier'] == 'com.plexapp.plugins.library':
                     event_queue.put_nowait(entry)
+            elif data['type'] == 'activity':
+                if data['ActivityNotification'][0]['type'] == 'butler':
+                    logging.info(f"Received loudness analysis event for {guild.name}")
+            elif data['type'] == 'progress' and \
+                    'The butler performed loudness analysis' in data['ProgressNotification'][0]['message']:
+                logging.info(f"Received loudness analysis event for {guild.name}")
 
         listener = plexapi.alert.AlertListener(plex, event_callback, self.event_error)
         listener.name = f"EventListener-{guild.name}"
@@ -180,6 +188,25 @@ class PlexEvents(Cog):
         message = await channel.fetch_message(row['message_id'])
         return message
 
+    async def rate_limited_message_edit(self, message, **kwargs):
+        """Edits a message with rate limiting to prevent hitting the Discord API rate limit"""
+        async with self.message_edit_lock:
+            while True:
+                try:
+                    await message.edit(**kwargs)
+                    await asyncio.sleep(1)  # Sleep for 1 second to prevent hitting the rate limit
+                    break
+                except discord.errors.HTTPException as e:
+                    if e.code == 50013:  # Missing Permissions
+                        logging.error(f"Missing permissions to edit message {message.id} in channel {message.channel.id}")
+                        break
+                    elif e.code == 50035:  # Invalid Form Body (likely due to rate limiting)
+                        logging.warning(f"Rate limited when editing message {message.id}, retrying in 5 seconds")
+                        await asyncio.sleep(5)
+                    else:
+                        logging.error(f"Error editing message {message.id}: {e}")
+                        break
+
     async def apply_media_info(self, channel, event_obj=None, library=None, edit=False, media_obj=None, msg=None):
         """Applies the media info to the message"""
         embed = discord.Embed()
@@ -214,12 +241,13 @@ class PlexEvents(Cog):
                 media.bad_thumb = True
             embed, view = await media_details(media, self, full=False)
 
+
         if not edit:
-            await event_obj.message.edit(content="Media Added", embed=embed)
+            await self.rate_limited_message_edit(event_obj.message, content="Media Added", embed=embed)
             if event_obj in self.event_tracker[channel.guild.id]:
                 self.event_tracker[channel.guild.id].remove(event_obj)
         else:
-            await msg.edit(embed=embed)
+            await self.rate_limited_message_edit(msg, embed=embed)
 
     async def download_thumbnails(self, channel, media):
         """Downloads thumbnails for media into the webserver path"""
@@ -322,11 +350,11 @@ class PlexEvents(Cog):
                     embed = discord.Embed(title="New Media Added", color=0x00FFFF,
                                           description=f"Searching for media `{event['title']}` in `{library.title}`")
                     embed.set_footer(text=f"Metadata download complete searching for media ID: {event['itemID']}")
-                    await event_obj.message.edit(embed=embed)
+                    await self.rate_limited_message_edit(event_obj.message, embed=embed)
                     # Start a new task to search for the media
                     asyncio.ensure_future(self.apply_media_info(channel, event_obj, library))
                     event_obj.last_state = 5
-                    await asyncio.sleep(1)
+                    # await asyncio.sleep(1)
             case 9:
                 if event in self.event_tracker[channel.guild.id]:
                     msg = self.get_media_event(channel.guild.id, event['itemID']).message
@@ -334,8 +362,8 @@ class PlexEvents(Cog):
                     embed = discord.Embed(title="New Media Added", color=0x00FFFF,
                                           description=f"Merging media `{title}` in `{library.title}`")
                     embed.set_footer(text=f"Media ID: {event['itemID']}")
-                    await msg.edit(embed=embed)
-                    await asyncio.sleep(1)
+                    await self.rate_limited_message_edit(msg, embed=embed)
+                    # await asyncio.sleep(1)
                     return
 
                 # Find the original media message if it exists
