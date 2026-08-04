@@ -357,7 +357,8 @@ def get_media_info(media_list: [plexapi.media.Media]) -> list:
                 else:
                     video_stream = part.videoStreams()[0]
                     duration = datetime.timedelta(seconds=round(media.duration / 1000))
-                    bitrate = humanize.naturalsize(video_stream.bitrate * 1000)
+                    bitrate_raw = video_stream.bitrate if video_stream.bitrate is not None else 0
+                    bitrate = humanize.naturalsize(bitrate_raw * 1000)
                     bitrate = f"{bitrate.split(' ')[0]} {bitrate.split(' ')[1].capitalize()}"
                     this_media = f"`File#{media_index}`: `{media.videoCodec}:{video_stream.width}x" \
                                  f"{video_stream.height}@{video_stream.frameRate} Bitrate: {bitrate}/s`\n"
