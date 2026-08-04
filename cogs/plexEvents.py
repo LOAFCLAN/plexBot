@@ -341,7 +341,7 @@ class PlexEvents(Cog):
                 # Find the original media message if it exists
                 message = await self.get_message_from_plex_id(event['itemID'])
                 embed = discord.Embed(title="Media Deleted", color=0xff0000,
-                                      description=f"Media `{event['title']}` deleted from `{library.title}`")
+                                      description=f"Media [{event['title']}] deleted from [{library.title}]")
                 embed.set_footer(text=f"Media ID: {event['itemID']}")
                 if message:
                     await channel.send(embed=embed, reference=message)
