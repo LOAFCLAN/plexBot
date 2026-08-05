@@ -290,9 +290,7 @@ class PlexEvents(Cog):
             case 0:
                 # Check if the event is already being tracked
                 if event in self.event_tracker[channel.guild.id]:
-                    event_obj = self.get_media_event(channel.guild.id, event['itemID'])
-                    if event_obj.last_state == 0:
-                        return
+                    return
                 embed = discord.Embed(title="New Media Added", color=0x00FFFF,
                                       description=f"New media file added to `{library.title}`")
                 embed.set_footer(text=f"Waiting for item matching to complete, media ID: {event['itemID']}")
