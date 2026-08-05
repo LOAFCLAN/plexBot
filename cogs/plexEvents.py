@@ -62,6 +62,13 @@ class PlexEvents(Cog):
         if table.get_row(guild_id=guild.id) is None:
             return
         channel_id = table.get_row(guild_id=guild.id)['channel_id']
+        # Check if there already is a listener task for this guild
+        if guild.id in self.listener_tasks:
+            # Stop the existing listener task
+            task = self.listener_tasks[guild.id]
+            task.cancel()
+            del self.listener_tasks[guild.id]
+            logging.info(f"Stopped existing event listener for {guild.name} - {plex.friendlyName}")
         logging.info(f"Starting event listener for {guild.name} ({plex.friendlyName})")
         self.bot.loop.create_task(self.start_event_listener(guild.id, channel_id))
 
@@ -295,8 +302,8 @@ class PlexEvents(Cog):
                                       description=f"New media file added to `{library.title}`")
                 embed.set_footer(text=f"Waiting for item matching to complete, media ID: {event['itemID']}")
                 msg = await channel.send(embed=embed)
-                await asyncio.sleep(1)
                 self.event_tracker[channel.guild.id].append(self.PlexMediaEvent(event['itemID'], msg))
+                await asyncio.sleep(1)
             case 1:
                 return
             case 3:
