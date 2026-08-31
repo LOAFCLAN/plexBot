@@ -45,6 +45,7 @@ class PlexEvents(Cog):
         self.listener_tasks = {}
 
         self.message_edit_lock = asyncio.Lock()
+        self.event_listener_lock = asyncio.Lock()
 
     @Cog.listener()
     async def on_ready(self):
@@ -149,8 +150,7 @@ class PlexEvents(Cog):
         # logging.exception(error)
 
     async def event_message_loop(self, plex, queue, channel):
-        self.event_tracker[channel.guild.id] = []
-        lock = asyncio.Lock()
+        # self.event_tracker[channel.guild.id] = []
         while True:
             try:
                 event = await queue.get()  # type: dict
@@ -159,9 +159,9 @@ class PlexEvents(Cog):
                 if int(event['sectionID']) == -1:
                     continue
                 # print(event)
-                await lock.acquire()  # Ensure only one event is processed at a time
+                await self.event_listener_lock.acquire()  # Ensure only one event is processed at a time
                 await self.send_event_message(plex, channel, event)
-                lock.release()
+                self.event_listener_lock.release()
             except Exception as e:
                 logging.error(e)
                 logging.exception(e)
@@ -244,8 +244,8 @@ class PlexEvents(Cog):
 
         if not edit:
             await self.rate_limited_message_edit(event_obj.message, content="Media Added", embed=embed)
-            if event_obj in self.event_tracker[channel.guild.id]:
-                self.event_tracker[channel.guild.id].remove(event_obj)
+            # if event_obj in self.event_tracker[channel.guild.id]:
+            #     self.event_tracker[channel.guild.id].remove(event_obj)
         else:
             await self.rate_limited_message_edit(msg, embed=embed)
 
