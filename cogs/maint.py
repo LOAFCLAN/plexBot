@@ -270,11 +270,14 @@ class maintCog(Cog):
                     new_res += "Requirement already satisfied...\n"
                 else:
                     new_res += line + '\n'
-            if len(new_res) > 2000:
-                await ctx.send("```\n" + new_res[:1999] + "```")
-                await ctx.send("```\n" + new_res[2000:3999] + "```")
-            else:
-                await ctx.send('```\n' + new_res + '```')
+            # if len(new_res) > 2000:
+            #     await ctx.send("```\n" + new_res[:1999] + "```")
+            #     await ctx.send("```\n" + new_res[2000:3999] + "```")
+            # else:
+            #     await ctx.send('```\n' + new_res + '```')
+
+            for message_chunk in [new_res[i:i + 1999] for i in range(0, len(new_res), 1999)]:
+                await ctx.send(f"```\n{message_chunk}\n```")
             await msg.edit(content="Restarting...")
             for watcher in self.bot.session_watchers:
                 await watcher.bot_shutdown()
