@@ -151,6 +151,8 @@ class PlexEvents(Cog):
 
     async def event_message_loop(self, plex, queue, channel):
         # self.event_tracker[channel.guild.id] = []
+        if channel.guild.id not in self.event_tracker:
+            self.event_tracker[channel.guild.id] = []
         while True:
             try:
                 event = await queue.get()  # type: dict
@@ -161,10 +163,11 @@ class PlexEvents(Cog):
                 # print(event)
                 await self.event_listener_lock.acquire()  # Ensure only one event is processed at a time
                 await self.send_event_message(plex, channel, event)
-                self.event_listener_lock.release()
             except Exception as e:
                 logging.error(e)
                 logging.exception(e)
+            finally:
+                self.event_listener_lock.release()
 
     def get_media_event(self, guild_id, itemID, title=None):
         for event in self.event_tracker[guild_id]:
