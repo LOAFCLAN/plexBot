@@ -361,7 +361,7 @@ class PlexEvents(Cog):
                     msg = self.get_media_event(channel.guild.id, event['itemID']).message
                     title = self.get_media_event(channel.guild.id, event['itemID']).title
                     embed = discord.Embed(title="New Media Added", color=0x00FFFF,
-                                          description=f"Merging media `{title}` in `{library.title}`")
+                                          description=f"Merging media `{event['title']}` into `{library.title}`")
                     embed.set_footer(text=f"Media ID: {event['itemID']}")
                     await self.rate_limited_message_edit(msg, embed=embed)
                     # await asyncio.sleep(1)
@@ -377,7 +377,8 @@ class PlexEvents(Cog):
                     # Edit the text of the original message indicate the media was deleted but leave the embed intact
                     await message.edit(content="`This media has been deleted`", embed=message.embeds[0])
                 else:
-                    await channel.send(embed=embed)
+                    message = await channel.send(embed=embed)
+                self.event_tracker[channel.guild.id].append(self.PlexMediaEvent(event['itemID'], message))
                 await asyncio.sleep(1)
 
     @has_permissions(manage_guild=True)
