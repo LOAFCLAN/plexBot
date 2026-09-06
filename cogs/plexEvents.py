@@ -203,9 +203,15 @@ class PlexEvents(Cog):
                     if e.code == 50013:  # Missing Permissions
                         logging.error(f"Missing permissions to edit message {message.id} in channel {message.channel.id}")
                         break
-                    elif e.code == 50035:  # Invalid Form Body (likely due to rate limiting)
-                        logging.warning(f"Rate limited when editing message {message.id}, retrying in 5 seconds")
-                        await asyncio.sleep(5)
+                    elif e.code == 50035:  # Invalid Form Body
+                        logging.warning(f"Invalid form body when editing message {message.id}: {e}")
+                        break
+                    elif e.code == 50001:  # Missing Access
+                        logging.error(f"Missing access to edit message {message.id} in channel {message.channel.id}")
+                        break
+                    elif e.code == 50034:  # Unknown Message
+                        logging.warning(f"Unknown message {message.id} when editing: {e}")
+                        break
                     else:
                         logging.error(f"Error editing message {message.id}: {e}")
                         break
