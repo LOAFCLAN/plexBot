@@ -1,5 +1,6 @@
 import datetime
 import re
+import time
 import traceback
 
 import langcodes
@@ -446,13 +447,17 @@ def get_from_media_index(library: plexapi.library.LibrarySection,
             return None
 
         if recent:
-            recent_content = library.recentlyAdded(maxresults=50).__reversed__()
+            logging.info(f"Searching {library.title} using recentlyAdded for {media_index}")
+            recent_content = library.recentlyAdded(maxresults=100).__reversed__()
             found = search(recent_content)
             if found is not None:
                 return found
-        logging.debug(f"Getting media from index {media_index}")
+        logging.info(f"{media_index} not found in {library.title} using recentlyAdded, searching all()")
+        start_time = time.perf_counter()
         all_content = library.all()
         found = search(all_content)
+        end_time = time.perf_counter()
+        logging.info(f"Searching all() took {end_time - start_time:.2f} seconds")
         if found is not None:
             return found
         return None
