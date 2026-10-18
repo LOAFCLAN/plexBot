@@ -1,5 +1,6 @@
 import datetime
 import re
+import threading
 import time
 import traceback
 
@@ -25,6 +26,65 @@ mass_mention = re.compile('@(everyone|here)')
 member_mention = re.compile(r'<@\!?(\d+)>')
 role_mention = re.compile(r'<@&(\d+)>')
 channel_mention = re.compile(r'<#(\d+)>')
+
+# Caches to prevent repeated expensive Plex calls
+# machineIdentifier -> PlexCache (library sections)
+all_cache = {}
+# (machineIdentifier, section key) -> PlexCache (library.all() content)
+content_cache = {}
+_cache_lock = threading.RLock()
+
+
+class PlexCache:
+    def __init__(self):
+        self.cache = None
+        self.last_updated = 0.0  # time.time() of the last refresh
+
+
+def _get_cached(store: dict, key, loader, as_of=None, force=False):
+    """
+    Return cached data for key, refreshing it with loader() when missing, forced, or older than as_of.
+    as_of is a time.time() timestamp; None means any existing cache is acceptable.
+    """
+    with _cache_lock:
+        entry = store.get(key)
+        if entry is None:
+            entry = store[key] = PlexCache()
+        fresh = entry.cache is not None and (as_of is None or entry.last_updated > as_of)
+        if fresh and not force:
+            return entry.cache
+        data = loader()
+        entry.cache = data
+        entry.last_updated = time.time()
+        return data
+
+
+def all_libraries(plex, as_of=None, force=False) -> typing.List[plexapi.library.LibrarySection]:
+    """
+    Gets all libraries from the Plex server, doesn't query if the cache is newer than the as_of time
+    If as_of is None, it will not query the server if a cache exists
+    """
+    return _get_cached(all_cache, plex.machineIdentifier, lambda: get_all_library(plex), as_of, force)
+
+
+def library_content(library: plexapi.library.LibrarySection, as_of=None, force=False) -> list:
+    """Cached library.all(). Blocking on a cache miss, so call from an executor for large libraries."""
+    key = (library._server.machineIdentifier, library.key)
+    return _get_cached(content_cache, key, library.all, as_of, force)
+
+
+def invalidate_cache(plex=None):
+    """Drop cached data for one Plex server, or everything if plex is None"""
+    with _cache_lock:
+        if plex is None:
+            all_cache.clear()
+            content_cache.clear()
+            return
+        mid = plex.machineIdentifier
+        all_cache.pop(mid, None)
+        for key in [k for k in content_cache if k[0] == mid]:
+            del content_cache[key]
+
 
 
 def clean(ctx, text=None, *, mass=True, member=True, role=True, channel=True):
@@ -414,10 +474,10 @@ def get_from_guid(library, guid):
         return library.getGuid(guid)
     except plexapi.exceptions.NotFound:
         logging.warning(f"Could not find {guid} in {library.title} using getGuid")
-        library_content = library.all()
-        for content in library_content:
-            if content.guid == guid:
-                return content
+        for refresh in (False, True):
+            for content in library_content(library, force=refresh):
+                if content.guid == guid:
+                    return content
         logging.warning(f"Could not find {guid} in {library.title} using all()")
         return None
 
@@ -448,14 +508,16 @@ def get_from_media_index(library: plexapi.library.LibrarySection,
 
         if recent:
             logging.info(f"Searching {library.title} using recentlyAdded for {media_index}")
-            recent_content = library.recentlyAdded(maxresults=100).__reversed__()
+            recent_content = library.recentlyAdded(maxresults=50).__reversed__()
             found = search(recent_content)
             if found is not None:
                 return found
         logging.info(f"{media_index} not found in {library.title} using recentlyAdded, searching all()")
         start_time = time.perf_counter()
-        all_content = library.all()
-        found = search(all_content)
+        found = search(library_content(library))
+        if found is None:
+            # Cache may be stale (new media), refresh once and retry
+            found = search(library_content(library, force=True))
         end_time = time.perf_counter()
         logging.info(f"Searching all() took {end_time - start_time:.2f} seconds")
         if found is not None:
@@ -471,10 +533,10 @@ def get_show(library, show_name):
         return library.get(show_name)
     except plexapi.exceptions.NotFound:
         logging.warning(f"Could not find {show_name} in {library.title} using get")
-        library_content = library.all()
-        for content in library_content:
-            if content.title == show_name:
-                return content
+        for refresh in (False, True):
+            for content in library_content(library, force=refresh):
+                if content.title == show_name:
+                    return content
         logging.warning(f"Could not find {show_name} in {library.title} using all()")
         return None
 

@@ -44,6 +44,8 @@ class PlexEvents(Cog):
         self.event_tracker = {}
         self.listener_tasks = {}
 
+        self.event_queues = {}
+
         self.message_edit_lock = asyncio.Lock()
         self.event_listener_lock = asyncio.Lock()
 
@@ -83,7 +85,9 @@ class PlexEvents(Cog):
         guild = self.bot.get_guild(guild_id)
         plex = await self.bot.fetch_plex(guild)
 
-        event_queue = asyncio.Queue()
+        if guild_id not in self.event_queues:
+            self.event_queues[guild_id] = asyncio.Queue()
+        event_queue = self.event_queues[guild_id]
         last_event = time.time()
 
         def event_callback(data):
